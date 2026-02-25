@@ -13,6 +13,7 @@ import {
   Settings,
   Building2,
   Package,
+  FolderOpen,
   Calculator,
   Filter,
   FileText,
@@ -33,7 +34,9 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useCartStore } from "@/lib/store/cart";
 
 type NavItem = {
   title: string;
@@ -58,6 +61,7 @@ const hrNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { title: "Компании", href: "/dashboard/admin/tenants", icon: Building2 },
   { title: "Каталог", href: "/dashboard/admin/benefits", icon: Package },
+  { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
   { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
   { title: "Правила", href: "/dashboard/admin/rules", icon: Filter },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },
@@ -87,6 +91,7 @@ export function AppSidebar({ role, userEmail, tenantName }: AppSidebarProps) {
   const pathname = usePathname();
   const navItems = navItemsByRole[role] ?? [];
   const groupLabel = groupLabelByRole[role] ?? "Навигация";
+  const cartCount = useCartStore((s) => s.items.length);
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -132,6 +137,11 @@ export function AppSidebar({ role, userEmail, tenantName }: AppSidebarProps) {
                       <Link href={item.href}>
                         <item.icon />
                         <span>{item.title}</span>
+                        {item.href === "/dashboard/employee/cart" && cartCount > 0 && (
+                          <Badge variant="secondary" className="ml-auto size-5 justify-center rounded-full p-0 text-xs">
+                            {cartCount}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

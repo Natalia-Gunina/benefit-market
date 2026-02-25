@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
+import { useCartStore } from "@/lib/store/cart";
 import { Input } from "@/components/ui/input";
 import { CategoryFilter } from "@/components/benefits/category-filter";
 import { BenefitGrid } from "@/components/benefits/benefit-grid";
@@ -61,10 +63,21 @@ export default function CatalogPage() {
     return result;
   }, [benefits, selectedCategoryId, searchQuery]);
 
-  const handleAddToCart = useCallback((benefit: BenefitWithCategory) => {
-    // TODO: integrate with cart/order context
-    console.log("Add to cart:", benefit.id);
-  }, []);
+  const addItem = useCartStore((s) => s.addItem);
+
+  const handleAddToCart = useCallback(
+    (benefit: BenefitWithCategory) => {
+      addItem({
+        id: benefit.id,
+        name: benefit.name,
+        price_points: benefit.price_points,
+        category_name: benefit.category?.name,
+        category_icon: benefit.category?.icon,
+      });
+      toast.success(`${benefit.name} добавлен в корзину`);
+    },
+    [addItem],
+  );
 
   return (
     <div className="page-transition space-y-6 p-6">

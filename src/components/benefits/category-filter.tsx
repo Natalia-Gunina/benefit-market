@@ -3,6 +3,7 @@
 import type { BenefitCategory } from "@/lib/types";
 import {
   Heart,
+  HeartPulse,
   GraduationCap,
   Plane,
   Dumbbell,
@@ -20,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const iconMap: Record<string, LucideIcon> = {
   heart: Heart,
+  "heart-pulse": HeartPulse,
   "graduation-cap": GraduationCap,
   plane: Plane,
   dumbbell: Dumbbell,

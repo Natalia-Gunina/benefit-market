@@ -1,12 +1,18 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/api/auth";
+import { success, withErrorHandling } from "@/lib/api/response";
+import { escapeIlike } from "@/lib/api/sanitize";
+import { isDemo } from "@/lib/env";
+import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { checkEligibility } from "@/lib/eligibility";
+import { dbError } from "@/lib/errors";
+import { demoBenefitsList } from "@/lib/demo/demo-service";
 import type {
   Benefit,
   BenefitCategory,
   EligibilityRule,
   EmployeeProfile,
-  User,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -34,66 +40,21 @@ type BenefitRow = Benefit & {
 // GET /api/benefits — Benefit catalog with eligibility filtering
 // ---------------------------------------------------------------------------
 
-export async function GET(request: NextRequest) {
-  try {
-    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+export function GET(request: NextRequest) {
+  return withErrorHandling(async () => {
     if (isDemo) {
-      const { DEMO_BENEFITS, DEMO_CATEGORIES } = await import("@/lib/demo-data");
       const { searchParams } = new URL(request.url);
-      const categoryId = searchParams.get("category_id");
-      const search = searchParams.get("search");
-      const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-      const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
-
-      let filtered = DEMO_BENEFITS;
-      if (categoryId) filtered = filtered.filter(b => b.category_id === categoryId);
-      if (search) filtered = filtered.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
-
-      const total = filtered.length;
-      const offset = (page - 1) * perPage;
-      const paginated = filtered.slice(offset, offset + perPage);
-
-      const categoryMap = new Map(DEMO_CATEGORIES.map(c => [c.id, c]));
-      const data = paginated.map(b => ({
-        ...b,
-        category: categoryMap.get(b.category_id) ? { name: categoryMap.get(b.category_id)!.name, icon: categoryMap.get(b.category_id)!.icon } : null,
-      }));
-
-      return NextResponse.json({ data, meta: { page, per_page: perPage, total } });
+      return demoBenefitsList({
+        categoryId: searchParams.get("category_id"),
+        search: searchParams.get("search"),
+        page: Math.max(1, parseInt(searchParams.get("page") || "1", 10)),
+        perPage: Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10))),
+      });
     }
 
-    const supabase = await createClient();
-
-    // --- Authenticate user ---
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Authentication required" } },
-        { status: 401 }
-      );
-    }
-
-    // --- Get the app-level user record (to get tenant_id) ---
-    const { data: rawUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_id", authUser.id)
-      .single();
-
-    const appUser = rawUser as User | null;
-
-    if (userError || !appUser) {
-      return NextResponse.json(
-        { error: { code: "USER_NOT_FOUND", message: "User record not found" } },
-        { status: 404 }
-      );
-    }
-
+    const appUser = await requireAuth();
     const tenantId = appUser.tenant_id;
+    const supabase = await createClient();
 
     // --- Parse query parameters ---
     const { searchParams } = new URL(request.url);
@@ -107,14 +68,14 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * perPage;
 
     // --- Get employee profile for eligibility checking ---
-    const { data: rawProfile } = await supabase
+    const profileResult = await supabase
       .from("employee_profiles")
       .select("*")
       .eq("user_id", appUser.id)
       .eq("tenant_id", tenantId)
       .single();
 
-    const profile = rawProfile as EmployeeProfile | null;
+    const profile = profileResult.data as EmployeeProfile | null;
 
     // --- Build benefits query ---
     let query = supabase
@@ -128,30 +89,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.ilike("name", `%${search}%`);
+      query = query.ilike("name", `%${escapeIlike(search)}%`);
     }
 
     // We need all matching benefits first for eligibility filtering, then paginate.
-    // Since eligibility filtering happens in-app, we fetch all results first.
-    const { data: rawBenefits, error: benefitsError } = await query
-      .order("created_at", { ascending: false });
+    const benefitsResult = await query.order("created_at", { ascending: false });
 
-    if (benefitsError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "DB_ERROR",
-            message: "Failed to fetch benefits",
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    const allBenefits = (rawBenefits ?? []) as unknown as BenefitRow[];
+    const allBenefits = unwrapRows<BenefitRow>(benefitsResult, "Failed to fetch benefits");
 
     if (allBenefits.length === 0) {
-      return NextResponse.json({
+      return success({
         data: [],
         meta: { page, per_page: perPage, total: 0 },
       } satisfies BenefitsCatalogResponse);
@@ -160,13 +107,13 @@ export async function GET(request: NextRequest) {
     // --- Get eligibility rules for all benefits in this tenant ---
     const benefitIds = allBenefits.map((b) => b.id);
 
-    const { data: rawRules } = await supabase
-      .from("eligibility_rules")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .in("benefit_id", benefitIds);
-
-    const rules = (rawRules ?? []) as unknown as EligibilityRule[];
+    const rules = unwrapRowsSoft<EligibilityRule>(
+      await supabase
+        .from("eligibility_rules")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .in("benefit_id", benefitIds)
+    );
 
     // Group rules by benefit_id
     const rulesByBenefit = new Map<string, EligibilityRule[]>();
@@ -179,7 +126,6 @@ export async function GET(request: NextRequest) {
     // --- Filter by eligibility ---
     const eligibleBenefits = allBenefits.filter((benefit) => {
       const benefitRules = rulesByBenefit.get(benefit.id) || [];
-      // If no profile, only benefits with no rules are eligible
       if (!profile) return benefitRules.length === 0;
       return checkEligibility(profile, benefitRules);
     });
@@ -197,20 +143,9 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    return success({
       data,
       meta: { page, per_page: perPage, total },
     } satisfies BenefitsCatalogResponse);
-  } catch (err) {
-    console.error("[GET /api/benefits] Unexpected error:", err);
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      },
-      { status: 500 }
-    );
-  }
+  }, "GET /api/benefits");
 }

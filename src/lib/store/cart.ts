@@ -11,6 +11,7 @@ export interface CartBenefit {
   id: string;
   name: string;
   price_points: number;
+  stock_limit?: number | null;
   category_name?: string;
   category_icon?: string;
 }
@@ -44,13 +45,20 @@ export const useCartStore = create<CartState>()(
             (item) => item.benefit.id === benefit.id,
           );
           if (existing) {
+            const newQty = existing.quantity + 1;
+            if (benefit.stock_limit != null && newQty > benefit.stock_limit) {
+              return state; // stock_limit exceeded
+            }
             return {
               items: state.items.map((item) =>
                 item.benefit.id === benefit.id
-                  ? { ...item, quantity: item.quantity + 1 }
+                  ? { ...item, quantity: newQty }
                   : item,
               ),
             };
+          }
+          if (benefit.stock_limit != null && benefit.stock_limit <= 0) {
+            return state; // out of stock
           }
           return {
             items: [...state.items, { benefit, quantity: 1 }],
@@ -70,9 +78,12 @@ export const useCartStore = create<CartState>()(
           return;
         }
         set((state) => ({
-          items: state.items.map((item) =>
-            item.benefit.id === benefitId ? { ...item, quantity } : item,
-          ),
+          items: state.items.map((item) => {
+            if (item.benefit.id !== benefitId) return item;
+            const limit = item.benefit.stock_limit;
+            const capped = limit != null ? Math.min(quantity, limit) : quantity;
+            return { ...item, quantity: capped };
+          }),
         }));
       },
 

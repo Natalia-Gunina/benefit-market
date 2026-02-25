@@ -1,183 +1,52 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { type NextRequest } from "next/server";
+import { requireRole } from "@/lib/api/auth";
+import { success, created, withErrorHandling, parseBody } from "@/lib/api/response";
+import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { z } from "zod";
-import type { User } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-const createCategorySchema = z.object({
-  name: z.string().min(1, "Category name is required").max(255),
-  icon: z.string().max(100).optional().default(""),
-  sort_order: z.number().int().min(0).optional().default(0),
-});
+import { unwrapRows, unwrapSingle } from "@/lib/supabase/typed-queries";
+import { validationError } from "@/lib/errors";
+import { createCategorySchema, updateCategorySchema } from "@/lib/api/validators";
+import type { BenefitCategory } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/categories — List benefit categories for the tenant
 // ---------------------------------------------------------------------------
 
-export async function GET() {
-  try {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+export function GET() {
+  return withErrorHandling(async () => {
+    if (isDemo) {
       const { DEMO_CATEGORIES } = await import("@/lib/demo-data");
-      return NextResponse.json({ data: DEMO_CATEGORIES });
+      return success(DEMO_CATEGORIES);
     }
 
-    const supabase = await createClient();
-
-    // --- Authenticate user ---
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Authentication required" } },
-        { status: 401 }
-      );
-    }
-
-    // --- Get the app-level user record ---
-    const { data: rawUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_id", authUser.id)
-      .single();
-
-    const appUser = rawUser as User | null;
-
-    if (userError || !appUser) {
-      return NextResponse.json(
-        { error: { code: "USER_NOT_FOUND", message: "User record not found" } },
-        { status: 404 }
-      );
-    }
-
-    // --- Role check: admin only ---
-    if (appUser.role !== "admin") {
-      return NextResponse.json(
-        {
-          error: {
-            code: "FORBIDDEN",
-            message: "Only admin users can manage categories",
-          },
-        },
-        { status: 403 }
-      );
-    }
-
+    const appUser = await requireRole("admin");
     const admin = createAdminClient();
 
-    // --- Fetch categories for the tenant ---
-    const { data: categories, error: categoriesError } = await admin
+    const result = await admin
       .from("benefit_categories")
       .select("*")
       .eq("tenant_id", appUser.tenant_id)
       .order("sort_order", { ascending: true });
 
-    if (categoriesError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "DB_ERROR",
-            message: "Failed to fetch categories",
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ data: categories ?? [] });
-  } catch (err) {
-    console.error("[GET /api/admin/categories] Unexpected error:", err);
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      },
-      { status: 500 }
-    );
-  }
+    const categories = unwrapRows<BenefitCategory>(result, "Failed to fetch categories");
+    return success(categories);
+  }, "GET /api/admin/categories");
 }
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/categories — Create a benefit category
 // ---------------------------------------------------------------------------
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
+export function POST(request: NextRequest) {
+  return withErrorHandling(async () => {
+    const appUser = await requireRole("admin");
 
-    // --- Authenticate user ---
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Authentication required" } },
-        { status: 401 }
-      );
-    }
-
-    // --- Get the app-level user record ---
-    const { data: rawUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_id", authUser.id)
-      .single();
-
-    const appUser = rawUser as User | null;
-
-    if (userError || !appUser) {
-      return NextResponse.json(
-        { error: { code: "USER_NOT_FOUND", message: "User record not found" } },
-        { status: 404 }
-      );
-    }
-
-    // --- Role check: admin only ---
-    if (appUser.role !== "admin") {
-      return NextResponse.json(
-        {
-          error: {
-            code: "FORBIDDEN",
-            message: "Only admin users can create categories",
-          },
-        },
-        { status: 403 }
-      );
-    }
-
-    // --- Parse and validate body ---
     const body = await request.json();
-    const validation = createCategorySchema.safeParse(body);
+    const { name, icon, sort_order } = parseBody(createCategorySchema, body);
 
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "VALIDATION_ERROR",
-            message: validation.error.issues
-              .map((i) => `${i.path.join(".")}: ${i.message}`)
-              .join("; "),
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    const { name, icon, sort_order } = validation.data;
     const admin = createAdminClient();
 
-    // --- Create category ---
-    const { data: category, error: createError } = await admin
+    const result = await admin
       .from("benefit_categories")
       .insert({
         tenant_id: appUser.tenant_id,
@@ -188,29 +57,64 @@ export async function POST(request: NextRequest) {
       .select("*")
       .single();
 
-    if (createError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "DB_ERROR",
-            message: `Failed to create category: ${createError.message}`,
-          },
-        },
-        { status: 500 }
-      );
+    const category = unwrapSingle<BenefitCategory>(result, "Failed to create category");
+    return created(category);
+  }, "POST /api/admin/categories");
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/admin/categories — Update a benefit category
+// ---------------------------------------------------------------------------
+
+export function PATCH(request: NextRequest) {
+  return withErrorHandling(async () => {
+    const appUser = await requireRole("admin");
+
+    const body = await request.json();
+    const { id, ...updates } = parseBody(updateCategorySchema, body);
+
+    const admin = createAdminClient();
+
+    const result = await admin
+      .from("benefit_categories")
+      .update(updates as never)
+      .eq("id", id)
+      .eq("tenant_id", appUser.tenant_id)
+      .select("*")
+      .single();
+
+    const category = unwrapSingle<BenefitCategory>(result, "Failed to update category");
+    return success(category);
+  }, "PATCH /api/admin/categories");
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/admin/categories — Delete a benefit category
+// ---------------------------------------------------------------------------
+
+export function DELETE(request: NextRequest) {
+  return withErrorHandling(async () => {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      throw validationError("Category ID is required");
     }
 
-    return NextResponse.json({ data: category }, { status: 201 });
-  } catch (err) {
-    console.error("[POST /api/admin/categories] Unexpected error:", err);
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      },
-      { status: 500 }
-    );
-  }
+    const appUser = await requireRole("admin");
+    const admin = createAdminClient();
+
+    const { error: deleteError } = await admin
+      .from("benefit_categories")
+      .delete()
+      .eq("id", id)
+      .eq("tenant_id", appUser.tenant_id);
+
+    if (deleteError) {
+      const { dbError } = await import("@/lib/errors");
+      throw dbError(`Failed to delete category: ${deleteError.message}`);
+    }
+
+    return success({ id });
+  }, "DELETE /api/admin/categories");
 }

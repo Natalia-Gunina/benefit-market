@@ -48,7 +48,14 @@ export default function CartPage() {
         const res = await fetch("/api/wallets/me");
         if (res.ok) {
           const json = await res.json();
-          setWallet(json.data);
+          const d = json.data;
+          // Normalize: demo returns { wallet: {...}, ledger: [...] }, real returns { balance, reserved, available, ... }
+          if (d.wallet) {
+            const w = d.wallet;
+            setWallet({ balance: w.balance, reserved: w.reserved, available: w.balance - w.reserved });
+          } else {
+            setWallet(d);
+          }
         }
       } catch {
         // ignore

@@ -1,5 +1,10 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/api/auth";
+import { success, withErrorHandling } from "@/lib/api/response";
+import { isDemo } from "@/lib/env";
+import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
+import { demoEmployeesList } from "@/lib/demo/demo-service";
 import type { User, EmployeeProfile, Wallet } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -29,73 +34,13 @@ export interface EmployeeWithProfile {
 // GET /api/hr/employees --- Employee list with search and pagination
 // ---------------------------------------------------------------------------
 
-export async function GET(request: NextRequest) {
-  try {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
-      const { DEMO_EMPLOYEES } = await import("@/lib/demo-data");
-      const data: EmployeeWithProfile[] = DEMO_EMPLOYEES.map((emp) => ({
-        id: emp.user.id,
-        email: emp.user.email,
-        role: emp.user.role,
-        created_at: emp.user.created_at,
-        name: emp.full_name,
-        profile: {
-          grade: emp.profile.grade,
-          tenure_months: emp.profile.tenure_months,
-          location: emp.profile.location,
-          legal_entity: emp.profile.legal_entity,
-          extra: emp.profile.extra,
-        },
-        wallet: { balance: 45000, reserved: 0 },
-      }));
-      return NextResponse.json({ data, meta: { page: 1, per_page: 20, total: data.length } });
-    }
+export function GET(request: NextRequest) {
+  return withErrorHandling(async () => {
+    if (isDemo) return demoEmployeesList();
 
-    const supabase = await createClient();
-
-    // --- Authenticate user ---
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Authentication required" } },
-        { status: 401 }
-      );
-    }
-
-    // --- Get the app-level user record ---
-    const { data: rawUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_id", authUser.id)
-      .single();
-
-    const appUser = rawUser as User | null;
-
-    if (userError || !appUser) {
-      return NextResponse.json(
-        { error: { code: "USER_NOT_FOUND", message: "User record not found" } },
-        { status: 404 }
-      );
-    }
-
-    // --- Role check: hr or admin only ---
-    if (appUser.role !== "hr" && appUser.role !== "admin") {
-      return NextResponse.json(
-        {
-          error: {
-            code: "FORBIDDEN",
-            message: "Only HR or admin users can view employees",
-          },
-        },
-        { status: 403 }
-      );
-    }
-
+    const appUser = await requireRole("hr", "admin");
     const tenantId = appUser.tenant_id;
+    const supabase = await createClient();
 
     // --- Parse query parameters ---
     const { searchParams } = new URL(request.url);
@@ -119,25 +64,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: rawUsers, error: usersError } = await usersQuery
-      .order("created_at", { ascending: false });
-
-    if (usersError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "DB_ERROR",
-            message: "Failed to fetch users",
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    const allUsers = (rawUsers ?? []) as unknown as User[];
+    const allUsers = unwrapRows<User>(
+      await usersQuery.order("created_at", { ascending: false }),
+      "Fetch tenant employees",
+    );
 
     if (allUsers.length === 0) {
-      return NextResponse.json({
+      return success({
         data: [],
         meta: { page, per_page: perPage, total: 0 },
       });
@@ -146,24 +79,25 @@ export async function GET(request: NextRequest) {
     // --- Fetch employee profiles for these users ---
     const userIds = allUsers.map((u) => u.id);
 
-    const { data: rawProfiles } = await supabase
-      .from("employee_profiles")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .in("user_id", userIds);
+    const profiles = unwrapRowsSoft<EmployeeProfile>(
+      await supabase
+        .from("employee_profiles")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .in("user_id", userIds),
+    );
 
-    const profiles = (rawProfiles ?? []) as unknown as EmployeeProfile[];
     const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
 
     // --- Fetch wallets (latest period per user) ---
-    const { data: rawWallets } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .in("user_id", userIds)
-      .order("period", { ascending: false });
-
-    const wallets = (rawWallets ?? []) as unknown as Wallet[];
+    const wallets = unwrapRowsSoft<Wallet>(
+      await supabase
+        .from("wallets")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .in("user_id", userIds)
+        .order("period", { ascending: false }),
+    );
 
     // Group by user_id, take latest (first due to order desc)
     const walletMap = new Map<string, Wallet>();
@@ -229,20 +163,9 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    return success({
       data,
       meta: { page, per_page: perPage, total },
     });
-  } catch (err) {
-    console.error("[GET /api/hr/employees] Unexpected error:", err);
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      },
-      { status: 500 }
-    );
-  }
+  }, "GET /api/hr/employees");
 }

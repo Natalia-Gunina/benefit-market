@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Package,
   Heart,
+  HeartPulse,
   GraduationCap,
   Plane,
   Dumbbell,
@@ -19,8 +20,10 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
+import { useCartStore } from "@/lib/store/cart";
 import {
   Card,
   CardContent,
@@ -34,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const iconMap: Record<string, LucideIcon> = {
   heart: Heart,
+  "heart-pulse": HeartPulse,
   "graduation-cap": GraduationCap,
   plane: Plane,
   dumbbell: Dumbbell,
@@ -47,6 +51,7 @@ const iconMap: Record<string, LucideIcon> = {
 
 export default function BenefitDetailPage() {
   const params = useParams<{ id: string }>();
+  const addItem = useCartStore((s) => s.addItem);
   const [benefit, setBenefit] = useState<BenefitWithCategory | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -230,6 +235,16 @@ export default function BenefitDetailPage() {
           ) : (
             <Button
               disabled={!canAfford && balance !== null}
+              onClick={() => {
+                addItem({
+                  id: benefit.id,
+                  name: benefit.name,
+                  price_points: benefit.price_points,
+                  category_name: benefit.category?.name,
+                  category_icon: benefit.category?.icon,
+                });
+                toast.success(`${benefit.name} добавлен в корзину`);
+              }}
             >
               Добавить в корзину
             </Button>

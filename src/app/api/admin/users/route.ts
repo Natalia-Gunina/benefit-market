@@ -1,6 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/api/auth";
+import { success, withErrorHandling } from "@/lib/api/response";
+import { escapeIlike } from "@/lib/api/sanitize";
+import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { unwrapRows } from "@/lib/supabase/typed-queries";
 import type { User, EmployeeProfile, Wallet } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -8,57 +13,17 @@ import type { User, EmployeeProfile, Wallet } from "@/lib/types";
 // Query: ?search, ?role, ?page, ?per_page
 // ---------------------------------------------------------------------------
 
-export async function GET(request: NextRequest) {
-  try {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+export function GET(request: NextRequest) {
+  return withErrorHandling(async () => {
+    if (isDemo) {
       const { DEMO_USERS_LIST } = await import("@/lib/demo-data");
-      return NextResponse.json({ data: DEMO_USERS_LIST, meta: { page: 1, per_page: 20, total: DEMO_USERS_LIST.length } });
+      return NextResponse.json({
+        data: DEMO_USERS_LIST,
+        meta: { page: 1, per_page: 20, total: DEMO_USERS_LIST.length },
+      });
     }
 
-    const supabase = await createClient();
-
-    // --- Authenticate user ---
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: { code: "UNAUTHORIZED", message: "Authentication required" } },
-        { status: 401 }
-      );
-    }
-
-    // --- Get the app-level user record ---
-    const { data: rawUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_id", authUser.id)
-      .single();
-
-    const appUser = rawUser as User | null;
-
-    if (userError || !appUser) {
-      return NextResponse.json(
-        { error: { code: "USER_NOT_FOUND", message: "User record not found" } },
-        { status: 404 }
-      );
-    }
-
-    // --- Role check: admin only ---
-    if (appUser.role !== "admin") {
-      return NextResponse.json(
-        {
-          error: {
-            code: "FORBIDDEN",
-            message: "Only admin users can manage users",
-          },
-        },
-        { status: 403 }
-      );
-    }
-
+    const appUser = await requireRole("admin");
     const tenantId = appUser.tenant_id;
     const admin = createAdminClient();
 
@@ -69,7 +34,7 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(
       100,
-      Math.max(1, parseInt(searchParams.get("per_page") || "20", 10))
+      Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)),
     );
 
     // --- Build users query ---
@@ -83,27 +48,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      usersQuery = usersQuery.ilike("email", `%${search}%`);
+      usersQuery = usersQuery.ilike("email", `%${escapeIlike(search)}%`);
     }
 
-    const { data: rawUsers, error: usersError } = await usersQuery.order(
-      "created_at",
-      { ascending: false }
-    );
+    const usersResult = await usersQuery.order("created_at", { ascending: false });
 
-    if (usersError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "DB_ERROR",
-            message: "Failed to fetch users",
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    const allUsers = (rawUsers ?? []) as unknown as User[];
+    const allUsers = unwrapRows<User>(usersResult, "Failed to fetch users");
 
     if (allUsers.length === 0) {
       return NextResponse.json({
@@ -115,24 +65,24 @@ export async function GET(request: NextRequest) {
     // --- Fetch employee profiles for these users ---
     const userIds = allUsers.map((u) => u.id);
 
-    const { data: rawProfiles } = await admin
+    const profilesResult = await admin
       .from("employee_profiles")
       .select("*")
       .eq("tenant_id", tenantId)
       .in("user_id", userIds);
 
-    const profiles = (rawProfiles ?? []) as unknown as EmployeeProfile[];
+    const profiles = unwrapRows<EmployeeProfile>(profilesResult, "Failed to fetch profiles");
     const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
 
     // --- Fetch wallets (latest period per user) ---
-    const { data: rawWallets } = await admin
+    const walletsResult = await admin
       .from("wallets")
       .select("*")
       .eq("tenant_id", tenantId)
       .in("user_id", userIds)
       .order("period", { ascending: false });
 
-    const wallets = (rawWallets ?? []) as unknown as Wallet[];
+    const wallets = unwrapRows<Wallet>(walletsResult, "Failed to fetch wallets");
 
     // Group by user_id, take latest (first due to order desc)
     const walletMap = new Map<string, Wallet>();
@@ -151,7 +101,7 @@ export async function GET(request: NextRequest) {
         const profile = profileMap.get(u.id);
         if (profile?.extra) {
           const name = String(
-            (profile.extra as Record<string, unknown>).name || ""
+            (profile.extra as Record<string, unknown>).name || "",
           );
           if (name.toLowerCase().includes(lowerSearch)) return true;
         }
@@ -200,16 +150,5 @@ export async function GET(request: NextRequest) {
       data,
       meta: { page, per_page: perPage, total },
     });
-  } catch (err) {
-    console.error("[GET /api/admin/users] Unexpected error:", err);
-    return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      },
-      { status: 500 }
-    );
-  }
+  }, "GET /api/admin/users");
 }
