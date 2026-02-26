@@ -1,7 +1,7 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/api/auth";
-import { success, withErrorHandling, errorResponse } from "@/lib/api/response";
+import { errorResponse, success, withErrorHandling } from "@/lib/api/response";
 import { processAccruals } from "@/lib/services/accrual.service";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export function POST() {
   return withErrorHandling(async () => {
