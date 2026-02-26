@@ -58,6 +58,7 @@ export default async function DashboardLayout({
           role={role}
           userEmail={userEmail}
           tenantName={tenantName}
+          isDemo={isDemo}
         />
         <SidebarInset>
           <QueryProvider>

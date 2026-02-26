@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ShoppingBag,
   ShoppingCart,
@@ -18,6 +18,8 @@ import {
   Filter,
   FileText,
   LogOut,
+  UserRound,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -80,18 +82,33 @@ const groupLabelByRole: Record<string, string> = {
   admin: "Администратор",
 };
 
+const demoRoles = [
+  { key: "employee" as const, label: "Сотрудник", icon: UserRound, href: "/dashboard/employee/catalog" },
+  { key: "hr" as const, label: "HR", icon: Users, href: "/dashboard/hr" },
+  { key: "admin" as const, label: "Админ", icon: ShieldCheck, href: "/dashboard/admin/tenants" },
+];
+
 interface AppSidebarProps {
   role: "employee" | "hr" | "admin";
   currentPath?: string;
   userEmail: string;
   tenantName?: string;
+  isDemo?: boolean;
 }
 
-export function AppSidebar({ role, userEmail, tenantName }: AppSidebarProps) {
+export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarProps) {
   const pathname = usePathname();
-  const navItems = navItemsByRole[role] ?? [];
-  const groupLabel = groupLabelByRole[role] ?? "Навигация";
+  const router = useRouter();
   const cartCount = useCartStore((s) => s.items.length);
+
+  // In demo mode, derive role from the current URL so menu updates on client navigation
+  const activeRole =
+    pathname.startsWith("/dashboard/admin") ? "admin" as const
+    : pathname.startsWith("/dashboard/hr") ? "hr" as const
+    : "employee" as const;
+  const effectiveRole = isDemo ? activeRole : role;
+  const navItems = navItemsByRole[effectiveRole] ?? [];
+  const groupLabel = groupLabelByRole[effectiveRole] ?? "Навигация";
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -113,6 +130,37 @@ export function AppSidebar({ role, userEmail, tenantName }: AppSidebarProps) {
           </p>
         )}
       </SidebarHeader>
+
+      {isDemo && (
+        <div className="px-3 pb-1 group-data-[collapsible=icon]:px-1.5">
+          <p className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
+            Demo-кабинет
+          </p>
+          <div className="flex gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+            {demoRoles.map((r) => {
+              const isActive = activeRole === r.key;
+              return (
+                <button
+                  key={r.key}
+                  onClick={() => router.push(r.href)}
+                  title={r.label}
+                  className={`
+                    flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors
+                    group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:p-0
+                    ${isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }
+                  `}
+                >
+                  <r.icon className="size-3.5 shrink-0" />
+                  <span className="group-data-[collapsible=icon]:hidden">{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <SidebarSeparator />
 
