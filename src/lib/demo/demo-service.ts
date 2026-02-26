@@ -6,9 +6,9 @@
  * still import directly from `@/lib/demo-data`.
  */
 
+import { NextResponse } from "next/server";
 import { success, created } from "@/lib/api/response";
 import { notFound } from "@/lib/errors";
-import type { NextResponse } from "next/server";
 import type { OrderItem } from "@/lib/types";
 
 // Lazy-load demo data to avoid bundling in production
@@ -45,7 +45,7 @@ export async function demoBenefitsList(params: {
       : null,
   }));
 
-  return success({ data, meta: { page, per_page: perPage, total } });
+  return NextResponse.json({ data, meta: { page, per_page: perPage, total } });
 }
 
 export async function demoBenefitDetail(id: string): Promise<NextResponse> {
@@ -93,7 +93,7 @@ export async function demoOrdersList(params: {
     }),
   }));
 
-  return success({ data, meta: { page, per_page: perPage, total } });
+  return NextResponse.json({ data, meta: { page, per_page: perPage, total } });
 }
 
 export async function demoCreateOrder(items: Array<{ benefit_id: string; quantity: number }>): Promise<NextResponse> {
@@ -164,18 +164,23 @@ export async function demoAdminBenefitsList(): Promise<NextResponse> {
 // ---------------------------------------------------------------------------
 
 export async function demoEmployeesList(): Promise<NextResponse> {
-  const { DEMO_EMPLOYEES } = await loadDemoData();
+  const { DEMO_EMPLOYEES, DEMO_WALLET } = await loadDemoData();
   const data = DEMO_EMPLOYEES.map((emp) => ({
     id: emp.user.id,
     email: emp.user.email,
     role: emp.user.role,
-    full_name: emp.full_name,
-    department: emp.department,
-    grade: emp.profile.grade,
-    tenure_months: emp.profile.tenure_months,
-    location: emp.profile.location,
-    legal_entity: emp.profile.legal_entity,
-    is_active: true,
+    created_at: emp.user.created_at,
+    name: emp.full_name,
+    profile: {
+      grade: emp.profile.grade,
+      tenure_months: emp.profile.tenure_months,
+      location: emp.profile.location,
+      legal_entity: emp.profile.legal_entity,
+      extra: emp.profile.extra,
+    },
+    wallet: emp.user.id === "demo-user-001"
+      ? { balance: DEMO_WALLET.balance, reserved: DEMO_WALLET.reserved }
+      : { balance: 30000, reserved: 0 },
   }));
-  return success(data);
+  return NextResponse.json({ data, meta: { page: 1, per_page: 20, total: data.length } });
 }

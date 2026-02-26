@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/api/auth";
 import { success, created, withErrorHandling, errorResponse, parseBody } from "@/lib/api/response";
@@ -97,7 +97,7 @@ export function GET(request: NextRequest) {
       },
     );
 
-    return success({
+    return NextResponse.json({
       data: orders,
       meta: { page, per_page: perPage, total: count ?? 0 },
     } satisfies OrdersListResponse);

@@ -66,15 +66,19 @@ export default function BenefitDetailPage() {
         ]);
 
         if (benefitRes.ok) {
-          const data = await benefitRes.json();
-          setBenefit(data.benefit ?? data);
+          const json = await benefitRes.json();
+          setBenefit(json.data ?? json);
         }
 
         if (walletRes.ok) {
-          const walletData = await walletRes.json();
-          const w = walletData.wallet;
-          if (w) {
+          const json = await walletRes.json();
+          const d = json.data ?? json;
+          // Demo returns { wallet, ledger }, production returns { balance, reserved, available, ... }
+          if (d.wallet) {
+            const w = d.wallet;
             setBalance(w.balance - w.reserved);
+          } else if (d.available !== undefined) {
+            setBalance(d.available);
           }
         }
       } catch {

@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/api/auth";
+import { NextResponse } from "next/server";
 import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
@@ -70,7 +71,7 @@ export function GET(request: NextRequest) {
     );
 
     if (allUsers.length === 0) {
-      return success({
+      return NextResponse.json({
         data: [],
         meta: { page, per_page: perPage, total: 0 },
       });
@@ -163,7 +164,7 @@ export function GET(request: NextRequest) {
       };
     });
 
-    return success({
+    return NextResponse.json({
       data,
       meta: { page, per_page: perPage, total },
     });
