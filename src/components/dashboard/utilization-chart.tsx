@@ -10,6 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useChartColors } from "./use-chart-colors";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +50,8 @@ function CustomTooltip({
 // ---------------------------------------------------------------------------
 
 export function UtilizationChart({ data }: UtilizationChartProps) {
+  const c = useChartColors();
+
   return (
     <Card>
       <CardHeader>
@@ -66,23 +69,23 @@ export function UtilizationChart({ data }: UtilizationChartProps) {
                 strokeDasharray="3 3"
                 horizontal={true}
                 vertical={false}
-                stroke="hsl(var(--border))"
+                stroke={c.border}
               />
               <XAxis
                 type="number"
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 12, fill: c.muted }}
                 tickFormatter={(v: number) => v.toLocaleString("ru-RU")}
               />
               <YAxis
                 type="category"
                 dataKey="name"
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 12, fill: c.muted }}
                 width={120}
               />
               <Tooltip content={<CustomTooltip />} />
               <Bar
                 dataKey="value"
-                fill="hsl(var(--chart-1))"
+                fill={c.chart1}
                 radius={[0, 4, 4, 0]}
                 maxBarSize={32}
               />

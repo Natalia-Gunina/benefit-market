@@ -10,6 +10,7 @@ import {
   type PieLabelRenderProps,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useChartColors } from "./use-chart-colors";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,18 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface CategoryChartProps {
   data: { name: string; value: number; fill?: string }[];
 }
-
-// ---------------------------------------------------------------------------
-// Chart colors (chart-1 through chart-5)
-// ---------------------------------------------------------------------------
-
-const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
 
 // ---------------------------------------------------------------------------
 // Custom tooltip
@@ -94,6 +83,9 @@ function renderLabel(props: PieLabelRenderProps) {
 // ---------------------------------------------------------------------------
 
 export function CategoryChart({ data }: CategoryChartProps) {
+  const c = useChartColors();
+  const palette = [c.chart1, c.chart2, c.chart3, c.chart4, c.chart5];
+
   return (
     <Card>
       <CardHeader>
@@ -113,14 +105,12 @@ export function CategoryChart({ data }: CategoryChartProps) {
                 dataKey="value"
                 nameKey="name"
                 strokeWidth={2}
-                stroke="hsl(var(--card))"
+                stroke={c.card}
               >
                 {data.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={
-                      entry.fill || CHART_COLORS[index % CHART_COLORS.length]
-                    }
+                    fill={entry.fill || palette[index % palette.length]}
                   />
                 ))}
               </Pie>

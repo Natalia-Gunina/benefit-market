@@ -10,6 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useChartColors } from "./use-chart-colors";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +87,8 @@ function CustomTooltip({
 // ---------------------------------------------------------------------------
 
 export function TrendChart({ data }: TrendChartProps) {
+  const c = useChartColors();
+
   return (
     <Card>
       <CardHeader>
@@ -102,24 +105,24 @@ export function TrendChart({ data }: TrendChartProps) {
                 <linearGradient id="gradAccrued" x1="0" y1="0" x2="0" y2="1">
                   <stop
                     offset="5%"
-                    stopColor="hsl(var(--chart-2))"
+                    stopColor={c.chart2}
                     stopOpacity={0.3}
                   />
                   <stop
                     offset="95%"
-                    stopColor="hsl(var(--chart-2))"
+                    stopColor={c.chart2}
                     stopOpacity={0}
                   />
                 </linearGradient>
                 <linearGradient id="gradSpent" x1="0" y1="0" x2="0" y2="1">
                   <stop
                     offset="5%"
-                    stopColor="hsl(var(--chart-1))"
+                    stopColor={c.chart1}
                     stopOpacity={0.3}
                   />
                   <stop
                     offset="95%"
-                    stopColor="hsl(var(--chart-1))"
+                    stopColor={c.chart1}
                     stopOpacity={0}
                   />
                 </linearGradient>
@@ -127,22 +130,22 @@ export function TrendChart({ data }: TrendChartProps) {
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
-                stroke="hsl(var(--border))"
+                stroke={c.border}
               />
               <XAxis
                 dataKey="month"
                 tickFormatter={formatMonth}
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 12, fill: c.muted }}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 12, fill: c.muted }}
                 tickFormatter={(v: number) => v.toLocaleString("ru-RU")}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
                 dataKey="accrued"
-                stroke="hsl(var(--chart-2))"
+                stroke={c.chart2}
                 fill="url(#gradAccrued)"
                 strokeWidth={2}
                 dot={false}
@@ -151,7 +154,7 @@ export function TrendChart({ data }: TrendChartProps) {
               <Area
                 type="monotone"
                 dataKey="spent"
-                stroke="hsl(var(--chart-1))"
+                stroke={c.chart1}
                 fill="url(#gradSpent)"
                 strokeWidth={2}
                 dot={false}
