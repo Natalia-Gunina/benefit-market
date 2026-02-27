@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface OrderItem {
@@ -19,7 +20,7 @@ export default function ProviderOrdersPage() {
     fetch("/api/provider/orders")
       .then((r) => r.json())
       .then((json) => setOrders(json.data?.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, []);
 

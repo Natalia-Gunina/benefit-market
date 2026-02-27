@@ -31,7 +31,7 @@ export default function NewOfferingPage() {
   });
 
   useEffect(() => {
-    fetch("/api/admin/global-categories")
+    fetch("/api/global-categories")
       .then((r) => r.json())
       .then((json) => setCategories(json.data ?? []))
       .catch(() => {});

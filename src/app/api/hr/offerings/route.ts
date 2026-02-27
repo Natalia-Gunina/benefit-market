@@ -21,15 +21,19 @@ type OfferingCheck = { id: string; status: string };
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      const { DEMO_TENANT_OFFERINGS, DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS } = await import("@/lib/demo-data");
+      const { DEMO_TENANT_OFFERINGS, DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES } = await import("@/lib/demo-data");
       const offeringMap = new Map((DEMO_PROVIDER_OFFERINGS ?? []).map((o) => [o.id, o]));
       const providerMap = new Map((DEMO_PROVIDERS ?? []).map((p) => [p.id, p]));
+      const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
       const data = (DEMO_TENANT_OFFERINGS ?? []).map((to) => {
         const po = offeringMap.get(to.provider_offering_id);
         return {
           ...to,
-          provider_offering: po ?? null,
-          provider: po ? providerMap.get(po.provider_id) ?? null : null,
+          provider_offerings: po ? {
+            ...po,
+            providers: providerMap.get(po.provider_id) ?? null,
+            global_categories: catMap.get(po.global_category_id ?? "") ?? null,
+          } : null,
         };
       });
       return success({ data, meta: { page: 1, per_page: 20, total: data.length } });

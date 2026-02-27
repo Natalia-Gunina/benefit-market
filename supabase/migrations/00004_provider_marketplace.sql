@@ -147,6 +147,13 @@ ALTER TABLE order_items
 -- Make benefit_id nullable (marketplace items don't have legacy benefit_id)
 ALTER TABLE order_items ALTER COLUMN benefit_id DROP NOT NULL;
 
+-- Check constraint: exactly one of benefit_id or tenant_offering_id must be set
+ALTER TABLE order_items ADD CONSTRAINT chk_order_item_target
+  CHECK (
+    (benefit_id IS NOT NULL AND tenant_offering_id IS NULL)
+    OR (benefit_id IS NULL AND tenant_offering_id IS NOT NULL)
+  );
+
 -- 4b. eligibility_rules: add tenant_offering_id, make benefit_id nullable
 ALTER TABLE eligibility_rules
     ADD COLUMN tenant_offering_id uuid REFERENCES tenant_offerings(id) ON DELETE CASCADE;
@@ -356,7 +363,13 @@ CREATE POLICY "provider_users_select" ON provider_users
 
 CREATE POLICY "provider_users_insert" ON provider_users
     FOR INSERT WITH CHECK (
-        current_user_role() IN ('provider', 'admin')
+        current_user_role() = 'admin'
+        OR (
+            current_user_role() = 'provider'
+            AND provider_id IN (
+                SELECT p.id FROM providers p WHERE p.owner_user_id = current_app_user_id()
+            )
+        )
     );
 
 CREATE POLICY "provider_users_update" ON provider_users

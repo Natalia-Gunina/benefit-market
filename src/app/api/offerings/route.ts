@@ -26,11 +26,11 @@ export function GET(request: NextRequest) {
           const po = offeringMap.get(to.provider_offering_id);
           return {
             ...to,
-            provider_offering: po ? {
+            provider_offerings: po ? {
               ...po,
-              global_category: catMap.get(po.global_category_id ?? "") ?? null,
+              providers: providerMap.get(po.provider_id) ?? null,
+              global_categories: catMap.get(po.global_category_id ?? "") ?? null,
             } : null,
-            provider: po ? providerMap.get(po.provider_id) ?? null : null,
             effective_price: to.custom_price_points ?? (po?.base_price_points ?? 0),
           };
         });
@@ -74,9 +74,11 @@ export function GET(request: NextRequest) {
       });
     }
 
+    const total = search ? results.length : (result.count ?? 0);
+
     return success({
       data: results,
-      meta: { page, per_page: perPage, total: result.count ?? 0 },
+      meta: { page, per_page: perPage, total },
     });
   }, "GET /api/offerings");
 }

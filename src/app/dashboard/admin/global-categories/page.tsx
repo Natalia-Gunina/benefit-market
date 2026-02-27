@@ -26,7 +26,7 @@ export default function AdminGlobalCategoriesPage() {
     fetch("/api/admin/global-categories")
       .then((r) => r.json())
       .then((json) => setCategories(json.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -34,30 +34,38 @@ export default function AdminGlobalCategoriesPage() {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    const res = await fetch("/api/admin/global-categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, icon: newIcon, sort_order: categories.length + 1 }),
-    });
-    if (res.ok) {
-      toast.success("Категория создана");
-      setNewName("");
-      setNewIcon("");
-      load();
-    } else {
-      const err = await res.json();
-      toast.error(err.error?.message ?? "Ошибка");
+    try {
+      const res = await fetch("/api/admin/global-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, icon: newIcon, sort_order: categories.length + 1 }),
+      });
+      if (res.ok) {
+        toast.success("Категория создана");
+        setNewName("");
+        setNewIcon("");
+        load();
+      } else {
+        const err = await res.json();
+        toast.error(err.error?.message ?? "Ошибка");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 
   const handleDelete = async (id: string) => {
-    const res = await fetch(`/api/admin/global-categories/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Категория удалена");
-      load();
-    } else {
-      const err = await res.json();
-      toast.error(err.error?.message ?? "Ошибка удаления");
+    try {
+      const res = await fetch(`/api/admin/global-categories/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Категория удалена");
+        load();
+      } else {
+        const err = await res.json();
+        toast.error(err.error?.message ?? "Ошибка удаления");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 

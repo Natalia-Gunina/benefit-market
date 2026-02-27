@@ -4,7 +4,7 @@ import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
-import { notFound } from "@/lib/errors";
+import { notFound, validationError } from "@/lib/errors";
 import type { Review } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -22,10 +22,18 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const updateData: Record<string, unknown> = {};
 
+    const VALID_REVIEW_STATUSES = ["visible", "hidden", "flagged"];
     if (body.status !== undefined) {
+      if (!VALID_REVIEW_STATUSES.includes(body.status)) {
+        throw validationError(`Invalid status: ${body.status}`);
+      }
       updateData.status = body.status;
       updateData.moderated_by = appUser.id;
       updateData.moderated_at = new Date().toISOString();
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return success({ id, message: "No changes" });
     }
 
     const existing = unwrapSingleOrNull<{ id: string }>(

@@ -26,16 +26,17 @@ interface FeatureFlags {
   ENABLE_REVIEWS: boolean;
 }
 
-function parseFlag(envVar: string | undefined): boolean {
-  return envVar === "true";
+function parseFlagWithDefault(envVar: string | undefined, defaultValue: boolean): boolean {
+  if (envVar === undefined || envVar === '') return defaultValue;
+  return envVar.toLowerCase() === 'true' || envVar === '1';
 }
 
 export const flags: FeatureFlags = {
-  ENABLE_CSV_EXPORT: parseFlag(process.env.NEXT_PUBLIC_FF_CSV_EXPORT) || true,
-  ENABLE_RATE_LIMITING: parseFlag(process.env.NEXT_PUBLIC_FF_RATE_LIMITING) || false,
-  ENABLE_AUDIT_LOG: parseFlag(process.env.NEXT_PUBLIC_FF_AUDIT_LOG) || true,
-  ENABLE_STRUCTURED_LOGGING: parseFlag(process.env.NEXT_PUBLIC_FF_STRUCTURED_LOGGING) || false,
-  ENABLE_MARKETPLACE: parseFlag(process.env.NEXT_PUBLIC_FF_MARKETPLACE) || true,
-  ENABLE_PROVIDER_REGISTRATION: parseFlag(process.env.NEXT_PUBLIC_FF_PROVIDER_REGISTRATION) || true,
-  ENABLE_REVIEWS: parseFlag(process.env.NEXT_PUBLIC_FF_REVIEWS) || true,
+  ENABLE_CSV_EXPORT: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_CSV_EXPORT, true),
+  ENABLE_RATE_LIMITING: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_RATE_LIMITING, false),
+  ENABLE_AUDIT_LOG: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_AUDIT_LOG, true),
+  ENABLE_STRUCTURED_LOGGING: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_STRUCTURED_LOGGING, false),
+  ENABLE_MARKETPLACE: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_MARKETPLACE, true),
+  ENABLE_PROVIDER_REGISTRATION: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_PROVIDER_REGISTRATION, true),
+  ENABLE_REVIEWS: parseFlagWithDefault(process.env.NEXT_PUBLIC_FF_REVIEWS, true),
 };

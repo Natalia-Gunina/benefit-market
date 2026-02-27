@@ -4,7 +4,7 @@ import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
-import { notFound } from "@/lib/errors";
+import { notFound, validationError } from "@/lib/errors";
 import type { ProviderOffering } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -22,7 +22,13 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const updateData: Record<string, unknown> = {};
 
-    if (body.status !== undefined) updateData.status = body.status;
+    const VALID_OFFERING_STATUSES = ["draft", "pending_review", "published", "archived"];
+    if (body.status !== undefined) {
+      if (!VALID_OFFERING_STATUSES.includes(body.status)) {
+        throw validationError(`Invalid status: ${body.status}`);
+      }
+      updateData.status = body.status;
+    }
 
     const existing = unwrapSingleOrNull<{ id: string }>(
       await admin

@@ -5,14 +5,14 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { updateProviderOfferingSchema } from "@/lib/api/validators";
-import { notFound, providerNotFound, forbidden } from "@/lib/errors";
+import { notFound, providerNotFound, forbidden, invalidStatus } from "@/lib/errors";
 import type { ProviderOffering } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 // Explicit row types for Supabase query results
 type ProviderIdRow = Record<string, unknown> & { id: string };
-type OfferingOwnerRow = Record<string, unknown> & { id: string; provider_id: string };
+type OfferingOwnerRow = Record<string, unknown> & { id: string; provider_id: string; status: string };
 type OfferingWithCategoryRow = Record<string, unknown> & {
   id: string;
   name: string;
@@ -89,13 +89,16 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const existing = unwrapSingleOrNull<OfferingOwnerRow>(
       await admin
         .from("provider_offerings")
-        .select("id, provider_id")
+        .select("id, provider_id, status")
         .eq("id", id)
         .single(),
     );
 
     if (!existing) throw notFound("Предложение не найдено");
     if (existing.provider_id !== provider.id) throw forbidden();
+    if (existing.status !== "draft") {
+      throw invalidStatus("Можно редактировать только предложения в статусе draft");
+    }
 
     const body = await request.json();
     const data = parseBody(updateProviderOfferingSchema, body);

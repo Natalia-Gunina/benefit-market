@@ -32,9 +32,10 @@ export function POST(request: NextRequest) {
     const orderItems = unwrapRows<OrderItemCheck>(
       await admin
         .from("order_items")
-        .select("id, orders!inner(status)")
+        .select("id, orders!inner(status, user_id)")
         .eq("provider_offering_id", data.provider_offering_id)
         .eq("orders.status", "paid")
+        .eq("orders.user_id", appUser.id)
         .limit(1),
       "Failed to check order items",
     );

@@ -60,8 +60,10 @@ export function GET() {
         .limit(5),
     );
 
-    const avgRating = offerings.length > 0
-      ? offerings.reduce((sum, o) => sum + Number(o.avg_rating), 0) / offerings.length
+    const rated = offerings.filter((o) => o.avg_rating != null && o.review_count > 0);
+    const totalReviews = rated.reduce((sum, o) => sum + o.review_count, 0);
+    const avgRating = totalReviews > 0
+      ? rated.reduce((sum, o) => sum + Number(o.avg_rating) * o.review_count, 0) / totalReviews
       : 0;
 
     // Tenant connections

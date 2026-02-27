@@ -23,8 +23,8 @@ export function GET(request: NextRequest) {
       const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
       const data = published.map((o) => ({
         ...o,
-        provider: providerMap.get(o.provider_id) ?? null,
-        global_category: catMap.get(o.global_category_id ?? "") ?? null,
+        providers: providerMap.get(o.provider_id) ?? null,
+        global_categories: catMap.get(o.global_category_id ?? "") ?? null,
         is_enabled: false,
       }));
       return success({ data, meta: { page: 1, per_page: 20, total: data.length } });

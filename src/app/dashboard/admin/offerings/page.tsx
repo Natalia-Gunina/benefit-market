@@ -32,23 +32,27 @@ export default function AdminOfferingsPage() {
     fetch("/api/admin/offerings")
       .then((r) => r.json())
       .then((json) => setOfferings(json.data?.data ?? json.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const updateStatus = async (id: string, status: string) => {
-    const res = await fetch(`/api/admin/offerings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      toast.success(`Статус обновлён: ${status}`);
-      load();
-    } else {
-      toast.error("Ошибка обновления");
+    try {
+      const res = await fetch(`/api/admin/offerings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        toast.success(`Статус обновлён: ${status}`);
+        load();
+      } else {
+        toast.error("Ошибка обновления");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 

@@ -10,7 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 interface Offering {
   id: string;
@@ -22,6 +28,7 @@ interface Offering {
   status: string;
   delivery_info: string;
   terms_conditions: string;
+  global_category_id: string | null;
   avg_rating: number;
   review_count: number;
 }
@@ -30,6 +37,7 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const router = useRouter();
   const [offering, setOffering] = useState<Offering | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,6 +47,13 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
       .then((json) => setOffering(json.data))
       .catch(() => toast.error("Ошибка загрузки"));
   }, [id]);
+
+  useEffect(() => {
+    fetch("/api/global-categories")
+      .then((r) => r.json())
+      .then((json) => setCategories(json.data ?? []))
+      .catch(() => {});
+  }, []);
 
   const handleSave = async () => {
     if (!offering) return;
@@ -53,6 +68,7 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
           long_description: offering.long_description,
           base_price_points: offering.base_price_points,
           stock_limit: offering.stock_limit,
+          global_category_id: offering.global_category_id || null,
           delivery_info: offering.delivery_info,
           terms_conditions: offering.terms_conditions,
         }),
@@ -119,6 +135,17 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
             <Label>Подробное описание</Label>
             <Textarea value={offering.long_description} onChange={(e) => setOffering({ ...offering, long_description: e.target.value })} rows={5} />
           </div>
+          <div className="space-y-2">
+            <Label>Категория</Label>
+            <Select value={offering.global_category_id ?? ""} onValueChange={(v) => setOffering({ ...offering, global_category_id: v })}>
+              <SelectTrigger><SelectValue placeholder="Выберите категорию" /></SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Цена (баллы)</Label>
@@ -128,6 +155,14 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
               <Label>Лимит</Label>
               <Input type="number" min="0" value={offering.stock_limit ?? ""} onChange={(e) => setOffering({ ...offering, stock_limit: e.target.value ? parseInt(e.target.value) : null })} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Информация о доставке</Label>
+            <Textarea value={offering.delivery_info ?? ""} onChange={(e) => setOffering({ ...offering, delivery_info: e.target.value })} rows={2} />
+          </div>
+          <div className="space-y-2">
+            <Label>Условия</Label>
+            <Textarea value={offering.terms_conditions ?? ""} onChange={(e) => setOffering({ ...offering, terms_conditions: e.target.value })} rows={2} />
           </div>
 
           <div className="flex gap-2 pt-4">

@@ -32,33 +32,41 @@ export default function AdminProvidersPage() {
     fetch("/api/admin/providers")
       .then((r) => r.json())
       .then((json) => setProviders(json.data?.data ?? json.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => { loadProviders(); }, [loadProviders]);
 
   const handleVerify = async (id: string) => {
-    const res = await fetch(`/api/admin/providers/${id}/verify`, { method: "POST" });
-    if (res.ok) {
-      toast.success("Провайдер верифицирован");
-      loadProviders();
-    } else {
-      toast.error("Ошибка верификации");
+    try {
+      const res = await fetch(`/api/admin/providers/${id}/verify`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Провайдер верифицирован");
+        loadProviders();
+      } else {
+        toast.error("Ошибка верификации");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 
   const handleSuspend = async (id: string) => {
-    const res = await fetch(`/api/admin/providers/${id}/suspend`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "Нарушение правил" }),
-    });
-    if (res.ok) {
-      toast.success("Провайдер заблокирован");
-      loadProviders();
-    } else {
-      toast.error("Ошибка");
+    try {
+      const res = await fetch(`/api/admin/providers/${id}/suspend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Нарушение правил" }),
+      });
+      if (res.ok) {
+        toast.success("Провайдер заблокирован");
+        loadProviders();
+      } else {
+        toast.error("Ошибка");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 

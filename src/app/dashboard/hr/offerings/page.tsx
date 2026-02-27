@@ -29,29 +29,41 @@ export default function HrOfferingsPage() {
     fetch("/api/hr/offerings")
       .then((r) => r.json())
       .then((json) => setOfferings(json.data?.data ?? json.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const toggleActive = async (id: string, currentActive: boolean) => {
-    const res = await fetch(`/api/hr/offerings/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: !currentActive }),
-    });
-    if (res.ok) {
-      toast.success(currentActive ? "Деактивировано" : "Активировано");
-      load();
+    try {
+      const res = await fetch(`/api/hr/offerings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !currentActive }),
+      });
+      if (res.ok) {
+        toast.success(currentActive ? "Деактивировано" : "Активировано");
+        load();
+      } else {
+        toast.error("Ошибка");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 
   const handleRemove = async (id: string) => {
-    const res = await fetch(`/api/hr/offerings/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Предложение отключено");
-      load();
+    try {
+      const res = await fetch(`/api/hr/offerings/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Предложение отключено");
+        load();
+      } else {
+        toast.error("Ошибка");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 

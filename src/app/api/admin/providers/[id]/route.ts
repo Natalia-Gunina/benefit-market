@@ -4,7 +4,7 @@ import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapRows } from "@/lib/supabase/typed-queries";
-import { notFound } from "@/lib/errors";
+import { notFound, validationError } from "@/lib/errors";
 import type { Provider } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -66,10 +66,17 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const updateData: Record<string, unknown> = {};
 
+    const VALID_PROVIDER_STATUSES = ["pending", "verified", "suspended", "rejected"];
+
     // Allowed fields
     const allowedFields = ["name", "description", "status", "rejection_reason"];
     for (const field of allowedFields) {
-      if (body[field] !== undefined) updateData[field] = body[field];
+      if (body[field] !== undefined) {
+        if (field === "status" && !VALID_PROVIDER_STATUSES.includes(body[field])) {
+          throw validationError(`Invalid status: ${body[field]}`);
+        }
+        updateData[field] = body[field];
+      }
     }
 
     // If verifying, set verified_at and verified_by

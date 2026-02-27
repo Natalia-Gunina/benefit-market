@@ -32,24 +32,28 @@ export default function HrMarketplacePage() {
     fetch(`/api/hr/marketplace?${params}`)
       .then((r) => r.json())
       .then((json) => setOfferings(json.data?.data ?? json.data ?? []))
-      .catch(() => {})
+      .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleEnable = async (offeringId: string) => {
-    const res = await fetch("/api/hr/offerings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider_offering_id: offeringId }),
-    });
-    if (res.ok) {
-      toast.success("Предложение подключено!");
-      load();
-    } else {
-      const err = await res.json();
-      toast.error(err.error?.message ?? "Ошибка подключения");
+    try {
+      const res = await fetch("/api/hr/offerings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider_offering_id: offeringId }),
+      });
+      if (res.ok) {
+        toast.success("Предложение подключено!");
+        load();
+      } else {
+        const err = await res.json();
+        toast.error(err.error?.message ?? "Ошибка подключения");
+      }
+    } catch {
+      toast.error("Ошибка сети");
     }
   };
 
