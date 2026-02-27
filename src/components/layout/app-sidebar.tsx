@@ -61,6 +61,7 @@ const hrNavItems: NavItem[] = [
   { title: "Сотрудники", href: "/dashboard/hr/employees", icon: Users },
   { title: "Импорт", href: "/dashboard/hr/import", icon: Upload },
   { title: "Политики", href: "/dashboard/hr/policies", icon: Settings },
+  { title: "Аналитика", href: "/dashboard/hr/analytics", icon: BarChart },
   { title: "Маркетплейс", href: "/dashboard/hr/marketplace", icon: Store },
   { title: "Подключённые", href: "/dashboard/hr/offerings", icon: Package },
 ];

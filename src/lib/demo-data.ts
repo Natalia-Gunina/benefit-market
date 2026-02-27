@@ -1323,3 +1323,97 @@ export const DEMO_REVIEWS: Review[] = [
     updated_at: '2025-02-20T10:00:00Z',
   },
 ];
+
+// ========================== 20. DEMO HR ANALYTICS ==============================
+
+import type { AnalyticsData } from '@/lib/services/analytics.service';
+
+export const DEMO_HR_ANALYTICS: AnalyticsData = {
+  utilization: {
+    overall: {
+      total_budget: 400000,
+      total_spent: 156000,
+      total_remaining: 244000,
+      utilization_pct: 39,
+    },
+    by_department: [
+      { department: 'Маркетинг',  employee_count: 1, total_accrued: 75000,  total_spent: 48000,  utilization_pct: 64 },
+      { department: 'Разработка', employee_count: 3, total_accrued: 175000, total_spent: 68000,  utilization_pct: 39 },
+      { department: 'HR',         employee_count: 2, total_accrued: 100000, total_spent: 28000,  utilization_pct: 28 },
+      { department: 'Продажи',    employee_count: 1, total_accrued: 50000,  total_spent: 9000,   utilization_pct: 18 },
+      { department: 'Финансы',    employee_count: 1, total_accrued: 50000,  total_spent: 3000,   utilization_pct: 6 },
+    ],
+    by_grade: [
+      { grade: 'Lead',   employee_count: 2, total_accrued: 150000, total_spent: 72000, utilization_pct: 48 },
+      { grade: 'Senior', employee_count: 2, total_accrued: 150000, total_spent: 54000, utilization_pct: 36 },
+      { grade: 'Middle', employee_count: 3, total_accrued: 100000, total_spent: 27000, utilization_pct: 27 },
+      { grade: 'Junior', employee_count: 1, total_accrued: 50000,  total_spent: 3000,  utilization_pct: 6 },
+    ],
+    monthly_trend: [
+      { month: '2024-03', accrued: 25000, spent: 8000,  utilization_pct: 32 },
+      { month: '2024-04', accrued: 30000, spent: 10000, utilization_pct: 33 },
+      { month: '2024-05', accrued: 30000, spent: 12000, utilization_pct: 40 },
+      { month: '2024-06', accrued: 35000, spent: 15000, utilization_pct: 43 },
+      { month: '2024-07', accrued: 30000, spent: 11000, utilization_pct: 37 },
+      { month: '2024-08', accrued: 25000, spent: 8000,  utilization_pct: 32 },
+      { month: '2024-09', accrued: 50000, spent: 18000, utilization_pct: 36 },
+      { month: '2024-10', accrued: 55000, spent: 22000, utilization_pct: 40 },
+      { month: '2024-11', accrued: 50000, spent: 28000, utilization_pct: 56 },
+      { month: '2024-12', accrued: 60000, spent: 35000, utilization_pct: 58 },
+      { month: '2025-01', accrued: 75000, spent: 30000, utilization_pct: 40 },
+      { month: '2025-02', accrued: 110000, spent: 23000, utilization_pct: 21 },
+    ],
+  },
+  popular: [
+    { name: 'ДМС расширенный', category: 'Здоровье',    order_count: 6, total_points: 90000, unique_users: 6 },
+    { name: 'Фитнес-клуб',    category: 'Спорт',       order_count: 5, total_points: 30000, unique_users: 4 },
+    { name: 'Обеды в офисе',   category: 'Питание',     order_count: 4, total_points: 8000,  unique_users: 4 },
+    { name: 'Английский язык', category: 'Образование', order_count: 3, total_points: 12000, unique_users: 3 },
+    { name: 'Курсы Skillbox',  category: 'Образование', order_count: 3, total_points: 15000, unique_users: 2 },
+    { name: 'Психолог онлайн', category: 'Здоровье',    order_count: 2, total_points: 6000,  unique_users: 2 },
+    { name: 'Стоматология',    category: 'Здоровье',    order_count: 2, total_points: 16000, unique_users: 2 },
+    { name: 'Такси лимит',     category: 'Транспорт',   order_count: 2, total_points: 8000,  unique_users: 2 },
+    { name: 'Бассейн',         category: 'Спорт',       order_count: 1, total_points: 4500,  unique_users: 1 },
+    { name: 'Доставка еды',    category: 'Питание',     order_count: 1, total_points: 3000,  unique_users: 1 },
+  ],
+  engagement: {
+    overall: {
+      total_employees: 8,
+      active_employees: 5,
+      inactive_employees: 3,
+      participation_pct: 63,
+      avg_orders_per_employee: 2.4,
+      avg_spend_per_employee: 31200,
+    },
+    by_department: [
+      { department: 'Маркетинг',  total: 1, active: 1, participation_pct: 100, avg_spend: 48000 },
+      { department: 'Разработка', total: 3, active: 2, participation_pct: 67,  avg_spend: 34000 },
+      { department: 'Продажи',    total: 1, active: 1, participation_pct: 100, avg_spend: 9000 },
+      { department: 'HR',         total: 2, active: 1, participation_pct: 50,  avg_spend: 28000 },
+      { department: 'Финансы',    total: 1, active: 0, participation_pct: 0,   avg_spend: 0 },
+    ],
+    by_grade: [
+      { grade: 'Lead',   total: 2, active: 2, participation_pct: 100, avg_spend: 36000 },
+      { grade: 'Senior', total: 2, active: 2, participation_pct: 100, avg_spend: 27000 },
+      { grade: 'Middle', total: 3, active: 1, participation_pct: 33,  avg_spend: 27000 },
+      { grade: 'Junior', total: 1, active: 0, participation_pct: 0,   avg_spend: 0 },
+    ],
+  },
+  categories: {
+    distribution: [
+      { name: 'Здоровье',    total_points: 62400, pct: 40, order_count: 10 },
+      { name: 'Спорт',       total_points: 34320, pct: 22, order_count: 6 },
+      { name: 'Образование', total_points: 28080, pct: 18, order_count: 6 },
+      { name: 'Питание',     total_points: 18720, pct: 12, order_count: 5 },
+      { name: 'Транспорт',   total_points: 12480, pct: 8,  order_count: 2 },
+    ],
+    trend: [
+      { month: '2024-09', 'Здоровье': 8000,  'Спорт': 4000, 'Образование': 3000, 'Питание': 2000, 'Транспорт': 1000 },
+      { month: '2024-10', 'Здоровье': 9000,  'Спорт': 5000, 'Образование': 4000, 'Питание': 2500, 'Транспорт': 1500 },
+      { month: '2024-11', 'Здоровье': 12000, 'Спорт': 6000, 'Образование': 5000, 'Питание': 3000, 'Транспорт': 2000 },
+      { month: '2024-12', 'Здоровье': 15000, 'Спорт': 8000, 'Образование': 5000, 'Питание': 4000, 'Транспорт': 3000 },
+      { month: '2025-01', 'Здоровье': 12000, 'Спорт': 7000, 'Образование': 6000, 'Питание': 3000, 'Транспорт': 2000 },
+      { month: '2025-02', 'Здоровье': 6400,  'Спорт': 4320, 'Образование': 5080, 'Питание': 4220, 'Транспорт': 2980 },
+    ],
+  },
+};
