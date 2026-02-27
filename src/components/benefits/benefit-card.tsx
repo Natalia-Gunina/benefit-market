@@ -15,6 +15,8 @@ import {
   Baby,
   Laptop,
   Package,
+  Star,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -44,6 +46,10 @@ const iconMap: Record<string, LucideIcon> = {
 
 export interface BenefitWithCategory extends Benefit {
   category?: BenefitCategory;
+  /** Set when this card represents a marketplace offering */
+  tenant_offering_id?: string;
+  provider_name?: string;
+  avg_rating?: number;
 }
 
 interface BenefitCardProps {
@@ -56,12 +62,13 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
   const outOfStock =
     benefit.stock_limit !== null && benefit.stock_limit <= 0;
 
+  const href = benefit.tenant_offering_id
+    ? `/dashboard/employee/catalog/offering/${benefit.tenant_offering_id}`
+    : `/dashboard/employee/catalog/${benefit.id}`;
+
   return (
     <Card className="group relative flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      <Link
-        href={`/dashboard/employee/catalog/${benefit.id}`}
-        className="cursor-pointer"
-      >
+      <Link href={href} className="cursor-pointer">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -76,17 +83,31 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
               {benefit.price_points.toLocaleString("ru-RU")} б.
             </Badge>
           </div>
-          {benefit.category && (
-            <Badge variant="secondary" className="w-fit text-xs">
-              {benefit.category.name}
-            </Badge>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {benefit.category && (
+              <Badge variant="secondary" className="w-fit text-xs">
+                {benefit.category.name}
+              </Badge>
+            )}
+            {benefit.provider_name && (
+              <Badge variant="outline" className="w-fit text-xs gap-0.5">
+                <Building2 className="size-3" />
+                {benefit.provider_name}
+              </Badge>
+            )}
+          </div>
         </CardHeader>
 
-        <CardContent className="flex-1">
+        <CardContent className="flex-1 space-y-1.5">
           <p className="text-sm text-muted-foreground line-clamp-2">
             {benefit.description}
           </p>
+          {benefit.avg_rating !== undefined && benefit.avg_rating > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Star className="size-3 fill-amber-400 text-amber-400" />
+              <span className="tabular-nums">{benefit.avg_rating.toFixed(1)}</span>
+            </div>
+          )}
         </CardContent>
       </Link>
 
