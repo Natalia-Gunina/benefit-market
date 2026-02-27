@@ -48,15 +48,17 @@ const ROLE_LABELS: Record<UserRole, string> = {
   employee: "Сотрудник",
   hr: "HR",
   admin: "Админ",
+  provider: "Провайдер",
 };
 
 const ROLE_VARIANTS: Record<UserRole, "default" | "secondary" | "outline"> = {
   admin: "default",
   hr: "secondary",
   employee: "outline",
+  provider: "outline",
 };
 
-const ALL_ROLES: UserRole[] = ["employee", "hr", "admin"];
+const ALL_ROLES: UserRole[] = ["employee", "hr", "admin", "provider"];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);

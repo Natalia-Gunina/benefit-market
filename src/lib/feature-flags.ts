@@ -18,6 +18,12 @@ interface FeatureFlags {
   ENABLE_AUDIT_LOG: boolean;
   /** Detailed structured logging */
   ENABLE_STRUCTURED_LOGGING: boolean;
+  /** Provider marketplace catalog */
+  ENABLE_MARKETPLACE: boolean;
+  /** Provider self-registration */
+  ENABLE_PROVIDER_REGISTRATION: boolean;
+  /** User reviews & ratings */
+  ENABLE_REVIEWS: boolean;
 }
 
 function parseFlag(envVar: string | undefined): boolean {
@@ -29,4 +35,7 @@ export const flags: FeatureFlags = {
   ENABLE_RATE_LIMITING: parseFlag(process.env.NEXT_PUBLIC_FF_RATE_LIMITING) || false,
   ENABLE_AUDIT_LOG: parseFlag(process.env.NEXT_PUBLIC_FF_AUDIT_LOG) || true,
   ENABLE_STRUCTURED_LOGGING: parseFlag(process.env.NEXT_PUBLIC_FF_STRUCTURED_LOGGING) || false,
+  ENABLE_MARKETPLACE: parseFlag(process.env.NEXT_PUBLIC_FF_MARKETPLACE) || true,
+  ENABLE_PROVIDER_REGISTRATION: parseFlag(process.env.NEXT_PUBLIC_FF_PROVIDER_REGISTRATION) || true,
+  ENABLE_REVIEWS: parseFlag(process.env.NEXT_PUBLIC_FF_REVIEWS) || true,
 };

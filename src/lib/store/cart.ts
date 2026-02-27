@@ -14,6 +14,11 @@ export interface CartBenefit {
   stock_limit?: number | null;
   category_name?: string;
   category_icon?: string;
+  /** If set, this is a marketplace item */
+  tenant_offering_id?: string;
+  provider_name?: string;
+  provider_logo_url?: string;
+  avg_rating?: number;
 }
 
 export interface CartItem {

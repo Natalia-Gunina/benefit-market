@@ -23,6 +23,7 @@ describe("checkEligibility", () => {
       id: "r1",
       benefit_id: "b1",
       tenant_id: "t1",
+      tenant_offering_id: null,
       conditions: { grade: ["senior", "lead"], min_tenure: 12 },
     }];
     expect(checkEligibility(profile, rules)).toBe(true);
@@ -33,6 +34,7 @@ describe("checkEligibility", () => {
       id: "r1",
       benefit_id: "b1",
       tenant_id: "t1",
+      tenant_offering_id: null,
       conditions: { grade: ["junior"] },
     }];
     expect(checkEligibility(profile, rules)).toBe(false);
@@ -40,8 +42,8 @@ describe("checkEligibility", () => {
 
   it("OR logic across rules - second rule passes", () => {
     const rules: EligibilityRule[] = [
-      { id: "r1", benefit_id: "b1", tenant_id: "t1", conditions: { grade: ["junior"] } },
-      { id: "r2", benefit_id: "b1", tenant_id: "t1", conditions: { location: ["Москва"] } },
+      { id: "r1", benefit_id: "b1", tenant_id: "t1", tenant_offering_id: null, conditions: { grade: ["junior"] } },
+      { id: "r2", benefit_id: "b1", tenant_id: "t1", tenant_offering_id: null, conditions: { location: ["Москва"] } },
     ];
     expect(checkEligibility(profile, rules)).toBe(true);
   });

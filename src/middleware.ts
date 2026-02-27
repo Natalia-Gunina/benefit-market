@@ -96,6 +96,16 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // /dashboard/provider/* — provider or admin
+  if (pathname.startsWith("/dashboard/provider")) {
+    if (role !== "provider" && role !== "admin") {
+      return NextResponse.redirect(
+        new URL(getDashboardByRole(role), request.url)
+      );
+    }
+    return supabaseResponse;
+  }
+
   // /dashboard/employee/* — any authenticated user
   if (pathname.startsWith("/dashboard/employee")) {
     return supabaseResponse;
@@ -117,6 +127,8 @@ function getDashboardByRole(role: string): string {
       return "/dashboard/admin";
     case "hr":
       return "/dashboard/hr";
+    case "provider":
+      return "/dashboard/provider";
     default:
       return "/dashboard/employee";
   }

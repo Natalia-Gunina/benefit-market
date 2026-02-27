@@ -6,9 +6,10 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { QueryProvider } from "@/components/providers/query-provider";
 
-function getRoleFromPath(pathname: string): "employee" | "hr" | "admin" {
+function getRoleFromPath(pathname: string): "employee" | "hr" | "admin" | "provider" {
   if (pathname.startsWith("/dashboard/admin")) return "admin";
   if (pathname.startsWith("/dashboard/hr")) return "hr";
+  if (pathname.startsWith("/dashboard/provider")) return "provider";
   return "employee";
 }
 
@@ -19,7 +20,7 @@ export default async function DashboardLayout({
 }) {
   const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-  let role: "employee" | "hr" | "admin" = "employee";
+  let role: "employee" | "hr" | "admin" | "provider" = "employee";
   let userEmail = "demo@techfuture.ru";
   let tenantName: string | undefined = "ООО Технологии Будущего";
 
@@ -40,7 +41,7 @@ export default async function DashboardLayout({
     }
 
     role =
-      (user.user_metadata?.role as "employee" | "hr" | "admin") ?? "employee";
+      (user.user_metadata?.role as "employee" | "hr" | "admin" | "provider") ?? "employee";
     userEmail = user.email ?? "";
     tenantName = (user.user_metadata?.tenant_name as string) ?? undefined;
   }

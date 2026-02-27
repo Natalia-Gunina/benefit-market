@@ -135,6 +135,7 @@ export default function RegisterPage() {
                 <SelectItem value="employee">Сотрудник</SelectItem>
                 <SelectItem value="hr">HR-менеджер</SelectItem>
                 <SelectItem value="admin">Администратор</SelectItem>
+                <SelectItem value="provider">Провайдер</SelectItem>
               </SelectContent>
             </Select>
           </div>

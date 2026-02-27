@@ -251,7 +251,7 @@ export default function RulesPage() {
               rules.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
-                    {r.benefit_name ?? benefitName(r.benefit_id)}
+                    {r.benefit_name ?? (r.benefit_id ? benefitName(r.benefit_id) : "—")}
                   </TableCell>
                   <TableCell>{formatConditions(r.conditions)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">

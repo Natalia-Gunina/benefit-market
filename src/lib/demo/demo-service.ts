@@ -83,7 +83,7 @@ export async function demoOrdersList(params: {
   const data = paginated.map((order) => ({
     ...order,
     order_items: DEMO_ORDER_ITEMS.filter((oi) => oi.order_id === order.id).map((oi) => {
-      const b = benefitMap.get(oi.benefit_id);
+      const b = oi.benefit_id ? benefitMap.get(oi.benefit_id) : undefined;
       return {
         ...oi,
         benefit: b
@@ -96,11 +96,11 @@ export async function demoOrdersList(params: {
   return NextResponse.json({ data, meta: { page, per_page: perPage, total } });
 }
 
-export async function demoCreateOrder(items: Array<{ benefit_id: string; quantity: number }>): Promise<NextResponse> {
+export async function demoCreateOrder(items: Array<{ benefit_id?: string; tenant_offering_id?: string; quantity: number }>): Promise<NextResponse> {
   const { DEMO_BENEFITS } = await loadDemoData();
   const benefitMap = new Map(DEMO_BENEFITS.map((b) => [b.id, b]));
   const totalPoints = items.reduce((sum, item) => {
-    const benefit = benefitMap.get(item.benefit_id);
+    const benefit = item.benefit_id ? benefitMap.get(item.benefit_id) : undefined;
     return sum + (benefit ? benefit.price_points * item.quantity : 0);
   }, 0);
   const now = new Date();
@@ -116,11 +116,13 @@ export async function demoCreateOrder(items: Array<{ benefit_id: string; quantit
     expires_at: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
     created_at: now.toISOString(),
     order_items: items.map((item, idx) => {
-      const b = benefitMap.get(item.benefit_id);
+      const b = item.benefit_id ? benefitMap.get(item.benefit_id) : undefined;
       return {
         id: `demo-oi-${Date.now()}-${idx}`,
         order_id: orderId,
-        benefit_id: item.benefit_id,
+        benefit_id: item.benefit_id ?? null,
+        provider_offering_id: null,
+        tenant_offering_id: item.tenant_offering_id ?? null,
         quantity: item.quantity,
         price_points: b ? b.price_points : 0,
         benefit: b

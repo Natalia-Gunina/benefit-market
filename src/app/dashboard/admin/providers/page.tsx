@@ -1,0 +1,114 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
+import { Check, Ban } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+interface Provider {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  contact_email: string | null;
+  created_at: string;
+}
+
+const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  pending: { label: "Ожидает", variant: "outline" },
+  verified: { label: "Верифицирован", variant: "default" },
+  suspended: { label: "Заблокирован", variant: "destructive" },
+  rejected: { label: "Отклонён", variant: "destructive" },
+};
+
+export default function AdminProvidersPage() {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadProviders = useCallback(() => {
+    setIsLoading(true);
+    fetch("/api/admin/providers")
+      .then((r) => r.json())
+      .then((json) => setProviders(json.data?.data ?? json.data ?? []))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => { loadProviders(); }, [loadProviders]);
+
+  const handleVerify = async (id: string) => {
+    const res = await fetch(`/api/admin/providers/${id}/verify`, { method: "POST" });
+    if (res.ok) {
+      toast.success("Провайдер верифицирован");
+      loadProviders();
+    } else {
+      toast.error("Ошибка верификации");
+    }
+  };
+
+  const handleSuspend = async (id: string) => {
+    const res = await fetch(`/api/admin/providers/${id}/suspend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Нарушение правил" }),
+    });
+    if (res.ok) {
+      toast.success("Провайдер заблокирован");
+      loadProviders();
+    } else {
+      toast.error("Ошибка");
+    }
+  };
+
+  return (
+    <div className="page-transition space-y-6 p-6">
+      <h1 className="text-2xl font-heading font-bold">Управление провайдерами</h1>
+
+      {isLoading ? (
+        <div className="text-muted-foreground">Загрузка...</div>
+      ) : providers.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Провайдеры не найдены
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader><CardTitle>Провайдеры ({providers.length})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {providers.map((p) => {
+                const st = statusBadge[p.status] ?? statusBadge.pending;
+                return (
+                  <div key={p.id} className="flex items-center justify-between rounded-lg border p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{p.name}</span>
+                        <Badge variant={st.variant}>{st.label}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{p.slug} &middot; {p.contact_email ?? "—"}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {p.status === "pending" && (
+                        <Button size="sm" variant="outline" onClick={() => handleVerify(p.id)}>
+                          <Check className="mr-1 size-3.5" />Верифицировать
+                        </Button>
+                      )}
+                      {p.status !== "suspended" && (
+                        <Button size="sm" variant="ghost" onClick={() => handleSuspend(p.id)}>
+                          <Ban className="mr-1 size-3.5" />Заблокировать
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

@@ -10,7 +10,13 @@ export type ErrorCode =
   | "INSUFFICIENT_BALANCE"
   | "WALLET_NOT_FOUND"
   | "INTERNAL_ERROR"
-  | "API_ERROR";
+  | "API_ERROR"
+  | "PROVIDER_NOT_FOUND"
+  | "PROVIDER_NOT_VERIFIED"
+  | "OFFERING_NOT_PUBLISHED"
+  | "ALREADY_REVIEWED"
+  | "REVIEW_NOT_ALLOWED"
+  | "DUPLICATE_TENANT_OFFERING";
 
 export class AppError extends Error {
   constructor(
@@ -57,4 +63,28 @@ export function insufficientBalance(message = "Insufficient balance") {
 
 export function walletNotFound(message = "Wallet not found") {
   return new AppError("WALLET_NOT_FOUND", message, 400);
+}
+
+export function providerNotFound(message = "Провайдер не найден") {
+  return new AppError("PROVIDER_NOT_FOUND", message, 404);
+}
+
+export function providerNotVerified(message = "Провайдер не верифицирован") {
+  return new AppError("PROVIDER_NOT_VERIFIED", message, 403);
+}
+
+export function offeringNotPublished(message = "Предложение не опубликовано") {
+  return new AppError("OFFERING_NOT_PUBLISHED", message, 400);
+}
+
+export function alreadyReviewed(message = "Вы уже оставили отзыв на это предложение") {
+  return new AppError("ALREADY_REVIEWED", message, 409);
+}
+
+export function reviewNotAllowed(message = "Вы не можете оставить отзыв без оплаченного заказа") {
+  return new AppError("REVIEW_NOT_ALLOWED", message, 403);
+}
+
+export function duplicateTenantOffering(message = "Это предложение уже подключено") {
+  return new AppError("DUPLICATE_TENANT_OFFERING", message, 409);
 }

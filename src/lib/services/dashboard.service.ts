@@ -125,6 +125,7 @@ export async function generateDashboard(
     // Popular benefits
     const benefitStats = new Map<string, { name: string; count: number; total: number }>();
     for (const item of items) {
+      if (!item.benefit_id) continue;
       const benefit = benefitMap.get(item.benefit_id);
       const name = benefit?.name ?? "Неизвестно";
       const existing = benefitStats.get(item.benefit_id) || { name, count: 0, total: 0 };
@@ -140,6 +141,7 @@ export async function generateDashboard(
     // Category distribution
     const categoryStats = new Map<string, { name: string; total: number }>();
     for (const item of items) {
+      if (!item.benefit_id) continue;
       const benefit = benefitMap.get(item.benefit_id);
       if (!benefit) continue;
       const category = categoryMap.get(benefit.category_id);

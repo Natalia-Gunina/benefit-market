@@ -119,6 +119,7 @@ export function GET(request: NextRequest) {
     // Group rules by benefit_id
     const rulesByBenefit = new Map<string, EligibilityRule[]>();
     for (const rule of rules) {
+      if (!rule.benefit_id) continue;
       const existing = rulesByBenefit.get(rule.benefit_id) || [];
       existing.push(rule);
       rulesByBenefit.set(rule.benefit_id, existing);

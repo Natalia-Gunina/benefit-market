@@ -20,6 +20,9 @@ import {
   LogOut,
   UserRound,
   ShieldCheck,
+  Store,
+  BarChart,
+  Tags,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -58,6 +61,8 @@ const hrNavItems: NavItem[] = [
   { title: "Сотрудники", href: "/dashboard/hr/employees", icon: Users },
   { title: "Импорт", href: "/dashboard/hr/import", icon: Upload },
   { title: "Политики", href: "/dashboard/hr/policies", icon: Settings },
+  { title: "Маркетплейс", href: "/dashboard/hr/marketplace", icon: Store },
+  { title: "Подключённые", href: "/dashboard/hr/offerings", icon: Package },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -68,28 +73,42 @@ const adminNavItems: NavItem[] = [
   { title: "Правила", href: "/dashboard/admin/rules", icon: Filter },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },
   { title: "Аудит", href: "/dashboard/admin/audit", icon: FileText },
+  { title: "Провайдеры", href: "/dashboard/admin/providers", icon: Store },
+  { title: "Модерация", href: "/dashboard/admin/offerings", icon: ShieldCheck },
+  { title: "Глоб. категории", href: "/dashboard/admin/global-categories", icon: Tags },
+];
+
+const providerNavItems: NavItem[] = [
+  { title: "Дашборд", href: "/dashboard/provider", icon: LayoutDashboard },
+  { title: "Предложения", href: "/dashboard/provider/offerings", icon: Package },
+  { title: "Заказы", href: "/dashboard/provider/orders", icon: ClipboardList },
+  { title: "Аналитика", href: "/dashboard/provider/analytics", icon: BarChart },
+  { title: "Профиль", href: "/dashboard/provider/profile", icon: Building2 },
 ];
 
 const navItemsByRole: Record<string, NavItem[]> = {
   employee: employeeNavItems,
   hr: hrNavItems,
   admin: adminNavItems,
+  provider: providerNavItems,
 };
 
 const groupLabelByRole: Record<string, string> = {
   employee: "Сотрудник",
   hr: "HR-панель",
   admin: "Администратор",
+  provider: "Провайдер",
 };
 
 const demoRoles = [
   { key: "employee" as const, label: "Сотрудник", icon: UserRound, href: "/dashboard/employee/catalog" },
   { key: "hr" as const, label: "HR", icon: Users, href: "/dashboard/hr" },
   { key: "admin" as const, label: "Админ", icon: ShieldCheck, href: "/dashboard/admin/tenants" },
+  { key: "provider" as const, label: "Провайдер", icon: Store, href: "/dashboard/provider" },
 ];
 
 interface AppSidebarProps {
-  role: "employee" | "hr" | "admin";
+  role: "employee" | "hr" | "admin" | "provider";
   currentPath?: string;
   userEmail: string;
   tenantName?: string;
@@ -105,6 +124,7 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
   const activeRole =
     pathname.startsWith("/dashboard/admin") ? "admin" as const
     : pathname.startsWith("/dashboard/hr") ? "hr" as const
+    : pathname.startsWith("/dashboard/provider") ? "provider" as const
     : "employee" as const;
   const effectiveRole = isDemo ? activeRole : role;
   const navItems = navItemsByRole[effectiveRole] ?? [];
