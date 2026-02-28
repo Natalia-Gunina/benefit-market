@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   BarChart3,
   Users,
-  UserCheck,
   UserX,
   TrendingUp,
   Coins,
@@ -162,7 +161,7 @@ export default function HrAnalyticsPage() {
       <section className="space-y-4">
         <h2 className="flex items-center gap-2 text-lg font-heading font-semibold">
           <TrendingUp className="size-5 text-primary" />
-          Утилизация бюджета
+          Использование бюджета
         </h2>
 
         {/* Metric Cards */}
@@ -189,9 +188,10 @@ export default function HrAnalyticsPage() {
                 icon={ShoppingCart}
               />
               <MetricCard
-                title="Утилизация"
+                title="Использование бюджета"
                 value={data.utilization.overall.utilization_pct}
                 suffix="%"
+                subtitle={`${data.utilization.overall.total_spent.toLocaleString("ru-RU")} / ${data.utilization.overall.total_budget.toLocaleString("ru-RU")} б.`}
                 icon={Percent}
               />
               <MetricCard
@@ -236,10 +236,9 @@ export default function HrAnalyticsPage() {
         </h2>
 
         {/* Engagement metrics */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {loading ? (
             <>
-              <MetricSkeleton />
               <MetricSkeleton />
               <MetricSkeleton />
               <MetricSkeleton />
@@ -247,14 +246,10 @@ export default function HrAnalyticsPage() {
           ) : data ? (
             <>
               <MetricCard
-                title="Всего сотрудников"
+                title="Сотрудников"
                 value={data.engagement.overall.total_employees}
+                subtitle={`Активных: ${data.engagement.overall.active_employees.toLocaleString("ru-RU")} из ${data.engagement.overall.total_employees.toLocaleString("ru-RU")}`}
                 icon={Users}
-              />
-              <MetricCard
-                title="Активных"
-                value={data.engagement.overall.active_employees}
-                icon={UserCheck}
               />
               <MetricCard
                 title="Не используют"
@@ -265,6 +260,7 @@ export default function HrAnalyticsPage() {
                 title="Участие"
                 value={data.engagement.overall.participation_pct}
                 suffix="%"
+                subtitle={`${data.engagement.overall.active_employees.toLocaleString("ru-RU")} / ${data.engagement.overall.total_employees.toLocaleString("ru-RU")} сотр.`}
                 icon={Percent}
               />
             </>

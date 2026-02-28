@@ -12,6 +12,8 @@ interface MetricCardProps {
   title: string;
   value: number;
   suffix?: string;
+  /** Secondary label shown below the main value */
+  subtitle?: string;
   icon: LucideIcon;
   trend?: {
     value: number;
@@ -27,6 +29,7 @@ export function MetricCard({
   title,
   value,
   suffix,
+  subtitle,
   icon: Icon,
   trend,
 }: MetricCardProps) {
@@ -43,6 +46,9 @@ export function MetricCard({
               <span className="text-sm text-muted-foreground">{suffix}</span>
             )}
           </div>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          )}
           {trend && (
             <div
               className={`flex items-center gap-0.5 text-xs font-medium ${

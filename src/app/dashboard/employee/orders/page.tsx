@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Loader2 } from "lucide-react";
+import { Package, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import type { OrderStatus } from "@/lib/types";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -16,6 +18,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,23 +87,26 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch("/api/orders");
+      if (res.ok) {
+        const json = await res.json();
+        setOrders(json.data ?? []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchOrders() {
-      try {
-        const res = await fetch("/api/orders");
-        if (res.ok) {
-          const json = await res.json();
-          setOrders(json.data ?? []);
-        }
-      } catch {
-        // ignore
-      } finally {
-        setIsLoading(false);
-      }
-    }
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   const filtered = filterOrders(orders, activeTab);
 
@@ -101,6 +116,28 @@ export default function OrdersPage() {
     },
     [router],
   );
+
+  const handleCancelOrder = useCallback(async () => {
+    if (!cancellingId) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${cancellingId}/cancel`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message ?? "Ошибка отмены заказа");
+        return;
+      }
+      toast.success("Заказ отменён, баллы возвращены");
+      await fetchOrders();
+    } catch {
+      toast.error("Ошибка сети");
+    } finally {
+      setIsCancelling(false);
+      setCancellingId(null);
+    }
+  }, [cancellingId, fetchOrders]);
 
   return (
     <div className="page-transition space-y-6 p-6">
@@ -147,6 +184,7 @@ export default function OrdersPage() {
                       <TableHead>Статус</TableHead>
                       <TableHead className="text-right">Баллы</TableHead>
                       <TableHead className="text-right">Позиций</TableHead>
+                      <TableHead className="w-[50px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -171,6 +209,21 @@ export default function OrdersPage() {
                         <TableCell className="text-right tabular-nums">
                           {order.order_items?.length ?? 0}
                         </TableCell>
+                        <TableCell>
+                          {(order.status === "reserved" || order.status === "pending") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCancellingId(order.id);
+                              }}
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -180,6 +233,35 @@ export default function OrdersPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Cancel confirmation dialog */}
+      <AlertDialog open={!!cancellingId} onOpenChange={() => setCancellingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Отменить заказ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Зарезервированные баллы будут возвращены на ваш баланс. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Нет, оставить</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelOrder}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Отменяем...
+                </>
+              ) : (
+                "Да, отменить"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

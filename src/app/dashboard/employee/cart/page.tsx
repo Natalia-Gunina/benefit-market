@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Trash2, Minus, Plus, Loader2, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Trash2, Minus, Plus, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useCartStore } from "@/lib/store/cart";
@@ -15,6 +15,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +46,7 @@ export default function CartPage() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
 
   const totalPoints = getTotalPoints();
 
@@ -93,20 +102,52 @@ export default function CartPage() {
         return;
       }
 
-      toast.success("Заказ создан и зарезервирован");
       clearCart();
-      router.push(`/dashboard/employee/orders/${json.data.id}`);
+      setSuccessOrderId(json.data.id);
     } catch {
       toast.error("Ошибка сети при создании заказа");
     } finally {
       setIsSubmitting(false);
     }
-  }, [items, clearCart, router]);
+  }, [items, clearCart]);
+
+  // --- Success dialog (shown after order is created) ---
+  const successDialog = (
+    <Dialog open={!!successOrderId} onOpenChange={() => setSuccessOrderId(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-[var(--success-light)]">
+            <CheckCircle2 className="size-8 text-[var(--success)]" />
+          </div>
+          <DialogTitle className="text-center">Заказ оформлен!</DialogTitle>
+          <DialogDescription className="text-center">
+            Ваш заказ успешно создан и зарезервирован. У вас есть 15 минут, чтобы подтвердить или отменить его.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button
+            className="w-full"
+            onClick={() => router.push(`/dashboard/employee/orders/${successOrderId}`)}
+          >
+            Перейти к заказу
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => router.push("/dashboard/employee/orders")}
+          >
+            Все заказы
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   // --- Empty cart state ---
   if (items.length === 0) {
     return (
       <div className="page-transition flex flex-col items-center justify-center gap-4 p-12 text-center">
+        {successDialog}
         <div className="rounded-full bg-muted p-6">
           <ShoppingCart className="size-12 text-muted-foreground" />
         </div>

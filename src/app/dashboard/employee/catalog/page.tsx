@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
@@ -65,15 +65,17 @@ export default function CatalogPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     null,
   );
+  const [availableBalance, setAvailableBalance] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [benefitsRes, categoriesRes, offeringsRes] = await Promise.all([
+        const [benefitsRes, categoriesRes, offeringsRes, walletRes] = await Promise.all([
           fetch("/api/benefits"),
           fetch("/api/admin/categories"),
           fetch("/api/offerings"),
+          fetch("/api/wallets/me"),
         ]);
         if (benefitsRes.ok) {
           const json = await benefitsRes.json();
@@ -87,6 +89,13 @@ export default function CatalogPage() {
           const json = await offeringsRes.json();
           const items: OfferingItem[] = json.data?.data ?? json.data ?? [];
           setOfferings(items.map(offeringToBenefit));
+        }
+        if (walletRes.ok) {
+          const json = await walletRes.json();
+          const w = json.data?.wallet ?? json.data;
+          if (w) {
+            setAvailableBalance((w.balance ?? 0) - (w.reserved ?? 0));
+          }
         }
       } catch {
         // network error — leave empty
@@ -143,7 +152,18 @@ export default function CatalogPage() {
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Каталог льгот</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-heading font-bold">Каталог льгот</h1>
+        {availableBalance !== null && (
+          <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2">
+            <Wallet className="size-4 text-primary" />
+            <span className="text-sm text-muted-foreground">Доступно:</span>
+            <span className="font-semibold tabular-nums text-primary">
+              {availableBalance.toLocaleString("ru-RU")} б.
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Filters row */}
       <div className="space-y-4">

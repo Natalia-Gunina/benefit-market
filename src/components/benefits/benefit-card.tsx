@@ -17,6 +17,7 @@ import {
   Package,
   Star,
   Building2,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useCartStore } from "@/lib/store/cart";
 
 /** Maps category icon name (stored in DB) to a Lucide component */
 const iconMap: Record<string, LucideIcon> = {
@@ -61,6 +63,11 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
   const IconComponent = iconMap[benefit.category?.icon ?? ""] ?? Package;
   const outOfStock =
     benefit.stock_limit !== null && benefit.stock_limit <= 0;
+
+  const inCart = useCartStore((s) =>
+    s.items.some((item) => item.benefit.id === benefit.id),
+  );
+  const removeItem = useCartStore((s) => s.removeItem);
 
   const href = benefit.tenant_offering_id
     ? `/dashboard/employee/catalog/offering/${benefit.tenant_offering_id}`
@@ -115,6 +122,15 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
         {outOfStock ? (
           <Button className="w-full" disabled variant="outline">
             Нет в наличии
+          </Button>
+        ) : inCart ? (
+          <Button
+            className="w-full border-success text-success hover:bg-success/10"
+            variant="outline"
+            onClick={() => removeItem(benefit.id)}
+          >
+            <Check className="size-4" />
+            В корзине
           </Button>
         ) : (
           <Button

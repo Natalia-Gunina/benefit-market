@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, UserCheck, TrendingUp, Coins, Download } from "lucide-react";
+import { Users, TrendingUp, Coins, Download } from "lucide-react";
 import Papa from "papaparse";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -160,10 +160,9 @@ export default function HrDashboardPage() {
       )}
 
       {/* --- Metric Cards Row --- */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading ? (
           <>
-            <MetricSkeleton />
             <MetricSkeleton />
             <MetricSkeleton />
             <MetricSkeleton />
@@ -173,17 +172,14 @@ export default function HrDashboardPage() {
             <MetricCard
               title="Сотрудников"
               value={data.summary.total_employees}
+              subtitle={`Активных: ${data.summary.active_employees.toLocaleString("ru-RU")} из ${data.summary.total_employees.toLocaleString("ru-RU")}`}
               icon={Users}
             />
             <MetricCard
-              title="Активных"
-              value={data.summary.active_employees}
-              icon={UserCheck}
-            />
-            <MetricCard
-              title="Утилизация"
+              title="Использование бюджета"
               value={data.summary.utilization_pct}
               suffix="%"
+              subtitle={`${data.summary.total_spent.toLocaleString("ru-RU")} / ${data.summary.total_accrued.toLocaleString("ru-RU")} б.`}
               icon={TrendingUp}
             />
             <MetricCard

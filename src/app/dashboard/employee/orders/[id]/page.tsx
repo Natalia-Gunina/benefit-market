@@ -23,6 +23,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -338,21 +349,41 @@ export default function OrderDetailPage() {
                         "Подтвердить"
                       )}
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      disabled={isConfirming || isCancelling}
-                      onClick={handleCancel}
-                    >
-                      {isCancelling ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Отменяем...
-                        </>
-                      ) : (
-                        "Отменить"
-                      )}
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={isConfirming || isCancelling}
+                        >
+                          {isCancelling ? (
+                            <>
+                              <Loader2 className="mr-2 size-4 animate-spin" />
+                              Отменяем...
+                            </>
+                          ) : (
+                            "Отменить"
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Отменить заказ?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Зарезервированные баллы будут возвращены на ваш баланс. Это действие нельзя отменить.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Нет, оставить</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleCancel}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Да, отменить
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </>
               )}

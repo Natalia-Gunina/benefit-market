@@ -29,7 +29,7 @@ export function PATCH(
 ) {
   return withErrorHandling(async () => {
     const { id: policyId } = await params;
-    const appUser = await requireRole("admin");
+    const appUser = await requireRole("admin", "hr");
 
     const body = await request.json();
     const updates = parseBody(updatePolicySchema, body);
