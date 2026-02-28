@@ -249,7 +249,7 @@
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
-  html {
+  html:not(:has(dialog[open])) {
     scroll-behavior: smooth;
   }
   ::selection {

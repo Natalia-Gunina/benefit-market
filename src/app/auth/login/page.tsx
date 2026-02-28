@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "true";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,9 @@ export default function LoginPage() {
           case "hr":
             router.push("/dashboard/hr");
             break;
+          case "provider":
+            router.push("/dashboard/provider");
+            break;
           default:
             router.push("/dashboard/employee");
         }
@@ -76,6 +81,11 @@ export default function LoginPage() {
       </CardHeader>
       <form onSubmit={handleLogin}>
         <CardContent className="flex flex-col gap-4">
+          {justRegistered && !error && (
+            <div className="rounded-md bg-success-light p-3 text-sm text-success">
+              Регистрация прошла успешно! Войдите в систему.
+            </div>
+          )}
           {error && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               {error}
@@ -122,5 +132,25 @@ export default function LoginPage() {
         </CardFooter>
       </form>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle className="font-[family-name:var(--font-source-serif)] text-2xl font-bold">
+            Benefit Market
+          </CardTitle>
+          <CardDescription>Вход в систему</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="h-[200px] animate-pulse" />
+        </CardContent>
+      </Card>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

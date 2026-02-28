@@ -31,6 +31,7 @@ export function StarRating({
               type="button"
               disabled={!interactive}
               onClick={() => interactive && onRate?.(star)}
+              aria-label={interactive ? `Поставить ${star} ${star === 1 ? "звезду" : star < 5 ? "звезды" : "звёзд"}` : `${star} из 5`}
               className={cn(
                 "p-0 border-0 bg-transparent",
                 interactive

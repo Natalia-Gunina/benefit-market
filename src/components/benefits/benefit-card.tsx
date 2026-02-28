@@ -125,7 +125,7 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
           </Button>
         ) : inCart ? (
           <Button
-            className="w-full border-success text-success hover:bg-success/10"
+            className="w-full border-success text-success hover:bg-success/5"
             variant="outline"
             onClick={() => removeItem(benefit.id)}
           >

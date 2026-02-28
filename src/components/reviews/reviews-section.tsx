@@ -6,6 +6,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StarRating } from "./star-rating";
 import { ReviewForm } from "./review-form";
 
@@ -45,6 +55,7 @@ export function ReviewsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -65,7 +76,7 @@ export function ReviewsSection({
         setCanReview(json.data ?? json);
       }
     } catch {
-      // network error
+      toast.error("Не удалось загрузить отзывы");
     } finally {
       setIsLoading(false);
     }
@@ -85,15 +96,17 @@ export function ReviewsSection({
     setFormOpen(true);
   }
 
-  async function handleDelete(reviewId: string) {
-    if (!confirm("Удалить отзыв?")) return;
+  async function handleDelete() {
+    if (!deletingReviewId) return;
     try {
-      const res = await fetch(`/api/reviews/${reviewId}`, { method: "DELETE" });
+      const res = await fetch(`/api/reviews/${deletingReviewId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success("Отзыв удалён");
       handleRefresh();
     } catch {
       toast.error("Не удалось удалить отзыв");
+    } finally {
+      setDeletingReviewId(null);
     }
   }
 
@@ -179,7 +192,7 @@ export function ReviewsSection({
                           size="icon"
                           variant="ghost"
                           className="size-7 text-destructive"
-                          onClick={() => handleDelete(review.id)}
+                          onClick={() => setDeletingReviewId(review.id)}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
@@ -201,6 +214,27 @@ export function ReviewsSection({
           ))}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deletingReviewId} onOpenChange={() => setDeletingReviewId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить отзыв?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Отзыв будет удалён безвозвратно.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Review form dialog */}
       <ReviewForm

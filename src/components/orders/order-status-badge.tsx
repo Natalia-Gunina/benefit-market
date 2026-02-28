@@ -12,23 +12,23 @@ const statusConfig: Record<
 > = {
   pending: {
     label: "Ожидает",
-    className: "border-[var(--status-pending)] text-[var(--status-pending)]",
+    className: "border-status-pending text-status-pending",
   },
   reserved: {
     label: "Зарезервирован",
-    className: "border-[var(--status-reserved)] text-[var(--status-reserved)]",
+    className: "border-status-reserved text-status-reserved",
   },
   paid: {
     label: "Оплачен",
-    className: "border-[var(--status-paid)] text-[var(--status-paid)]",
+    className: "border-status-paid text-status-paid",
   },
   cancelled: {
     label: "Отменён",
-    className: "border-[var(--status-cancelled)] text-[var(--status-cancelled)]",
+    className: "border-status-cancelled text-status-cancelled",
   },
   expired: {
     label: "Истёк",
-    className: "border-[var(--status-expired)] text-[var(--status-expired)]",
+    className: "border-status-expired text-status-expired",
   },
 };
 

@@ -129,6 +129,18 @@ export default function OrderDetailPage() {
   // --- Fetch order ---
   const fetchOrder = useCallback(async () => {
     try {
+      // Try direct order endpoint first
+      const directRes = await fetch(`/api/orders/${orderId}`);
+      if (directRes.ok) {
+        const json = await directRes.json();
+        const orderData = json.data ?? json;
+        if (orderData && orderData.id) {
+          setOrder(orderData);
+          return;
+        }
+      }
+
+      // Fallback: search in orders list
       const res = await fetch(`/api/orders?page=1&per_page=100`);
       if (!res.ok) return;
 
@@ -140,7 +152,7 @@ export default function OrderDetailPage() {
         setOrder(found);
       }
     } catch {
-      // ignore
+      toast.error("Не удалось загрузить заказ");
     } finally {
       setIsLoading(false);
     }
@@ -320,8 +332,8 @@ export default function OrderDetailPage() {
               {isReserved && timeLeft && (
                 <>
                   <Separator />
-                  <div className="flex items-center justify-center gap-2 rounded-md bg-[var(--info-light)] p-3">
-                    <Clock className="size-4 text-[var(--info)]" />
+                  <div className="flex items-center justify-center gap-2 rounded-md bg-info-light p-3">
+                    <Clock className="size-4 text-info" />
                     <span className="text-sm font-medium">
                       Осталось времени:{" "}
                       <span className="tabular-nums font-bold">{timeLeft}</span>

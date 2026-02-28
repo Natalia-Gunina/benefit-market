@@ -23,6 +23,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,7 +78,7 @@ export default function CartPage() {
           }
         }
       } catch {
-        // ignore
+        // wallet fetch failed — non-blocking, cart still works
       } finally {
         setIsLoadingWallet(false);
       }
@@ -116,8 +127,8 @@ export default function CartPage() {
     <Dialog open={!!successOrderId} onOpenChange={() => setSuccessOrderId(null)}>
       <DialogContent>
         <DialogHeader>
-          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-[var(--success-light)]">
-            <CheckCircle2 className="size-8 text-[var(--success)]" />
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-success-light">
+            <CheckCircle2 className="size-8 text-success" />
           </div>
           <DialogTitle className="text-center">Заказ оформлен!</DialogTitle>
           <DialogDescription className="text-center">
@@ -287,8 +298,8 @@ export default function CartPage() {
 
               {/* Insufficient balance warning */}
               {insufficientBalance && (
-                <div className="flex items-center gap-2 rounded-md bg-[var(--warning-light)] p-3 text-sm">
-                  <AlertTriangle className="size-4 text-[var(--warning)] shrink-0" />
+                <div className="flex items-center gap-2 rounded-md bg-warning-light p-3 text-sm">
+                  <AlertTriangle className="size-4 text-warning shrink-0" />
                   <span>
                     Недостаточно баллов. Не хватает{" "}
                     <strong className="tabular-nums">
@@ -316,13 +327,27 @@ export default function CartPage() {
                   "Оформить заказ"
                 )}
               </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={clearCart}
-              >
-                Очистить корзину
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    Очистить корзину
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Очистить корзину?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Все товары будут удалены из корзины. Это действие нельзя отменить.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Нет, оставить</AlertDialogCancel>
+                    <AlertDialogAction onClick={clearCart}>
+                      Да, очистить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardFooter>
           </Card>
         </div>

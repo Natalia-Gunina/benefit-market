@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Check, Ban, Trash2 } from "lucide-react";
+import { Check, Ban, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,12 +65,18 @@ export default function AdminProvidersPage() {
     }
   };
 
-  const handleSuspend = async (id: string) => {
+  const [suspendId, setSuspendId] = useState<string | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [isSuspending, setIsSuspending] = useState(false);
+
+  const handleSuspend = async () => {
+    if (!suspendId) return;
+    setIsSuspending(true);
     try {
-      const res = await fetch(`/api/admin/providers/${id}/suspend`, {
+      const res = await fetch(`/api/admin/providers/${suspendId}/suspend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Нарушение правил" }),
+        body: JSON.stringify({ reason: suspendReason || "Нарушение правил" }),
       });
       if (res.ok) {
         toast.success("Провайдер заблокирован");
@@ -78,6 +86,10 @@ export default function AdminProvidersPage() {
       }
     } catch {
       toast.error("Ошибка сети");
+    } finally {
+      setIsSuspending(false);
+      setSuspendId(null);
+      setSuspendReason("");
     }
   };
 
@@ -132,7 +144,7 @@ export default function AdminProvidersPage() {
                         </Button>
                       )}
                       {p.status !== "suspended" && (
-                        <Button size="sm" variant="ghost" onClick={() => handleSuspend(p.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => setSuspendId(p.id)}>
                           <Ban className="mr-1 size-3.5" />Заблокировать
                         </Button>
                       )}
@@ -170,6 +182,45 @@ export default function AdminProvidersPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Suspend confirmation dialog */}
+      <AlertDialog open={!!suspendId} onOpenChange={() => { setSuspendId(null); setSuspendReason(""); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Заблокировать провайдера?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Провайдер будет заблокирован и его предложения станут недоступны.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="suspend-reason">Причина блокировки</Label>
+            <Input
+              id="suspend-reason"
+              placeholder="Укажите причину..."
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+              className="mt-1.5"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSuspending}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSuspend}
+              disabled={isSuspending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isSuspending ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Блокируем...
+                </>
+              ) : (
+                "Заблокировать"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

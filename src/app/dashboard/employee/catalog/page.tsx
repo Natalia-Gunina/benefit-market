@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Wallet } from "lucide-react";
+import { Search, Wallet, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
 import { useCartStore } from "@/lib/store/cart";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { CategoryFilter } from "@/components/benefits/category-filter";
 import { BenefitGrid } from "@/components/benefits/benefit-grid";
 
@@ -61,50 +62,54 @@ export default function CatalogPage() {
   const [offerings, setOfferings] = useState<BenefitWithCategory[]>([]);
   const [categories, setCategories] = useState<BenefitCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     null,
   );
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      try {
-        const [benefitsRes, categoriesRes, offeringsRes, walletRes] = await Promise.all([
-          fetch("/api/benefits"),
-          fetch("/api/admin/categories"),
-          fetch("/api/offerings"),
-          fetch("/api/wallets/me"),
-        ]);
-        if (benefitsRes.ok) {
-          const json = await benefitsRes.json();
-          setBenefits(json.data ?? []);
-        }
-        if (categoriesRes.ok) {
-          const json = await categoriesRes.json();
-          setCategories(json.data ?? []);
-        }
-        if (offeringsRes.ok) {
-          const json = await offeringsRes.json();
-          const items: OfferingItem[] = json.data?.data ?? json.data ?? [];
-          setOfferings(items.map(offeringToBenefit));
-        }
-        if (walletRes.ok) {
-          const json = await walletRes.json();
-          const w = json.data?.wallet ?? json.data;
-          if (w) {
-            setAvailableBalance((w.balance ?? 0) - (w.reserved ?? 0));
-          }
-        }
-      } catch {
-        // network error — leave empty
-      } finally {
-        setIsLoading(false);
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(false);
+    try {
+      const [benefitsRes, categoriesRes, offeringsRes, walletRes] = await Promise.all([
+        fetch("/api/benefits"),
+        fetch("/api/admin/categories"),
+        fetch("/api/offerings"),
+        fetch("/api/wallets/me"),
+      ]);
+      if (benefitsRes.ok) {
+        const json = await benefitsRes.json();
+        setBenefits(json.data ?? []);
       }
+      if (categoriesRes.ok) {
+        const json = await categoriesRes.json();
+        setCategories(json.data ?? []);
+      }
+      if (offeringsRes.ok) {
+        const json = await offeringsRes.json();
+        const items: OfferingItem[] = json.data?.data ?? json.data ?? [];
+        setOfferings(items.map(offeringToBenefit));
+      }
+      if (walletRes.ok) {
+        const json = await walletRes.json();
+        const w = json.data?.wallet ?? json.data;
+        if (w) {
+          setAvailableBalance((w.balance ?? 0) - (w.reserved ?? 0));
+        }
+      }
+    } catch {
+      setFetchError(true);
+      toast.error("Не удалось загрузить каталог");
+    } finally {
+      setIsLoading(false);
     }
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const allItems = useMemo(
     () => [...benefits, ...offerings],
@@ -184,12 +189,25 @@ export default function CatalogPage() {
         </div>
       </div>
 
+      {/* Error state */}
+      {fetchError && !isLoading && (
+        <div className="flex flex-col items-center justify-center gap-4 py-12">
+          <p className="text-muted-foreground">Не удалось загрузить данные</p>
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCw className="mr-2 size-4" />
+            Попробовать снова
+          </Button>
+        </div>
+      )}
+
       {/* Grid */}
-      <BenefitGrid
-        benefits={filtered}
-        isLoading={isLoading}
-        onAddToCart={handleAddToCart}
-      />
+      {!fetchError && (
+        <BenefitGrid
+          benefits={filtered}
+          isLoading={isLoading}
+          onAddToCart={handleAddToCart}
+        />
+      )}
     </div>
   );
 }

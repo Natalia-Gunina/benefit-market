@@ -82,7 +82,7 @@ export default function BenefitDetailPage() {
           }
         }
       } catch {
-        // network error
+        toast.error("Не удалось загрузить данные");
       } finally {
         setIsLoading(false);
       }
@@ -202,8 +202,8 @@ export default function BenefitDetailPage() {
                 <span
                   className={`text-sm font-semibold tabular-nums ${
                     benefit.stock_limit > 0
-                      ? "text-[var(--success)]"
-                      : "text-[var(--error)]"
+                      ? "text-success"
+                      : "text-error"
                   }`}
                 >
                   {benefit.stock_limit > 0
@@ -222,7 +222,7 @@ export default function BenefitDetailPage() {
               </span>
               <span
                 className={`text-sm font-semibold tabular-nums ${
-                  canAfford ? "text-[var(--success)]" : "text-[var(--error)]"
+                  canAfford ? "text-success" : "text-error"
                 }`}
               >
                 {balance.toLocaleString("ru-RU")} баллов

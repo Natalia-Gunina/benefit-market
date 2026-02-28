@@ -112,7 +112,7 @@ export default function OfferingDetailPage() {
           }
         }
       } catch {
-        // network error
+        toast.error("Не удалось загрузить данные");
       } finally {
         setIsLoading(false);
       }
@@ -273,8 +273,8 @@ export default function OfferingDetailPage() {
                 <span
                   className={`text-sm font-semibold tabular-nums ${
                     stockLimit > 0
-                      ? "text-[var(--success)]"
-                      : "text-[var(--error)]"
+                      ? "text-success"
+                      : "text-error"
                   }`}
                 >
                   {stockLimit > 0 ? stockLimit : "Нет в наличии"}
@@ -317,7 +317,7 @@ export default function OfferingDetailPage() {
               </span>
               <span
                 className={`text-sm font-semibold tabular-nums ${
-                  canAfford ? "text-[var(--success)]" : "text-[var(--error)]"
+                  canAfford ? "text-success" : "text-error"
                 }`}
               >
                 {balance.toLocaleString("ru-RU")} баллов

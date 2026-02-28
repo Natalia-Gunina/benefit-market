@@ -15,31 +15,31 @@ const typeConfig: Record<
 > = {
   accrual: {
     icon: ArrowDownLeft,
-    colorClass: "text-[var(--txn-accrual)]",
+    colorClass: "text-txn-accrual",
     sign: "+",
     label: "Начисление",
   },
   spend: {
     icon: ArrowUpRight,
-    colorClass: "text-[var(--txn-spend)]",
+    colorClass: "text-txn-spend",
     sign: "\u2212",
     label: "Списание",
   },
   reserve: {
     icon: Lock,
-    colorClass: "text-[var(--txn-reserve)]",
+    colorClass: "text-txn-reserve",
     sign: "\u2212",
     label: "Резерв",
   },
   release: {
     icon: Unlock,
-    colorClass: "text-[var(--txn-release)]",
+    colorClass: "text-txn-release",
     sign: "+",
     label: "Разблокировка",
   },
   expire: {
     icon: Clock,
-    colorClass: "text-[var(--txn-expire)]",
+    colorClass: "text-txn-expire",
     sign: "\u2212",
     label: "Сгорание",
   },

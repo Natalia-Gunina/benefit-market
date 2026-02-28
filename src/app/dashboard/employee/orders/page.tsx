@@ -96,9 +96,11 @@ export default function OrdersPage() {
       if (res.ok) {
         const json = await res.json();
         setOrders(json.data ?? []);
+      } else {
+        toast.error("Не удалось загрузить заказы");
       }
     } catch {
-      // ignore
+      toast.error("Ошибка сети при загрузке заказов");
     } finally {
       setIsLoading(false);
     }

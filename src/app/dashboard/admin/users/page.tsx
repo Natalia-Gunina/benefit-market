@@ -22,6 +22,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
 import type { UserRole } from "@/lib/types";
@@ -96,8 +106,20 @@ export default function UsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  /* ----- Update role ------------------------------------------------------ */
-  async function updateRole(userId: string, newRole: UserRole) {
+  /* ----- Role change confirmation ----------------------------------------- */
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
+    userId: string;
+    email: string;
+    newRole: UserRole;
+  } | null>(null);
+
+  function requestRoleChange(userId: string, email: string, newRole: UserRole) {
+    setPendingRoleChange({ userId, email, newRole });
+  }
+
+  async function confirmRoleChange() {
+    if (!pendingRoleChange) return;
+    const { userId, newRole } = pendingRoleChange;
     try {
       const res = await fetch(`/api/admin/users`, {
         method: "PATCH",
@@ -111,6 +133,8 @@ export default function UsersPage() {
       toast.success("Роль обновлена");
     } catch {
       toast.error("Не удалось обновить роль");
+    } finally {
+      setPendingRoleChange(null);
     }
   }
 
@@ -198,7 +222,7 @@ export default function UsersPage() {
                   <TableCell>
                     <Select
                       value={u.role}
-                      onValueChange={(v) => updateRole(u.id, v as UserRole)}
+                      onValueChange={(v) => requestRoleChange(u.id, u.email, v as UserRole)}
                     >
                       <SelectTrigger className="w-[130px]" size="sm">
                         <SelectValue>
@@ -238,6 +262,26 @@ export default function UsersPage() {
           />
         )}
       </div>
+      {/* Role change confirmation dialog */}
+      <AlertDialog open={!!pendingRoleChange} onOpenChange={() => setPendingRoleChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Изменить роль пользователя?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы собираетесь изменить роль пользователя{" "}
+              <strong>{pendingRoleChange?.email}</strong> на{" "}
+              <strong>{pendingRoleChange ? ROLE_LABELS[pendingRoleChange.newRole] : ""}</strong>.
+              Это повлияет на его права доступа в системе.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRoleChange}>
+              Подтвердить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

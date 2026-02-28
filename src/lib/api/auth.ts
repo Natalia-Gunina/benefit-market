@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { unauthorized, userNotFound, forbidden } from "@/lib/errors";
 import type { User, UserRole } from "@/lib/types";
 
 /**
  * Authenticate the current request and return the app-level User record.
+ * Uses admin client to bypass RLS when looking up the user by auth_id.
  * Throws AppError on failure.
  */
 export async function requireAuth(): Promise<User> {
@@ -18,7 +20,10 @@ export async function requireAuth(): Promise<User> {
     throw unauthorized();
   }
 
-  const { data: appUser, error: userError } = await supabase
+  // Use admin client to bypass RLS — the users_select policy depends on
+  // current_tenant_id() from JWT, which may not be available yet.
+  const admin = createAdminClient();
+  const { data: appUser, error: userError } = await admin
     .from("users")
     .select("*")
     .eq("auth_id", authUser.id)

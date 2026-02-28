@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import type { Wallet, PointLedger, LedgerType } from "@/lib/types";
 import { WalletBalanceCard } from "@/components/wallet/wallet-balance-card";
 import { TransactionRow } from "@/components/wallet/transaction-row";
@@ -31,25 +32,28 @@ export default function WalletPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [txnFilter, setTxnFilter] = useState<TxnFilter>("all");
 
-  useEffect(() => {
-    async function fetchWallet() {
-      setIsLoading(true);
-      try {
-        const res = await fetch("/api/wallets/me");
-        if (res.ok) {
-          const json = await res.json();
-          const payload = json.data ?? json;
-          setWallet(payload.wallet ?? null);
-          setLedger(payload.ledger ?? []);
-        }
-      } catch {
-        // network error — leave empty
-      } finally {
-        setIsLoading(false);
+  const fetchWallet = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/wallets/me");
+      if (res.ok) {
+        const json = await res.json();
+        const payload = json.data ?? json;
+        setWallet(payload.wallet ?? null);
+        setLedger(payload.ledger ?? []);
+      } else {
+        toast.error("Не удалось загрузить данные кошелька");
       }
+    } catch {
+      toast.error("Ошибка сети при загрузке кошелька");
+    } finally {
+      setIsLoading(false);
     }
-    fetchWallet();
   }, []);
+
+  useEffect(() => {
+    fetchWallet();
+  }, [fetchWallet]);
 
   const filteredLedger = useMemo(() => {
     const types = filterMap[txnFilter];
@@ -89,7 +93,7 @@ export default function WalletPage() {
     <div className="page-transition space-y-6 p-6">
       <h1 className="text-2xl font-heading font-bold">Кошелёк</h1>
 
-      {wallet && (
+      {wallet ? (
         <WalletBalanceCard
           balance={wallet.balance}
           reserved={wallet.reserved}
@@ -97,6 +101,15 @@ export default function WalletPage() {
           period={wallet.period}
           expiresAt={wallet.expires_at}
         />
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-2 py-8">
+            <ReceiptText className="size-10 text-muted-foreground" />
+            <p className="text-muted-foreground text-sm">
+              Кошелёк ещё не создан. Обратитесь к HR-менеджеру для назначения бюджета.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Transaction history */}
