@@ -57,13 +57,10 @@ const employeeNavItems: NavItem[] = [
 ];
 
 const hrNavItems: NavItem[] = [
-  { title: "Дашборд", href: "/dashboard/hr", icon: LayoutDashboard },
+  { title: "Аналитика", href: "/dashboard/hr", icon: BarChart },
   { title: "Сотрудники", href: "/dashboard/hr/employees", icon: Users },
   { title: "Импорт", href: "/dashboard/hr/import", icon: Upload },
   { title: "Политики", href: "/dashboard/hr/policies", icon: Settings },
-  { title: "Аналитика", href: "/dashboard/hr/analytics", icon: BarChart },
-  { title: "Маркетплейс", href: "/dashboard/hr/marketplace", icon: Store },
-  { title: "Подключённые", href: "/dashboard/hr/offerings", icon: Package },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -193,8 +190,7 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
               {navItems.map((item) => {
                 const isActive =
                   pathname === item.href ||
-                  (item.href !== "/dashboard/hr" &&
-                    pathname.startsWith(item.href + "/"));
+                  pathname.startsWith(item.href + "/");
 
                 return (
                   <SidebarMenuItem key={item.href}>

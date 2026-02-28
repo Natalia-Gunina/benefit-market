@@ -92,10 +92,10 @@ export default function TenantsPage() {
     try {
       const body = { name: formName, domain: formDomain };
       const res = editing
-        ? await fetch(`/api/admin/tenants`, {
+        ? await fetch(`/api/admin/tenants/${editing.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: editing.id, ...body }),
+            body: JSON.stringify(body),
           })
         : await fetch(`/api/admin/tenants`, {
             method: "POST",

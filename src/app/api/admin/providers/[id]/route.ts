@@ -4,7 +4,7 @@ import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapRows } from "@/lib/supabase/typed-queries";
-import { notFound, validationError } from "@/lib/errors";
+import { notFound, validationError, dbError } from "@/lib/errors";
 import type { Provider } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -97,4 +97,40 @@ export function PATCH(request: NextRequest, context: RouteContext) {
 
     return success(updated);
   }, "PATCH /api/admin/providers/[id]");
+}
+
+// DELETE /api/admin/providers/[id] — Delete provider + cascade offerings
+export function DELETE(_request: NextRequest, context: RouteContext) {
+  return withErrorHandling(async () => {
+    const { id } = await context.params;
+
+    if (isDemo) {
+      return success({ id, deleted: true });
+    }
+
+    await requireRole("admin");
+    const admin = createAdminClient();
+
+    // First delete related offerings (cascade)
+    const { error: offeringsError } = await admin
+      .from("provider_offerings")
+      .delete()
+      .eq("provider_id", id);
+
+    if (offeringsError) {
+      throw dbError(`Failed to delete provider offerings: ${offeringsError.message}`);
+    }
+
+    // Then delete the provider
+    const { error: providerError } = await admin
+      .from("providers")
+      .delete()
+      .eq("id", id);
+
+    if (providerError) {
+      throw dbError(`Failed to delete provider: ${providerError.message}`);
+    }
+
+    return success({ id, deleted: true });
+  }, "DELETE /api/admin/providers/[id]");
 }

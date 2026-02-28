@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -50,6 +61,7 @@ export default function RulesPage() {
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<RuleWithBenefit | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Form
@@ -93,11 +105,33 @@ export default function RulesPage() {
 
   /* ----- Dialog helpers --------------------------------------------------- */
   function openCreate() {
+    setEditing(null);
     setFormBenefitId(benefits[0]?.id ?? "");
     setFormGrade("");
     setFormMinTenure("");
     setFormLocation("");
     setFormEntity("");
+    setDialogOpen(true);
+  }
+
+  function openEdit(rule: RuleWithBenefit) {
+    setEditing(rule);
+    setFormBenefitId(rule.benefit_id ?? "");
+    const c = rule.conditions as Record<string, unknown>;
+    setFormGrade(
+      Array.isArray(c?.grade) ? (c.grade as string[]).join(", ") : ""
+    );
+    setFormMinTenure(
+      c?.min_tenure != null ? String(c.min_tenure) : ""
+    );
+    setFormLocation(
+      Array.isArray(c?.location) ? (c.location as string[]).join(", ") : ""
+    );
+    setFormEntity(
+      Array.isArray(c?.legal_entity)
+        ? (c.legal_entity as string[]).join(", ")
+        : ""
+    );
     setDialogOpen(true);
   }
 
@@ -122,25 +156,44 @@ export default function RulesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const body = {
-        benefit_id: formBenefitId,
-        conditions: buildConditions(),
-      };
+      const conditions = buildConditions();
 
-      const res = await fetch(`/api/admin/rules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const res = editing
+        ? await fetch(`/api/admin/rules/${editing.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conditions }),
+          })
+        : await fetch(`/api/admin/rules`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              benefit_id: formBenefitId,
+              conditions,
+            }),
+          });
 
       if (!res.ok) throw new Error();
-      toast.success("Правило создано");
+      toast.success(editing ? "Правило обновлено" : "Правило создано");
       setDialogOpen(false);
       fetchRules();
     } catch {
-      toast.error("Не удалось создать правило");
+      toast.error("Не удалось сохранить правило");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(ruleId: string) {
+    try {
+      const res = await fetch(`/api/admin/rules/${ruleId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Правило удалено");
+      fetchRules();
+    } catch {
+      toast.error("Не удалось удалить правило");
     }
   }
 
@@ -229,19 +282,20 @@ export default function RulesPage() {
               <TableHead>Льгота</TableHead>
               <TableHead>Условия</TableHead>
               <TableHead className="text-right">Дата создания</TableHead>
+              <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={3} className="h-32 text-center">
+                <TableCell colSpan={4} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : rules.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className="h-32 text-center text-muted-foreground"
                 >
                   Правила не найдены
@@ -255,12 +309,47 @@ export default function RulesPage() {
                   </TableCell>
                   <TableCell>{formatConditions(r.conditions)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {/* eligibility_rules may not have created_at — handle gracefully */}
                     {"created_at" in r && r.created_at
                       ? new Date(r.created_at as string).toLocaleDateString(
                           "ru-RU"
                         )
                       : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => openEdit(r)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon-xs">
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Удалить правило?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Это действие нельзя отменить. Правило будет удалено
+                              безвозвратно.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Отмена</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(r.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Удалить
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -282,24 +371,37 @@ export default function RulesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Новое правило</DialogTitle>
+            <DialogTitle>
+              {editing ? "Редактировать правило" : "Новое правило"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Льгота</Label>
-              <Select value={formBenefitId} onValueChange={setFormBenefitId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Выберите льготу" />
-                </SelectTrigger>
-                <SelectContent>
-                  {benefits.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Benefit selector — only for create mode */}
+            {!editing ? (
+              <div className="space-y-2">
+                <Label>Льгота</Label>
+                <Select value={formBenefitId} onValueChange={setFormBenefitId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Выберите льготу" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {benefits.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Льгота</Label>
+                <Input
+                  value={editing.benefit_name ?? benefitName(editing.benefit_id ?? "")}
+                  disabled
+                />
+              </div>
+            )}
 
             <div className="space-y-3 rounded-md border p-3">
               <p className="text-sm font-medium">Условия доступности</p>
@@ -361,7 +463,7 @@ export default function RulesPage() {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="size-4 animate-spin" />}
-                Создать
+                {editing ? "Сохранить" : "Создать"}
               </Button>
             </DialogFooter>
           </form>

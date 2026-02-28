@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 
 import {
   Table,
@@ -121,8 +121,9 @@ export default function HrPoliciesPage() {
   const [page, setPage] = useState(1);
   const perPage = 20;
 
-  // Edit dialog state
+  // Dialog state: editingPolicy=null + dialogOpen=true means "create" mode
   const [editingPolicy, setEditingPolicy] = useState<BudgetPolicy | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<PolicyFormData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -149,18 +150,36 @@ export default function HrPoliciesPage() {
     fetchPolicies();
   }, [fetchPolicies]);
 
+  const isCreateMode = dialogOpen && !editingPolicy;
+
+  function openCreateDialog() {
+    setEditingPolicy(null);
+    setForm({
+      name: "",
+      points_amount: 0,
+      period: "monthly",
+      is_active: true,
+      filter_grades: "",
+      filter_locations: "",
+      filter_legal_entities: "",
+    });
+    setDialogOpen(true);
+  }
+
   function openEditDialog(policy: BudgetPolicy) {
     setEditingPolicy(policy);
     setForm(policyToForm(policy));
+    setDialogOpen(true);
   }
 
-  function closeEditDialog() {
+  function closeDialog() {
     setEditingPolicy(null);
     setForm(null);
+    setDialogOpen(false);
   }
 
   async function handleSave() {
-    if (!editingPolicy || !form) return;
+    if (!form) return;
 
     if (!form.name.trim()) {
       toast.error("Название не может быть пустым");
@@ -174,20 +193,26 @@ export default function HrPoliciesPage() {
     setIsSaving(true);
     try {
       const payload = formToPayload(form);
-      const res = await fetch(`/api/admin/policies/${editingPolicy.id}`, {
-        method: "PATCH",
+
+      const url = editingPolicy
+        ? `/api/admin/policies/${editingPolicy.id}`
+        : "/api/admin/policies";
+      const method = editingPolicy ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        toast.error(json.error?.message ?? "Не удалось сохранить изменения");
+        toast.error(json.error?.message ?? "Не удалось сохранить");
         return;
       }
 
-      toast.success("Политика обновлена");
-      closeEditDialog();
+      toast.success(editingPolicy ? "Политика обновлена" : "Политика создана");
+      closeDialog();
       await fetchPolicies();
     } catch {
       toast.error("Ошибка сети");
@@ -198,7 +223,13 @@ export default function HrPoliciesPage() {
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Бюджетные политики</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-heading font-bold">Бюджетные политики</h1>
+        <Button onClick={openCreateDialog}>
+          <Plus className="size-4" />
+          Добавить политику
+        </Button>
+      </div>
 
       <div className="rounded-lg border bg-card">
         <Table>
@@ -274,11 +305,13 @@ export default function HrPoliciesPage() {
         )}
       </div>
 
-      {/* ---- Edit Policy Dialog ---- */}
-      <Dialog open={!!editingPolicy} onOpenChange={(open) => !open && closeEditDialog()}>
+      {/* ---- Create / Edit Policy Dialog ---- */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Редактировать политику</DialogTitle>
+            <DialogTitle>
+              {isCreateMode ? "Добавить политику" : "Редактировать политику"}
+            </DialogTitle>
           </DialogHeader>
 
           {form && (
@@ -375,7 +408,7 @@ export default function HrPoliciesPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={closeEditDialog} disabled={isSaving}>
+            <Button variant="outline" onClick={closeDialog} disabled={isSaving}>
               Отмена
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>

@@ -2,10 +2,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Check, Ban } from "lucide-react";
+import { Check, Ban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Provider {
   id: string;
@@ -70,6 +81,22 @@ export default function AdminProvidersPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/providers/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Провайдер и его предложения удалены");
+        loadProviders();
+      } else {
+        toast.error("Не удалось удалить провайдера");
+      }
+    } catch {
+      toast.error("Ошибка сети");
+    }
+  };
+
   return (
     <div className="page-transition space-y-6 p-6">
       <h1 className="text-2xl font-heading font-bold">Управление провайдерами</h1>
@@ -109,6 +136,32 @@ export default function AdminProvidersPage() {
                           <Ban className="mr-1 size-3.5" />Заблокировать
                         </Button>
                       )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost">
+                            <Trash2 className="mr-1 size-3.5 text-destructive" />
+                            Удалить
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Удалить провайдера «{p.name}»?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Провайдер и все его предложения (льготы) будут удалены безвозвратно.
+                              Это действие нельзя отменить.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Отмена</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(p.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Удалить провайдера
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 );

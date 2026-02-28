@@ -11,7 +11,7 @@ import type { BudgetPolicy } from "@/lib/types";
 // GET /api/admin/policies — List all budget policies for tenant
 // ---------------------------------------------------------------------------
 
-export function GET() {
+export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_POLICIES } = await import("@/lib/demo-data");
@@ -21,13 +21,22 @@ export function GET() {
     const appUser = await requireRole("admin", "hr");
     const admin = createAdminClient();
 
-    const result = await admin
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenant_id");
+
+    let query = admin
       .from("budget_policies")
       .select("*")
-      .eq("tenant_id", appUser.tenant_id)
       .order("name", { ascending: true });
 
-    const policies = unwrapRows<BudgetPolicy>(result, "Failed to fetch policies");
+    // Admin sees all companies' policies; HR sees only their own
+    if (appUser.role === "hr") {
+      query = query.eq("tenant_id", appUser.tenant_id);
+    } else if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
+
+    const policies = unwrapRows<BudgetPolicy>(await query, "Failed to fetch policies");
     return success(policies);
   }, "GET /api/admin/policies");
 }
@@ -38,18 +47,24 @@ export function GET() {
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    const appUser = await requireRole("admin");
+    const appUser = await requireRole("admin", "hr");
 
     const body = await request.json();
     const { name, points_amount, period, target_filter, is_active } =
       parseBody(createPolicySchema, body);
+
+    // Admin can specify tenant_id; HR always uses their own
+    const targetTenantId =
+      appUser.role === "admin" && body.tenant_id
+        ? body.tenant_id
+        : appUser.tenant_id;
 
     const admin = createAdminClient();
 
     const result = await admin
       .from("budget_policies")
       .insert({
-        tenant_id: appUser.tenant_id,
+        tenant_id: targetTenantId,
         name,
         points_amount,
         period,

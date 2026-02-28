@@ -33,7 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
-import type { BudgetPolicy, BudgetPeriod } from "@/lib/types";
+import type { BudgetPolicy, BudgetPeriod, Tenant } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
 
@@ -45,9 +45,11 @@ const PERIOD_LABELS: Record<BudgetPeriod, string> = {
 
 export default function AdminPoliciesPage() {
   const [policies, setPolicies] = useState<BudgetPolicy[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [filterTenantId, setFilterTenantId] = useState<string>("all");
   const perPage = 20;
 
   // Dialog
@@ -60,9 +62,18 @@ export default function AdminPoliciesPage() {
   const [formPoints, setFormPoints] = useState("");
   const [formPeriod, setFormPeriod] = useState<BudgetPeriod>("monthly");
   const [formActive, setFormActive] = useState(true);
+  const [formTenantId, setFormTenantId] = useState("");
   const [formFilterGrade, setFormFilterGrade] = useState("");
   const [formFilterLocation, setFormFilterLocation] = useState("");
   const [formFilterEntity, setFormFilterEntity] = useState("");
+
+  /* ----- Fetch tenants ------------------------------------------------------ */
+  useEffect(() => {
+    fetch("/api/admin/tenants")
+      .then((r) => r.json())
+      .then((json) => setTenants(json.data ?? json))
+      .catch(() => {});
+  }, []);
 
   /* ----- Fetch ------------------------------------------------------------ */
   const fetchPolicies = useCallback(async () => {
@@ -72,6 +83,9 @@ export default function AdminPoliciesPage() {
         page: String(page),
         per_page: String(perPage),
       });
+      if (filterTenantId && filterTenantId !== "all")
+        params.set("tenant_id", filterTenantId);
+
       const res = await fetch(`/api/admin/policies?${params}`);
       if (!res.ok) throw new Error();
       const json = await res.json();
@@ -82,7 +96,7 @@ export default function AdminPoliciesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, filterTenantId]);
 
   useEffect(() => {
     fetchPolicies();
@@ -91,10 +105,10 @@ export default function AdminPoliciesPage() {
   /* ----- Toggle active ---------------------------------------------------- */
   async function toggleActive(policy: BudgetPolicy) {
     try {
-      const res = await fetch(`/api/admin/policies`, {
+      const res = await fetch(`/api/admin/policies/${policy.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: policy.id, is_active: !policy.is_active }),
+        body: JSON.stringify({ is_active: !policy.is_active }),
       });
       if (!res.ok) throw new Error();
       setPolicies((prev) =>
@@ -119,6 +133,7 @@ export default function AdminPoliciesPage() {
     setFormPoints("");
     setFormPeriod("monthly");
     setFormActive(true);
+    setFormTenantId(tenants[0]?.id ?? "");
     setFormFilterGrade("");
     setFormFilterLocation("");
     setFormFilterEntity("");
@@ -131,6 +146,7 @@ export default function AdminPoliciesPage() {
     setFormPoints(String(p.points_amount));
     setFormPeriod(p.period);
     setFormActive(p.is_active);
+    setFormTenantId(p.tenant_id);
     const f = p.target_filter as Record<string, unknown>;
     setFormFilterGrade(
       Array.isArray(f?.grade) ? (f.grade as string[]).join(", ") : ""
@@ -164,7 +180,7 @@ export default function AdminPoliciesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         name: formName,
         points_amount: Number(formPoints),
         period: formPeriod,
@@ -172,11 +188,15 @@ export default function AdminPoliciesPage() {
         target_filter: buildTargetFilter(),
       };
 
+      if (!editing) {
+        body.tenant_id = formTenantId;
+      }
+
       const res = editing
-        ? await fetch(`/api/admin/policies`, {
+        ? await fetch(`/api/admin/policies/${editing.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: editing.id, ...body }),
+            body: JSON.stringify(body),
           })
         : await fetch(`/api/admin/policies`, {
             method: "POST",
@@ -195,7 +215,11 @@ export default function AdminPoliciesPage() {
     }
   }
 
-  /* ----- Display filter --------------------------------------------------- */
+  /* ----- Display helpers -------------------------------------------------- */
+  function tenantName(id: string) {
+    return tenants.find((t) => t.id === id)?.name ?? "—";
+  }
+
   function formatFilter(f: Record<string, unknown>) {
     const parts: string[] = [];
     if (Array.isArray(f?.grade) && f.grade.length)
@@ -211,17 +235,43 @@ export default function AdminPoliciesPage() {
   return (
     <div className="page-transition space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Бюджетные политики</h1>
+        <h1 className="text-2xl font-heading font-bold">
+          Лимиты бюджета по компаниям
+        </h1>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
-          Добавить политику
+          Добавить лимит
         </Button>
+      </div>
+
+      {/* Filter by company */}
+      <div className="max-w-xs">
+        <Select
+          value={filterTenantId}
+          onValueChange={(v) => {
+            setFilterTenantId(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Все компании" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все компании</SelectItem>
+            {tenants.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Компания</TableHead>
               <TableHead>Название</TableHead>
               <TableHead className="text-right">Баллов</TableHead>
               <TableHead>Период</TableHead>
@@ -233,14 +283,14 @@ export default function AdminPoliciesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
+                <TableCell colSpan={7} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : policies.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="h-32 text-center text-muted-foreground"
                 >
                   Политики не найдены
@@ -249,7 +299,10 @@ export default function AdminPoliciesPage() {
             ) : (
               policies.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {tenantName(p.tenant_id)}
+                  </TableCell>
+                  <TableCell>{p.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {p.points_amount.toLocaleString("ru-RU")}
                   </TableCell>
@@ -258,7 +311,7 @@ export default function AdminPoliciesPage() {
                       {PERIOD_LABELS[p.period] ?? p.period}
                     </Badge>
                   </TableCell>
-                  <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
+                  <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                     {formatFilter(p.target_filter)}
                   </TableCell>
                   <TableCell className="text-center">
@@ -297,10 +350,29 @@ export default function AdminPoliciesPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Редактировать политику" : "Новая политика"}
+              {editing ? "Редактировать лимит" : "Новый лимит бюджета"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Tenant selector — only for create */}
+            {!editing && (
+              <div className="space-y-2">
+                <Label>Компания</Label>
+                <Select value={formTenantId} onValueChange={setFormTenantId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Выберите компанию" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="policy-name">Название</Label>
               <Input
