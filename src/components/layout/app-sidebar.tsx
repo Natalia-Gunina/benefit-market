@@ -124,7 +124,9 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
     : pathname.startsWith("/dashboard/hr") ? "hr" as const
     : pathname.startsWith("/dashboard/provider") ? "provider" as const
     : "employee" as const;
-  const effectiveRole = isDemo ? activeRole : role;
+  // Admin and demo users can switch between cabinets — derive role from URL
+  const canSwitchRoles = isDemo || role === "admin";
+  const effectiveRole = canSwitchRoles ? activeRole : role;
   const navItems = navItemsByRole[effectiveRole] ?? [];
   const groupLabel = groupLabelByRole[effectiveRole] ?? "Навигация";
 
@@ -149,10 +151,10 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
         )}
       </SidebarHeader>
 
-      {isDemo && (
+      {canSwitchRoles && (
         <div className="px-3 pb-1 group-data-[collapsible=icon]:px-1.5">
           <p className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
-            Demo-кабинет
+            {isDemo ? "Demo-кабинет" : "Кабинеты"}
           </p>
           <div className="flex gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
             {demoRoles.map((r) => {
