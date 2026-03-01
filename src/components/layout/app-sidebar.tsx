@@ -229,16 +229,18 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
             </span>
           </div>
           <ThemeToggle />
-          <form action="/auth/logout" method="post">
-            <button
-              type="submit"
-              className="inline-flex size-7 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-              title="Выйти"
-            >
-              <LogOut className="size-4" />
-              <span className="sr-only">Выйти</span>
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/auth/login";
+            }}
+            className="inline-flex size-7 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+            title="Выйти"
+          >
+            <LogOut className="size-4" />
+            <span className="sr-only">Выйти</span>
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
