@@ -6,15 +6,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingleOrNull, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { providerNotFound } from "@/lib/errors";
 
-// Explicit row types for Supabase query results
 type ProviderIdRow = Record<string, unknown> & { id: string };
 type OfferingIdRow = Record<string, unknown> & { id: string };
-type OrderItemRow = Record<string, unknown> & {
+type ReviewRow = Record<string, unknown> & {
   id: string;
-  order_id: string;
-  provider_offering_id: string;
-  orders: { id: string; status: string; total_points: number; created_at: string; tenant_id: string };
+  rating: number;
+  title: string;
+  body: string;
+  status: string;
+  created_at: string;
   provider_offerings: { name: string } | null;
+  users: { email: string } | null;
 };
 
 export function GET(request: NextRequest) {
@@ -37,23 +39,19 @@ export function GET(request: NextRequest) {
     if (!provider) throw providerNotFound();
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const search = searchParams.get("search");
+    const offeringFilter = searchParams.get("offering_id");
+    const ratingFilter = searchParams.get("rating");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
     // Get offering IDs for this provider
-    let offeringsQuery = admin
-      .from("provider_offerings")
-      .select("id")
-      .eq("provider_id", provider.id);
-
-    if (search) {
-      offeringsQuery = offeringsQuery.ilike("name", `%${search}%`);
-    }
-
-    const offerings = unwrapRowsSoft<OfferingIdRow>(await offeringsQuery);
+    const offerings = unwrapRowsSoft<OfferingIdRow>(
+      await admin
+        .from("provider_offerings")
+        .select("id")
+        .eq("provider_id", provider.id),
+    );
 
     const offeringIds = offerings.map((o) => o.id);
 
@@ -61,26 +59,23 @@ export function GET(request: NextRequest) {
       return success({ data: [], meta: { page, per_page: perPage, total: 0 } });
     }
 
-    // Get order_items for these offerings
     let query = admin
-      .from("order_items")
-      .select("*, orders!inner(id, status, total_points, created_at, tenant_id), provider_offerings(name)", { count: "exact" })
+      .from("reviews")
+      .select("*, provider_offerings(name), users(email)", { count: "exact" })
       .in("provider_offering_id", offeringIds)
-      .order("order_id", { ascending: false });
+      .order("created_at", { ascending: false });
 
-    if (status) {
-      query = query.eq("orders.status", status);
-    }
+    if (offeringFilter) query = query.eq("provider_offering_id", offeringFilter);
+    if (ratingFilter) query = query.eq("rating", parseInt(ratingFilter, 10));
 
     query = query.range(offset, offset + perPage - 1);
 
     const result = await query;
     if (result.error) throw result.error;
-    const data = (result.data ?? []) as OrderItemRow[];
 
     return success({
-      data,
+      data: (result.data ?? []) as ReviewRow[],
       meta: { page, per_page: perPage, total: result.count ?? 0 },
     });
-  }, "GET /api/provider/orders");
+  }, "GET /api/provider/reviews");
 }

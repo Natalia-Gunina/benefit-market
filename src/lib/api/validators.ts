@@ -236,3 +236,39 @@ export const updateGlobalCategorySchema = z.object({
 
 export type CreateGlobalCategoryInput = z.infer<typeof createGlobalCategorySchema>;
 export type UpdateGlobalCategoryInput = z.infer<typeof updateGlobalCategorySchema>;
+
+// ---------------------------------------------------------------------------
+// Admin: Catalog — Provider item creation
+// ---------------------------------------------------------------------------
+
+export const createCatalogProviderItemSchema = z.object({
+  provider_id: z.string().uuid().optional(),
+  new_provider: z.object({
+    name: z.string().min(1).max(255),
+    slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, "Slug: только строчные буквы, цифры и дефис"),
+    contact_email: z.string().email().optional().default(""),
+  }).optional(),
+  name: z.string().min(1, "Название обязательно").max(255),
+  description: z.string().optional().default(""),
+  global_category_id: z.string().uuid().optional().or(z.null()),
+  base_price_points: z.number().int().min(1, "Цена должна быть > 0"),
+  stock_limit: z.number().int().min(0).nullable().optional().default(null),
+});
+
+export type CreateCatalogProviderItemInput = z.infer<typeof createCatalogProviderItemSchema>;
+
+// ---------------------------------------------------------------------------
+// Provider: Team management
+// ---------------------------------------------------------------------------
+
+export const addTeamMemberSchema = z.object({
+  email: z.string().email("Некорректный email"),
+  role: z.enum(["admin", "member"]),
+});
+
+export const updateTeamMemberSchema = z.object({
+  role: z.enum(["owner", "admin", "member"]),
+});
+
+export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
+export type UpdateTeamMemberInput = z.infer<typeof updateTeamMemberSchema>;

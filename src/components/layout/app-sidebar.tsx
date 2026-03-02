@@ -15,14 +15,12 @@ import {
   Package,
   FolderOpen,
   Calculator,
-  Filter,
-  FileText,
   LogOut,
   UserRound,
   ShieldCheck,
   Store,
   BarChart,
-  Tags,
+  Star,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -68,18 +66,16 @@ const adminNavItems: NavItem[] = [
   { title: "Каталог", href: "/dashboard/admin/benefits", icon: Package },
   { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
   { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
-  { title: "Правила", href: "/dashboard/admin/rules", icon: Filter },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },
-  { title: "Аудит", href: "/dashboard/admin/audit", icon: FileText },
-  { title: "Провайдеры", href: "/dashboard/admin/providers", icon: Store },
   { title: "Модерация", href: "/dashboard/admin/offerings", icon: ShieldCheck },
-  { title: "Глоб. категории", href: "/dashboard/admin/global-categories", icon: Tags },
 ];
 
 const providerNavItems: NavItem[] = [
   { title: "Дашборд", href: "/dashboard/provider", icon: LayoutDashboard },
   { title: "Предложения", href: "/dashboard/provider/offerings", icon: Package },
   { title: "Заказы", href: "/dashboard/provider/orders", icon: ClipboardList },
+  { title: "Отзывы", href: "/dashboard/provider/reviews", icon: Star },
+  { title: "Команда", href: "/dashboard/provider/team", icon: Users },
   { title: "Аналитика", href: "/dashboard/provider/analytics", icon: BarChart },
   { title: "Профиль", href: "/dashboard/provider/profile", icon: Building2 },
 ];

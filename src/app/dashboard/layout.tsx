@@ -45,7 +45,7 @@ export default async function DashboardLayout({
     userEmail = user.email ?? "";
     tenantName = (user.user_metadata?.tenant_name as string) ?? undefined;
   }
-
+  
   return (
     <>
       <a
