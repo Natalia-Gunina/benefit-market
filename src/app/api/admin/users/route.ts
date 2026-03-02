@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/api/auth";
-import { success, withErrorHandling } from "@/lib/api/response";
+import { withErrorHandling } from "@/lib/api/response";
 import { escapeIlike } from "@/lib/api/sanitize";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";

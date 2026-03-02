@@ -36,6 +36,7 @@ export default function HrMarketplacePage() {
       .finally(() => setIsLoading(false));
   }, [search]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on search change
   useEffect(() => { load(); }, [load]);
 
   const handleEnable = async (offeringId: string) => {

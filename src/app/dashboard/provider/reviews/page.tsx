@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Search, Star } from "lucide-react";
-
-import { Input } from "@/components/ui/input";
+import { Loader2, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,

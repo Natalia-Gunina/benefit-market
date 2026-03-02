@@ -33,6 +33,7 @@ export default function HrOfferingsPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
   useEffect(() => { load(); }, [load]);
 
   const toggleActive = async (id: string, currentActive: boolean) => {

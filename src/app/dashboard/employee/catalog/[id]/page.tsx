@@ -21,7 +21,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
 import { useCartStore } from "@/lib/store/cart";
 import {

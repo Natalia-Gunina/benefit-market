@@ -166,7 +166,6 @@ export async function generateAnalytics(
 
   const benefitMap = new Map(benefits.map((b) => [b.id, b]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const profileByUserId = new Map(profiles.map((p) => [p.user_id, p]));
 
   // ----- Ledger aggregates -----
   let totalAccrued = 0;

@@ -34,6 +34,7 @@ function resolve(style: CSSStyleDeclaration, prop: string): string {
 export function useChartColors(): ChartColors {
   const [colors, setColors] = useState<ChartColors>(FALLBACK);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- resolving CSS vars from DOM */
   useEffect(() => {
     const style = getComputedStyle(document.documentElement);
     setColors({
@@ -48,6 +49,7 @@ export function useChartColors(): ChartColors {
       card: resolve(style, "--card") || FALLBACK.card,
     });
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return colors;
 }

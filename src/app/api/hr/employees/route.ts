@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/api/auth";
 import { NextResponse } from "next/server";
-import { success, withErrorHandling } from "@/lib/api/response";
+import { withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { demoEmployeesList } from "@/lib/demo/demo-service";

@@ -4,7 +4,6 @@ import { success, created, withErrorHandling, parseBody } from "@/lib/api/respon
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapRows, unwrapSingle } from "@/lib/supabase/typed-queries";
-import { createBenefitSchema, createCatalogProviderItemSchema } from "@/lib/api/validators";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------

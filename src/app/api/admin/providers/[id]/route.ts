@@ -4,7 +4,7 @@ import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapRows } from "@/lib/supabase/typed-queries";
-import { notFound, validationError, dbError } from "@/lib/errors";
+import { validationError, dbError } from "@/lib/errors";
 import type { Provider } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };

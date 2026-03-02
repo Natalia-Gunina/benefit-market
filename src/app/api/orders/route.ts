@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/api/auth";
-import { success, created, withErrorHandling, errorResponse, parseBody } from "@/lib/api/response";
+import { created, withErrorHandling, errorResponse, parseBody } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { dbError } from "@/lib/errors";
 import { demoOrdersList, demoCreateOrder } from "@/lib/demo/demo-service";

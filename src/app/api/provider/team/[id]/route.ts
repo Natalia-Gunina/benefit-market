@@ -1,11 +1,11 @@
-import { type NextRequest } from "next/server";
 import { requireRole } from "@/lib/api/auth";
-import { success, withErrorHandling, parseBody } from "@/lib/api/response";
+import { parseBody, success, withErrorHandling } from "@/lib/api/response";
+import { updateTeamMemberSchema } from "@/lib/api/validators";
 import { isDemo } from "@/lib/env";
+import { notFound, providerNotFound } from "@/lib/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
-import { providerNotFound, notFound } from "@/lib/errors";
-import { updateTeamMemberSchema } from "@/lib/api/validators";
+import { type NextRequest } from "next/server";
 
 type ProviderIdRow = Record<string, unknown> & { id: string };
 type Params = { params: Promise<{ id: string }> };

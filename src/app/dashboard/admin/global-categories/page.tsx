@@ -30,6 +30,7 @@ export default function AdminGlobalCategoriesPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
   useEffect(() => { load(); }, [load]);
 
   const handleCreate = async () => {

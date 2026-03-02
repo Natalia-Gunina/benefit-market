@@ -79,6 +79,7 @@ function formatDate(iso: string): string {
 function useCountdown(expiresAt: string | null, isActive: boolean) {
   const [timeLeft, setTimeLeft] = useState<string>("");
 
+  /* eslint-disable react-hooks/set-state-in-effect -- countdown timer syncs with clock */
   useEffect(() => {
     if (!expiresAt || !isActive) {
       setTimeLeft("");
@@ -102,6 +103,7 @@ function useCountdown(expiresAt: string | null, isActive: boolean) {
     const interval = setInterval(calculate, 1000);
     return () => clearInterval(interval);
   }, [expiresAt, isActive]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return timeLeft;
 }

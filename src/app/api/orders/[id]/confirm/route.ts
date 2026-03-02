@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { unwrapRowsSoft, unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
-import { notFound, forbidden, invalidStatus, walletNotFound, dbError, AppError } from "@/lib/errors";
+import { notFound, forbidden, invalidStatus, walletNotFound, AppError } from "@/lib/errors";
 import { demoOrderAction } from "@/lib/demo/demo-service";
 import type { Order, Wallet } from "@/lib/types";
 

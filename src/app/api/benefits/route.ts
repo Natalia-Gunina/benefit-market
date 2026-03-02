@@ -7,7 +7,6 @@ import { escapeIlike } from "@/lib/api/sanitize";
 import { isDemo } from "@/lib/env";
 import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { checkEligibility } from "@/lib/eligibility";
-import { dbError } from "@/lib/errors";
 import { demoBenefitsList } from "@/lib/demo/demo-service";
 import type {
   Benefit,

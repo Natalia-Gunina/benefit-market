@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/api/auth";
 import { success, withErrorHandling, parseBody } from "@/lib/api/response";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle } from "@/lib/supabase/typed-queries";
-import { validationError, notFound } from "@/lib/errors";
+import { validationError } from "@/lib/errors";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
