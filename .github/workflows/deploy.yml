@@ -32,15 +32,27 @@ jobs:
             type=sha
             type=raw,value=latest
 
+      - name: Prepare build args
+        id: args
+        run: |
+          args=""
+          if [ -n "$SUPABASE_URL" ]; then args="${args}NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}\n"; fi
+          if [ -n "$SUPABASE_ANON" ]; then args="${args}NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON}\n"; fi
+          args="${args}NEXT_PUBLIC_DEMO_MODE=${DEMO_MODE:-false}"
+          echo "args<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%b' "$args" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          DEMO_MODE: ${{ vars.NEXT_PUBLIC_DEMO_MODE }}
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_DEMO_MODE=${{ vars.NEXT_PUBLIC_DEMO_MODE || 'false' }}
+          build-args: ${{ steps.args.outputs.args }}
 
   deploy:
     runs-on: ubuntu-latest

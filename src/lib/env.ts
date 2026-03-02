@@ -18,6 +18,11 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>;
 export type ClientEnv = z.infer<typeof clientEnvSchema>;
 
 function validateServerEnv(): ServerEnv {
+  // Skip validation during Docker build — real env vars are injected at runtime
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return process.env as unknown as ServerEnv;
+  }
+
   const result = serverEnvSchema.safeParse(process.env);
   if (!result.success) {
     const formatted = result.error.issues
