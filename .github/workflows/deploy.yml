@@ -32,15 +32,27 @@ jobs:
             type=sha
             type=raw,value=latest
 
+      - name: Prepare build args
+        id: buildargs
+        run: |
+          {
+            echo "value<<ENDOFARGS"
+            [ -n "$SUPABASE_URL" ] && echo "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}"
+            [ -n "$SUPABASE_ANON" ] && echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON}"
+            echo "NEXT_PUBLIC_DEMO_MODE=${DEMO_MODE:-false}"
+            echo "ENDOFARGS"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          DEMO_MODE: ${{ vars.NEXT_PUBLIC_DEMO_MODE }}
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_DEMO_MODE=${{ vars.NEXT_PUBLIC_DEMO_MODE || 'false' }}
+          build-args: ${{ steps.buildargs.outputs.value }}
 
   deploy:
     runs-on: ubuntu-latest
