@@ -12,10 +12,7 @@ import type { BudgetPolicy } from "@/lib/types";
 // ---------------------------------------------------------------------------
 
 const updatePolicySchema = z.object({
-  name: z.string().min(1).max(255).optional(),
   points_amount: z.number().int().min(0).optional(),
-  period: z.enum(["monthly", "quarterly", "yearly"]).optional(),
-  target_filter: z.record(z.string(), z.unknown()).optional(),
   is_active: z.boolean().optional(),
 });
 
@@ -40,13 +37,17 @@ export function PATCH(
 
     const admin = createAdminClient();
 
-    const result = await admin
+    let query = admin
       .from("budget_policies")
       .update(updates as never)
-      .eq("id", policyId)
-      .eq("tenant_id", appUser.tenant_id)
-      .select("*")
-      .single();
+      .eq("id", policyId);
+
+    // HR can only update their own tenant's policies
+    if (appUser.role !== "admin") {
+      query = query.eq("tenant_id", appUser.tenant_id);
+    }
+
+    const result = await query.select("*").single();
 
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to update policy");
     return success(policy);
@@ -67,13 +68,17 @@ export function DELETE(
 
     const admin = createAdminClient();
 
-    const result = await admin
+    let query = admin
       .from("budget_policies")
       .update({ is_active: false } as never)
-      .eq("id", policyId)
-      .eq("tenant_id", appUser.tenant_id)
-      .select("*")
-      .single();
+      .eq("id", policyId);
+
+    // Admin can delete any policy; others restricted to own tenant
+    if (appUser.role !== "admin") {
+      query = query.eq("tenant_id", appUser.tenant_id);
+    }
+
+    const result = await query.select("*").single();
 
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to deactivate policy");
     return success(policy);

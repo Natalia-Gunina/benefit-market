@@ -58,10 +58,7 @@ export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 // ---------------------------------------------------------------------------
 
 export const createPolicySchema = z.object({
-  name: z.string().min(1, "Policy name is required").max(255),
   points_amount: z.number().int().min(0, "points_amount must be >= 0"),
-  period: z.enum(["monthly", "quarterly", "yearly"]).optional().default("quarterly"),
-  target_filter: z.record(z.string(), z.unknown()).optional().default({}),
   is_active: z.boolean().optional().default(true),
 });
 

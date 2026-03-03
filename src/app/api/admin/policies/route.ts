@@ -50,8 +50,7 @@ export function POST(request: NextRequest) {
     const appUser = await requireRole("admin", "hr");
 
     const body = await request.json();
-    const { name, points_amount, period, target_filter, is_active } =
-      parseBody(createPolicySchema, body);
+    const { points_amount, is_active } = parseBody(createPolicySchema, body);
 
     // Admin can specify tenant_id; HR always uses their own
     const targetTenantId =
@@ -65,10 +64,10 @@ export function POST(request: NextRequest) {
       .from("budget_policies")
       .insert({
         tenant_id: targetTenantId,
-        name,
+        name: "Бюджет",
         points_amount,
-        period,
-        target_filter,
+        period: "quarterly",
+        target_filter: {},
         is_active,
       } as never)
       .select("*")

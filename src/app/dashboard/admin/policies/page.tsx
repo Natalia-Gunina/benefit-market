@@ -30,18 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
-import type { BudgetPolicy, BudgetPeriod, Tenant } from "@/lib/types";
+import type { BudgetPolicy, Tenant } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
-
-const PERIOD_LABELS: Record<BudgetPeriod, string> = {
-  monthly: "Ежемесячно",
-  quarterly: "Ежеквартально",
-  yearly: "Ежегодно",
-};
 
 export default function AdminPoliciesPage() {
   const [policies, setPolicies] = useState<BudgetPolicy[]>([]);
@@ -58,14 +51,9 @@ export default function AdminPoliciesPage() {
   const [saving, setSaving] = useState(false);
 
   // Form
-  const [formName, setFormName] = useState("");
   const [formPoints, setFormPoints] = useState("");
-  const [formPeriod, setFormPeriod] = useState<BudgetPeriod>("monthly");
   const [formActive, setFormActive] = useState(true);
   const [formTenantId, setFormTenantId] = useState("");
-  const [formFilterGrade, setFormFilterGrade] = useState("");
-  const [formFilterLocation, setFormFilterLocation] = useState("");
-  const [formFilterEntity, setFormFilterEntity] = useState("");
 
   /* ----- Fetch tenants ------------------------------------------------------ */
   useEffect(() => {
@@ -129,51 +117,18 @@ export default function AdminPoliciesPage() {
   /* ----- Dialog helpers --------------------------------------------------- */
   function openCreate() {
     setEditing(null);
-    setFormName("");
     setFormPoints("");
-    setFormPeriod("monthly");
     setFormActive(true);
     setFormTenantId(tenants[0]?.id ?? "");
-    setFormFilterGrade("");
-    setFormFilterLocation("");
-    setFormFilterEntity("");
     setDialogOpen(true);
   }
 
   function openEdit(p: BudgetPolicy) {
     setEditing(p);
-    setFormName(p.name);
     setFormPoints(String(p.points_amount));
-    setFormPeriod(p.period);
     setFormActive(p.is_active);
     setFormTenantId(p.tenant_id);
-    const f = p.target_filter as Record<string, unknown>;
-    setFormFilterGrade(
-      Array.isArray(f?.grade) ? (f.grade as string[]).join(", ") : ""
-    );
-    setFormFilterLocation(
-      Array.isArray(f?.location) ? (f.location as string[]).join(", ") : ""
-    );
-    setFormFilterEntity(
-      Array.isArray(f?.legal_entity)
-        ? (f.legal_entity as string[]).join(", ")
-        : ""
-    );
     setDialogOpen(true);
-  }
-
-  function buildTargetFilter() {
-    const filter: Record<string, string[]> = {};
-    if (formFilterGrade.trim()) {
-      filter.grade = formFilterGrade.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-    if (formFilterLocation.trim()) {
-      filter.location = formFilterLocation.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-    if (formFilterEntity.trim()) {
-      filter.legal_entity = formFilterEntity.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-    return filter;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -181,11 +136,8 @@ export default function AdminPoliciesPage() {
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
-        name: formName,
         points_amount: Number(formPoints),
-        period: formPeriod,
         is_active: formActive,
-        target_filter: buildTargetFilter(),
       };
 
       if (!editing) {
@@ -218,17 +170,6 @@ export default function AdminPoliciesPage() {
   /* ----- Display helpers -------------------------------------------------- */
   function tenantName(id: string) {
     return tenants.find((t) => t.id === id)?.name ?? "—";
-  }
-
-  function formatFilter(f: Record<string, unknown>) {
-    const parts: string[] = [];
-    if (Array.isArray(f?.grade) && f.grade.length)
-      parts.push(`Грейд: ${(f.grade as string[]).join(", ")}`);
-    if (Array.isArray(f?.location) && f.location.length)
-      parts.push(`Локация: ${(f.location as string[]).join(", ")}`);
-    if (Array.isArray(f?.legal_entity) && f.legal_entity.length)
-      parts.push(`Юрлицо: ${(f.legal_entity as string[]).join(", ")}`);
-    return parts.length ? parts.join(" | ") : "Все сотрудники";
   }
 
   /* ----- Render ----------------------------------------------------------- */
@@ -272,10 +213,7 @@ export default function AdminPoliciesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Компания</TableHead>
-              <TableHead>Название</TableHead>
-              <TableHead className="text-right">Баллов</TableHead>
-              <TableHead>Период</TableHead>
-              <TableHead>Фильтр группы</TableHead>
+              <TableHead className="text-right">Бюджет (баллов)</TableHead>
               <TableHead className="text-center">Активна</TableHead>
               <TableHead className="w-12" />
             </TableRow>
@@ -283,14 +221,14 @@ export default function AdminPoliciesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
+                <TableCell colSpan={4} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : policies.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={4}
                   className="h-32 text-center text-muted-foreground"
                 >
                   Политики не найдены
@@ -302,17 +240,8 @@ export default function AdminPoliciesPage() {
                   <TableCell className="font-medium">
                     {tenantName(p.tenant_id)}
                   </TableCell>
-                  <TableCell>{p.name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {p.points_amount.toLocaleString("ru-RU")}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {PERIOD_LABELS[p.period] ?? p.period}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                    {formatFilter(p.target_filter)}
                   </TableCell>
                   <TableCell className="text-center">
                     <Switch
@@ -374,80 +303,15 @@ export default function AdminPoliciesPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="policy-name">Название</Label>
+              <Label htmlFor="policy-points">Бюджет (баллов)</Label>
               <Input
-                id="policy-name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
+                id="policy-points"
+                type="number"
+                min={0}
+                value={formPoints}
+                onChange={(e) => setFormPoints(e.target.value)}
                 required
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="policy-points">Баллов</Label>
-                <Input
-                  id="policy-points"
-                  type="number"
-                  min={0}
-                  value={formPoints}
-                  onChange={(e) => setFormPoints(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Период</Label>
-                <Select
-                  value={formPeriod}
-                  onValueChange={(v) => setFormPeriod(v as BudgetPeriod)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Ежемесячно</SelectItem>
-                    <SelectItem value="quarterly">Ежеквартально</SelectItem>
-                    <SelectItem value="yearly">Ежегодно</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-md border p-3">
-              <p className="text-sm font-medium">Фильтр целевой группы</p>
-              <div className="space-y-2">
-                <Label htmlFor="policy-grade">
-                  Грейды (через запятую)
-                </Label>
-                <Input
-                  id="policy-grade"
-                  placeholder="A1, A2, B1"
-                  value={formFilterGrade}
-                  onChange={(e) => setFormFilterGrade(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="policy-location">
-                  Локации (через запятую)
-                </Label>
-                <Input
-                  id="policy-location"
-                  placeholder="Москва, Санкт-Петербург"
-                  value={formFilterLocation}
-                  onChange={(e) => setFormFilterLocation(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="policy-entity">
-                  Юрлица (через запятую)
-                </Label>
-                <Input
-                  id="policy-entity"
-                  placeholder="ООО Ромашка, АО Василёк"
-                  value={formFilterEntity}
-                  onChange={(e) => setFormFilterEntity(e.target.value)}
-                />
-              </div>
             </div>
 
             <div className="flex items-center gap-3">
