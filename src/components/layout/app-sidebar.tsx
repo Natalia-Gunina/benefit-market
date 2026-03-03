@@ -64,6 +64,7 @@ const hrNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { title: "Компании", href: "/dashboard/admin/tenants", icon: Building2 },
   { title: "Каталог", href: "/dashboard/admin/benefits", icon: Package },
+  { title: "Провайдеры", href: "/dashboard/admin/providers", icon: Store },
   { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
   { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },

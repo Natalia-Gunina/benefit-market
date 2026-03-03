@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -34,13 +33,10 @@ import {
 } from "@/components/ui/table";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
-import type { BenefitCategory } from "@/lib/types";
-
 /* -------------------------------------------------------------------------- */
 
 interface CatalogItem {
   id: string;
-  source: "internal" | "provider";
   name: string;
   description: string;
   price_points: number;
@@ -67,13 +63,11 @@ interface GlobalCategory {
 
 export default function CatalogPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
-  const [categories, setCategories] = useState<BenefitCategory[]>([]);
   const [globalCategories, setGlobalCategories] = useState<GlobalCategory[]>([]);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const perPage = 20;
 
@@ -81,15 +75,12 @@ export default function CatalogPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [saving, setSaving] = useState(false);
-  const [dialogSource, setDialogSource] = useState<"internal" | "provider">("internal");
 
-  // Internal form
+  // Form fields
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formCategoryId, setFormCategoryId] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formStock, setFormStock] = useState("");
-  const [formActive, setFormActive] = useState(true);
 
   // Provider form
   const [formProviderId, setFormProviderId] = useState<string>("new");
@@ -100,10 +91,6 @@ export default function CatalogPage() {
 
   /* ----- Fetch reference data --------------------------------------------- */
   useEffect(() => {
-    fetch("/api/admin/categories")
-      .then((r) => r.json())
-      .then((json) => setCategories(json.data ?? json))
-      .catch(() => {});
     fetch("/api/admin/global-categories")
       .then((r) => r.json())
       .then((json) => setGlobalCategories(json.data ?? json))
@@ -123,7 +110,6 @@ export default function CatalogPage() {
         per_page: String(perPage),
       });
       if (search) params.set("search", search);
-      if (sourceFilter !== "all") params.set("source", sourceFilter);
 
       const res = await fetch(`/api/admin/catalog?${params}`);
       if (!res.ok) throw new Error();
@@ -135,7 +121,7 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, sourceFilter]);
+  }, [page, search]);
 
   useEffect(() => {
     fetchCatalog();
@@ -144,13 +130,10 @@ export default function CatalogPage() {
   /* ----- Dialog helpers --------------------------------------------------- */
   function openCreate() {
     setEditing(null);
-    setDialogSource("internal");
     setFormName("");
     setFormDescription("");
-    setFormCategoryId(categories[0]?.id ?? "");
     setFormPrice("");
     setFormStock("");
-    setFormActive(true);
     setFormProviderId("new");
     setFormNewProviderName("");
     setFormNewProviderSlug("");
@@ -161,12 +144,10 @@ export default function CatalogPage() {
 
   function openEdit(item: CatalogItem) {
     setEditing(item);
-    setDialogSource(item.source);
     setFormName(item.name);
     setFormDescription(item.description ?? "");
     setFormPrice(String(item.price_points));
     setFormStock("");
-    setFormActive(item.is_active);
     setDialogOpen(true);
   }
 
@@ -176,16 +157,10 @@ export default function CatalogPage() {
     try {
       if (editing) {
         const updates: Record<string, unknown> = {
-          source: editing.source,
           name: formName,
           description: formDescription,
+          base_price_points: Number(formPrice),
         };
-        if (editing.source === "internal") {
-          updates.price_points = Number(formPrice);
-          updates.is_active = formActive;
-        } else {
-          updates.base_price_points = Number(formPrice);
-        }
 
         const res = await fetch(`/api/admin/catalog/${editing.id}`, {
           method: "PATCH",
@@ -194,25 +169,8 @@ export default function CatalogPage() {
         });
         if (!res.ok) throw new Error();
         toast.success("Обновлено");
-      } else if (dialogSource === "internal") {
-        const res = await fetch("/api/admin/catalog", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source: "internal",
-            name: formName,
-            description: formDescription,
-            category_id: formCategoryId,
-            price_points: Number(formPrice),
-            stock_limit: formStock ? Number(formStock) : null,
-            is_active: formActive,
-          }),
-        });
-        if (!res.ok) throw new Error();
-        toast.success("Льгота создана");
       } else {
         const body: Record<string, unknown> = {
-          source: "provider",
           name: formName,
           description: formDescription,
           global_category_id: formGlobalCategoryId || null,
@@ -251,7 +209,7 @@ export default function CatalogPage() {
   async function handleDelete(item: CatalogItem) {
     if (!confirm("Удалить этот элемент?")) return;
     try {
-      const res = await fetch(`/api/admin/catalog/${item.id}?source=${item.source}`, {
+      const res = await fetch(`/api/admin/catalog/${item.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error();
@@ -288,22 +246,6 @@ export default function CatalogPage() {
             }}
           />
         </div>
-        <Select
-          value={sourceFilter}
-          onValueChange={(v) => {
-            setSourceFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Все источники" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все источники</SelectItem>
-            <SelectItem value="internal">Внутренние</SelectItem>
-            <SelectItem value="provider">Провайдерские</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Table */}
@@ -311,7 +253,6 @@ export default function CatalogPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">Тип</TableHead>
               <TableHead>Провайдер</TableHead>
               <TableHead>Название</TableHead>
               <TableHead>Категория</TableHead>
@@ -323,24 +264,19 @@ export default function CatalogPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
+                <TableCell colSpan={6} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                   Элементы не найдены
                 </TableCell>
               </TableRow>
             ) : (
               items.map((item) => (
-                <TableRow key={`${item.source}-${item.id}`}>
-                  <TableCell>
-                    <Badge variant={item.source === "internal" ? "secondary" : "outline"}>
-                      {item.source === "internal" ? "Внутр." : "Провайдер"}
-                    </Badge>
-                  </TableCell>
+                <TableRow key={item.id}>
                   <TableCell className="text-muted-foreground">
                     {item.provider_name ?? "—"}
                   </TableCell>
@@ -350,29 +286,23 @@ export default function CatalogPage() {
                     {item.price_points.toLocaleString("ru-RU")}
                   </TableCell>
                   <TableCell className="text-center">
-                    {item.source === "internal" ? (
-                      <Badge variant={item.is_active ? "default" : "secondary"}>
-                        {item.is_active ? "Активна" : "Неактивна"}
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant={
-                          item.offering_status === "published"
-                            ? "default"
-                            : item.offering_status === "pending_review"
-                              ? "outline"
-                              : "secondary"
-                        }
-                      >
-                        {item.offering_status === "published"
-                          ? "Опубликовано"
+                    <Badge
+                      variant={
+                        item.offering_status === "published"
+                          ? "default"
                           : item.offering_status === "pending_review"
-                            ? "На модерации"
-                            : item.offering_status === "draft"
-                              ? "Черновик"
-                              : "Архив"}
-                      </Badge>
-                    )}
+                            ? "outline"
+                            : "secondary"
+                      }
+                    >
+                      {item.offering_status === "published"
+                        ? "Опубликовано"
+                        : item.offering_status === "pending_review"
+                          ? "На модерации"
+                          : item.offering_status === "draft"
+                            ? "Черновик"
+                            : "Архив"}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
@@ -409,30 +339,9 @@ export default function CatalogPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {!editing && (
-            <div className="flex gap-2 mb-2">
-              <Button
-                type="button"
-                variant={dialogSource === "internal" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDialogSource("internal")}
-              >
-                Внутренняя льгота
-              </Button>
-              <Button
-                type="button"
-                variant={dialogSource === "provider" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDialogSource("provider")}
-              >
-                Льгота провайдера
-              </Button>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Provider-specific fields */}
-            {dialogSource === "provider" && !editing && (
+            {/* Provider selector (create only) */}
+            {!editing && (
               <>
                 <div className="space-y-2">
                   <Label>Провайдер</Label>
@@ -503,26 +412,8 @@ export default function CatalogPage() {
               />
             </div>
 
-            {/* Category */}
-            {dialogSource === "internal" && !editing && (
-              <div className="space-y-2">
-                <Label>Категория</Label>
-                <Select value={formCategoryId} onValueChange={setFormCategoryId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выберите категорию" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {dialogSource === "provider" && !editing && (
+            {/* Global category (create only) */}
+            {!editing && (
               <div className="space-y-2">
                 <Label>Глобальная категория</Label>
                 <Select value={formGlobalCategoryId} onValueChange={setFormGlobalCategoryId}>
@@ -562,17 +453,6 @@ export default function CatalogPage() {
                 />
               </div>
             </div>
-
-            {/* Active toggle (internal only) */}
-            {dialogSource === "internal" && (
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={formActive}
-                  onCheckedChange={setFormActive}
-                />
-                <Label>Активна</Label>
-              </div>
-            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

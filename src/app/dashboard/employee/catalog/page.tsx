@@ -29,12 +29,18 @@ interface OfferingItem {
   } | null;
 }
 
-function offeringToBenefit(o: OfferingItem): BenefitWithCategory {
+interface GlobalCategory {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+function offeringToBenefit(o: OfferingItem, categoryId: string): BenefitWithCategory {
   const po = o.provider_offerings;
   return {
     id: o.id,
     tenant_id: "",
-    category_id: "",
+    category_id: categoryId,
     name: po?.name ?? "Предложение",
     description: po?.description ?? "",
     price_points: o.effective_price,
@@ -46,7 +52,7 @@ function offeringToBenefit(o: OfferingItem): BenefitWithCategory {
     avg_rating: po?.avg_rating ?? undefined,
     category: po?.global_categories
       ? {
-          id: "",
+          id: categoryId,
           tenant_id: "",
           name: po.global_categories.name,
           icon: po.global_categories.icon,
@@ -58,7 +64,6 @@ function offeringToBenefit(o: OfferingItem): BenefitWithCategory {
 }
 
 export default function CatalogPage() {
-  const [benefits, setBenefits] = useState<BenefitWithCategory[]>([]);
   const [offerings, setOfferings] = useState<BenefitWithCategory[]>([]);
   const [categories, setCategories] = useState<BenefitCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,25 +78,44 @@ export default function CatalogPage() {
     setIsLoading(true);
     setFetchError(false);
     try {
-      const [benefitsRes, categoriesRes, offeringsRes, walletRes] = await Promise.all([
-        fetch("/api/benefits"),
-        fetch("/api/admin/categories"),
+      const [globalCatsRes, offeringsRes, walletRes] = await Promise.all([
+        fetch("/api/admin/global-categories"),
         fetch("/api/offerings"),
         fetch("/api/wallets/me"),
       ]);
-      if (benefitsRes.ok) {
-        const json = await benefitsRes.json();
-        setBenefits(json.data ?? []);
+
+      // Build a lookup map: global_category name -> id
+      let globalCats: GlobalCategory[] = [];
+      if (globalCatsRes.ok) {
+        const json = await globalCatsRes.json();
+        globalCats = json.data ?? json;
+        // Convert global categories to BenefitCategory shape for the filter
+        setCategories(
+          globalCats.map((gc, i) => ({
+            id: gc.id,
+            tenant_id: "",
+            name: gc.name,
+            icon: gc.icon ?? "",
+            sort_order: i,
+            global_category_id: gc.id,
+          })),
+        );
       }
-      if (categoriesRes.ok) {
-        const json = await categoriesRes.json();
-        setCategories(json.data ?? []);
-      }
+
       if (offeringsRes.ok) {
         const json = await offeringsRes.json();
         const items: OfferingItem[] = json.data?.data ?? json.data ?? [];
-        setOfferings(items.map(offeringToBenefit));
+        // Build name->id map for matching
+        const nameToId = new Map(globalCats.map((gc) => [gc.name, gc.id]));
+        setOfferings(
+          items.map((o) => {
+            const catName = o.provider_offerings?.global_categories?.name ?? "";
+            const catId = nameToId.get(catName) ?? "";
+            return offeringToBenefit(o, catId);
+          }),
+        );
       }
+
       if (walletRes.ok) {
         const json = await walletRes.json();
         const w = json.data?.wallet ?? json.data;
@@ -111,13 +135,8 @@ export default function CatalogPage() {
     fetchData();
   }, [fetchData]);
 
-  const allItems = useMemo(
-    () => [...benefits, ...offerings],
-    [benefits, offerings],
-  );
-
   const filtered = useMemo(() => {
-    let result = allItems;
+    let result = offerings;
 
     if (selectedCategoryId) {
       result = result.filter((b) => b.category_id === selectedCategoryId);
@@ -133,7 +152,7 @@ export default function CatalogPage() {
     }
 
     return result;
-  }, [allItems, selectedCategoryId, searchQuery]);
+  }, [offerings, selectedCategoryId, searchQuery]);
 
   const addItem = useCartStore((s) => s.addItem);
 

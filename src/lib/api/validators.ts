@@ -8,13 +8,9 @@ export const createOrderSchema = z.object({
   items: z
     .array(
       z.object({
-        benefit_id: z.string().uuid().optional(),
-        tenant_offering_id: z.string().uuid().optional(),
+        tenant_offering_id: z.string().uuid(),
         quantity: z.number().int().min(1),
-      }).refine(
-        (item) => (item.benefit_id && !item.tenant_offering_id) || (!item.benefit_id && item.tenant_offering_id),
-        { message: "Укажите ровно одно из benefit_id или tenant_offering_id" },
-      ),
+      }),
     )
     .min(1, "Корзина не может быть пустой"),
 });
