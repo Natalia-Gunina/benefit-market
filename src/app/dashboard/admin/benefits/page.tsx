@@ -92,12 +92,18 @@ export default function CatalogPage() {
   /* ----- Fetch reference data --------------------------------------------- */
   useEffect(() => {
     fetch("/api/admin/global-categories")
-      .then((r) => r.json())
-      .then((json) => setGlobalCategories(json.data ?? json))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((json) => {
+        const arr = json.data ?? json;
+        if (Array.isArray(arr)) setGlobalCategories(arr);
+      })
       .catch(() => {});
     fetch("/api/admin/providers")
-      .then((r) => r.json())
-      .then((json) => setProviders(json.data ?? json))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((json) => {
+        const arr = json.data ?? json;
+        if (Array.isArray(arr)) setProviders(arr);
+      })
       .catch(() => {});
   }, []);
 
