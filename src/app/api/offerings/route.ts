@@ -76,8 +76,19 @@ export function GET(request: NextRequest) {
 
     const total = search ? results.length : (result.count ?? 0);
 
+    // Add effective_price (same logic as demo mode)
+    const enriched = results.map((to) => {
+      const po = to.provider_offerings;
+      const customPrice = to.custom_price_points as number | null;
+      const basePrice = (po as Record<string, unknown> | null)?.base_price_points as number | undefined;
+      return {
+        ...to,
+        effective_price: customPrice ?? (basePrice ?? 0),
+      };
+    });
+
     return success({
-      data: results,
+      data: enriched,
       meta: { page, per_page: perPage, total },
     });
   }, "GET /api/offerings");
