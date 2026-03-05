@@ -61,7 +61,7 @@ export function GET(request: NextRequest) {
 
     let query = admin
       .from("reviews")
-      .select("*, provider_offerings(name), users(email)", { count: "exact" })
+      .select("*, provider_offerings(name), users!user_id(email)", { count: "exact" })
       .in("provider_offering_id", offeringIds)
       .order("created_at", { ascending: false });
 

@@ -52,7 +52,7 @@ export function GET(request: NextRequest, context: RouteContext) {
     // Fetch reviews (tenant-scoped)
     const reviewsResult = await admin
       .from("reviews")
-      .select("*, users(email)", { count: "exact" })
+      .select("*, users!user_id(email)", { count: "exact" })
       .eq("provider_offering_id", poId)
       .eq("tenant_id", appUser.tenant_id)
       .eq("status", "visible")
