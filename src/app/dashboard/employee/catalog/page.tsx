@@ -22,6 +22,7 @@ interface OfferingItem {
     description: string;
     base_price_points: number;
     stock_limit: number | null;
+    is_stackable: boolean;
     avg_rating: number | null;
     review_count: number | null;
     providers: { id: string; name: string; logo_url: string | null } | null;
@@ -50,6 +51,7 @@ function offeringToBenefit(o: OfferingItem, categoryId: string): BenefitWithCate
     tenant_offering_id: o.id,
     provider_name: po?.providers?.name,
     avg_rating: po?.avg_rating ?? undefined,
+    is_stackable: po?.is_stackable ?? false,
     category: po?.global_categories
       ? {
           id: categoryId,
@@ -168,6 +170,7 @@ export default function CatalogPage() {
         tenant_offering_id: benefit.tenant_offering_id,
         provider_name: benefit.provider_name,
         avg_rating: benefit.avg_rating,
+        is_stackable: benefit.is_stackable,
       });
       toast.success(`${benefit.name} добавлен в корзину`);
     },

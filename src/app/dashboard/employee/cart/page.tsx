@@ -197,29 +197,37 @@ export default function CartPage() {
 
                 {/* Quantity controls */}
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-8"
-                    onClick={() =>
-                      updateQuantity(item.benefit.id, item.quantity - 1)
-                    }
-                  >
-                    <Minus className="size-4" />
-                  </Button>
-                  <span className="w-8 text-center tabular-nums font-medium">
-                    {item.quantity}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-8"
-                    onClick={() =>
-                      updateQuantity(item.benefit.id, item.quantity + 1)
-                    }
-                  >
-                    <Plus className="size-4" />
-                  </Button>
+                  {item.benefit.is_stackable ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        onClick={() =>
+                          updateQuantity(item.benefit.id, item.quantity - 1)
+                        }
+                      >
+                        <Minus className="size-4" />
+                      </Button>
+                      <span className="w-8 text-center tabular-nums font-medium">
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        onClick={() =>
+                          updateQuantity(item.benefit.id, item.quantity + 1)
+                        }
+                      >
+                        <Plus className="size-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="w-8 text-center tabular-nums font-medium text-muted-foreground">
+                      1
+                    </span>
+                  )}
                 </div>
 
                 {/* Line total */}

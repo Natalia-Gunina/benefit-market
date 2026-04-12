@@ -28,6 +28,7 @@ type CatalogItem = {
   price_points: number;
   category_name: string;
   is_active: boolean;
+  is_stackable: boolean;
   provider_name?: string;
   provider_status?: string;
   offering_status?: string;
@@ -56,7 +57,7 @@ export function GET(request: NextRequest) {
 
     let oQuery = admin
       .from("provider_offerings")
-      .select("id, name, description, base_price_points, status, created_at, providers(name, status), global_categories(name)")
+      .select("id, name, description, base_price_points, is_stackable, status, created_at, providers(name, status), global_categories(name)")
       .order("created_at", { ascending: false });
 
     if (search) oQuery = oQuery.ilike("name", `%${search}%`);
@@ -73,6 +74,7 @@ export function GET(request: NextRequest) {
       price_points: o.base_price_points,
       category_name: o.global_categories?.name ?? "—",
       is_active: o.status === "published",
+      is_stackable: !!(o as Record<string, unknown>).is_stackable,
       provider_name: o.providers?.name ?? "—",
       provider_status: o.providers?.status,
       offering_status: o.status,
@@ -104,6 +106,7 @@ const createCatalogSchema = z.object({
   global_category_id: z.string().uuid().optional().or(z.null()),
   base_price_points: z.number().int().min(1),
   stock_limit: z.number().int().min(0).nullable().optional().default(null),
+  is_stackable: z.boolean().optional().default(false),
 });
 
 export function POST(request: NextRequest) {
@@ -149,6 +152,7 @@ export function POST(request: NextRequest) {
         global_category_id: data.global_category_id || null,
         base_price_points: data.base_price_points,
         stock_limit: data.stock_limit,
+        is_stackable: data.is_stackable,
         status: "published",
       } as never)
       .select("*, providers(name), global_categories(name)")

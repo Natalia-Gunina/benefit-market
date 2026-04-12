@@ -85,6 +85,30 @@ export type Database = {
         };
       };
 
+      benefit_restrictions: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          provider_offering_id: string;
+          restricted_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          provider_offering_id: string;
+          restricted_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          provider_offering_id?: string;
+          restricted_by?: string | null;
+          created_at?: string;
+        };
+      };
+
       benefit_categories: {
         Row: {
           id: string;
@@ -463,6 +487,7 @@ export type Database = {
           image_urls: string[];
           base_price_points: number;
           stock_limit: number | null;
+          is_stackable: boolean;
           status: Database['public']['Enums']['offering_status'];
           delivery_info: string;
           terms_conditions: string;
@@ -482,6 +507,7 @@ export type Database = {
           image_urls?: string[];
           base_price_points: number;
           stock_limit?: number | null;
+          is_stackable?: boolean;
           status?: Database['public']['Enums']['offering_status'];
           delivery_info?: string;
           terms_conditions?: string;
@@ -501,6 +527,7 @@ export type Database = {
           image_urls?: string[];
           base_price_points?: number;
           stock_limit?: number | null;
+          is_stackable?: boolean;
           status?: Database['public']['Enums']['offering_status'];
           delivery_info?: string;
           terms_conditions?: string;

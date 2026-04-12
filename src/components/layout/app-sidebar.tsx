@@ -129,23 +129,25 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 pb-3">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-sidebar-foreground"
+          className="flex items-center gap-2.5 text-sidebar-foreground"
         >
-          <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-heading font-bold text-sm">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-primary text-white font-heading font-bold text-sm shadow-sm">
             BM
           </div>
-          <span className="font-heading text-lg font-bold group-data-[collapsible=icon]:hidden">
-            Benefit Market
-          </span>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <span className="font-heading text-[15px] font-bold tracking-tight text-sidebar-accent-foreground">
+              Benefit Market
+            </span>
+            {tenantName && (
+              <p className="text-[11px] text-sidebar-foreground/50 truncate max-w-[150px]">
+                {tenantName}
+              </p>
+            )}
+          </div>
         </Link>
-        {tenantName && (
-          <p className="text-xs text-sidebar-foreground/60 mt-1 truncate group-data-[collapsible=icon]:hidden">
-            {tenantName}
-          </p>
-        )}
       </SidebarHeader>
 
       {canSwitchRoles && (
@@ -162,11 +164,11 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
                   onClick={() => router.push(r.href)}
                   title={r.label}
                   className={`
-                    flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors
+                    flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all duration-150
                     group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:p-0
                     ${isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      ? "bg-gradient-primary text-white shadow-sm"
+                      : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     }
                   `}
                 >
@@ -218,10 +220,10 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
 
       <SidebarSeparator />
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 pt-3">
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
           <div className="flex flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-xs text-sidebar-foreground/80">
+            <span className="truncate text-[11px] text-sidebar-foreground/60">
               {userEmail}
             </span>
           </div>

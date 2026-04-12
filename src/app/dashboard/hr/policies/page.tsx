@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Search, ShieldOff } from "lucide-react";
 
 import {
   Table,
@@ -31,6 +31,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
 import type { BudgetPolicy, BudgetPeriod } from "@/lib/types";
@@ -111,6 +117,20 @@ function formToPayload(form: PolicyFormData) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Benefit restriction item type                                              */
+/* -------------------------------------------------------------------------- */
+
+interface RestrictionItem {
+  id: string;
+  name: string;
+  description: string;
+  price_points: number;
+  category_name: string;
+  provider_name: string;
+  is_restricted: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
@@ -126,6 +146,63 @@ export default function HrPoliciesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<PolicyFormData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // --- Restrictions state ---
+  const [restrictions, setRestrictions] = useState<RestrictionItem[]>([]);
+  const [restrictionsLoading, setRestrictionsLoading] = useState(false);
+  const [restrictionSearch, setRestrictionSearch] = useState("");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const fetchRestrictions = useCallback(async () => {
+    setRestrictionsLoading(true);
+    try {
+      const res = await fetch("/api/hr/restrictions");
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      setRestrictions(json.data ?? []);
+    } catch {
+      toast.error("Не удалось загрузить ограничения");
+    } finally {
+      setRestrictionsLoading(false);
+    }
+  }, []);
+
+  async function toggleRestriction(item: RestrictionItem) {
+    setTogglingId(item.id);
+    try {
+      const res = await fetch("/api/hr/restrictions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider_offering_id: item.id,
+          restricted: !item.is_restricted,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setRestrictions((prev) =>
+        prev.map((r) =>
+          r.id === item.id ? { ...r, is_restricted: !r.is_restricted } : r,
+        ),
+      );
+      toast.success(
+        item.is_restricted ? "Ограничение снято" : "Льгота ограничена",
+      );
+    } catch {
+      toast.error("Не удалось обновить ограничение");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  const filteredRestrictions = restrictions.filter((r) => {
+    if (!restrictionSearch.trim()) return true;
+    const q = restrictionSearch.trim().toLowerCase();
+    return (
+      r.name.toLowerCase().includes(q) ||
+      r.category_name.toLowerCase().includes(q) ||
+      r.provider_name.toLowerCase().includes(q)
+    );
+  });
 
   const fetchPolicies = useCallback(async () => {
     setLoading(true);
@@ -148,7 +225,8 @@ export default function HrPoliciesPage() {
 
   useEffect(() => {
     fetchPolicies();
-  }, [fetchPolicies]);
+    fetchRestrictions();
+  }, [fetchPolicies, fetchRestrictions]);
 
   const isCreateMode = dialogOpen && !editingPolicy;
 
@@ -223,87 +301,174 @@ export default function HrPoliciesPage() {
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Бюджетные политики</h1>
-        <Button onClick={openCreateDialog}>
-          <Plus className="size-4" />
-          Добавить политику
-        </Button>
-      </div>
+      <h1 className="text-2xl font-heading font-bold">Политики</h1>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Название</TableHead>
-              <TableHead className="text-right">Баллов</TableHead>
-              <TableHead>Период</TableHead>
-              <TableHead>Фильтр группы</TableHead>
-              <TableHead className="text-center">Статус</TableHead>
-              <TableHead className="w-[50px]" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : policies.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  Политики не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              policies.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {p.points_amount.toLocaleString("ru-RU")}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {PERIOD_LABELS[p.period] ?? p.period}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
-                    {formatFilter(p.target_filter)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant={p.is_active ? "default" : "secondary"}>
-                      {p.is_active ? "Активна" : "Неактивна"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => openEditDialog(p)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                  </TableCell>
+      <Tabs defaultValue="budget" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="budget">Бюджетные политики</TabsTrigger>
+          <TabsTrigger value="restrictions">
+            <ShieldOff className="mr-1.5 size-4" />
+            Ограничение по льготам
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ============================================================ */}
+        {/* Tab 1: Budget Policies                                        */}
+        {/* ============================================================ */}
+        <TabsContent value="budget" className="space-y-4">
+          <div className="flex items-center justify-end">
+            <Button onClick={openCreateDialog}>
+              <Plus className="size-4" />
+              Добавить политику
+            </Button>
+          </div>
+
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Название</TableHead>
+                  <TableHead className="text-right">Баллов</TableHead>
+                  <TableHead>Период</TableHead>
+                  <TableHead>Фильтр группы</TableHead>
+                  <TableHead className="text-center">Статус</TableHead>
+                  <TableHead className="w-[50px]" />
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ) : policies.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="h-32 text-center text-muted-foreground"
+                    >
+                      Политики не найдены
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  policies.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.points_amount.toLocaleString("ru-RU")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {PERIOD_LABELS[p.period] ?? p.period}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
+                        {formatFilter(p.target_filter)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={p.is_active ? "default" : "secondary"}>
+                          {p.is_active ? "Активна" : "Неактивна"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => openEditDialog(p)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
 
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+            {!loading && total > perPage && (
+              <DataTablePagination
+                page={page}
+                per_page={perPage}
+                total={total}
+                onPageChange={setPage}
+              />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* Tab 2: Benefit Restrictions                                   */}
+        {/* ============================================================ */}
+        <TabsContent value="restrictions" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Ограниченные льготы не отображаются в каталоге сотрудников. Включите переключатель, чтобы ограничить льготу.
+          </p>
+
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Поиск по названию..."
+              className="pl-9"
+              value={restrictionSearch}
+              onChange={(e) => setRestrictionSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Провайдер</TableHead>
+                  <TableHead>Название</TableHead>
+                  <TableHead>Категория</TableHead>
+                  <TableHead className="text-right">Цена</TableHead>
+                  <TableHead className="text-center">Ограничена</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {restrictionsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center">
+                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRestrictions.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-32 text-center text-muted-foreground"
+                    >
+                      Льготы не найдены
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRestrictions.map((item) => (
+                    <TableRow key={item.id} className={item.is_restricted ? "opacity-60" : ""}>
+                      <TableCell className="text-muted-foreground">
+                        {item.provider_name}
+                      </TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.category_name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {item.price_points.toLocaleString("ru-RU")}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={item.is_restricted}
+                          disabled={togglingId === item.id}
+                          onCheckedChange={() => toggleRestriction(item)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* ---- Create / Edit Policy Dialog ---- */}
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ interface CatalogItem {
   price_points: number;
   category_name: string;
   is_active: boolean;
+  is_stackable: boolean;
   provider_name?: string;
   provider_status?: string;
   offering_status?: string;
@@ -88,6 +90,7 @@ export default function CatalogPage() {
   const [formNewProviderSlug, setFormNewProviderSlug] = useState("");
   const [formNewProviderEmail, setFormNewProviderEmail] = useState("");
   const [formGlobalCategoryId, setFormGlobalCategoryId] = useState("");
+  const [formIsStackable, setFormIsStackable] = useState(false);
 
   /* ----- Fetch reference data --------------------------------------------- */
   useEffect(() => {
@@ -145,6 +148,7 @@ export default function CatalogPage() {
     setFormNewProviderSlug("");
     setFormNewProviderEmail("");
     setFormGlobalCategoryId(globalCategories[0]?.id ?? "");
+    setFormIsStackable(false);
     setDialogOpen(true);
   }
 
@@ -154,6 +158,7 @@ export default function CatalogPage() {
     setFormDescription(item.description ?? "");
     setFormPrice(String(item.price_points));
     setFormStock("");
+    setFormIsStackable(item.is_stackable);
     setDialogOpen(true);
   }
 
@@ -166,6 +171,7 @@ export default function CatalogPage() {
           name: formName,
           description: formDescription,
           base_price_points: Number(formPrice),
+          is_stackable: formIsStackable,
         };
 
         const res = await fetch(`/api/admin/catalog/${editing.id}`, {
@@ -182,6 +188,7 @@ export default function CatalogPage() {
           global_category_id: formGlobalCategoryId || null,
           base_price_points: Number(formPrice),
           stock_limit: formStock ? Number(formStock) : null,
+          is_stackable: formIsStackable,
         };
 
         if (formProviderId === "new") {
@@ -263,6 +270,7 @@ export default function CatalogPage() {
               <TableHead>Название</TableHead>
               <TableHead>Категория</TableHead>
               <TableHead className="text-right">Цена</TableHead>
+              <TableHead className="text-center">Множественный выбор</TableHead>
               <TableHead className="text-center">Статус</TableHead>
               <TableHead className="w-20" />
             </TableRow>
@@ -270,13 +278,13 @@ export default function CatalogPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
+                <TableCell colSpan={7} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   Элементы не найдены
                 </TableCell>
               </TableRow>
@@ -290,6 +298,13 @@ export default function CatalogPage() {
                   <TableCell>{item.category_name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {item.price_points.toLocaleString("ru-RU")}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {item.is_stackable ? (
+                      <Badge variant="outline" className="text-xs">Можно увеличивать</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">1 шт.</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge
@@ -458,6 +473,16 @@ export default function CatalogPage() {
                   onChange={(e) => setFormStock(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Stackable toggle */}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="is-stackable">Множественный выбор</Label>
+              <Switch
+                id="is-stackable"
+                checked={formIsStackable}
+                onCheckedChange={setFormIsStackable}
+              />
             </div>
 
             <DialogFooter>

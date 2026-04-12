@@ -16,12 +16,13 @@ type TenantOfferingWithJoins = Record<string, unknown> & {
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      const { DEMO_TENANT_OFFERINGS, DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES } = await import("@/lib/demo-data");
+      const { DEMO_TENANT_OFFERINGS, DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES, DEMO_BENEFIT_RESTRICTIONS } = await import("@/lib/demo-data");
       const offeringMap = new Map((DEMO_PROVIDER_OFFERINGS ?? []).map((o) => [o.id, o]));
       const providerMap = new Map((DEMO_PROVIDERS ?? []).map((p) => [p.id, p]));
       const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
+      const restrictedSet = new Set((DEMO_BENEFIT_RESTRICTIONS ?? []).map((r) => r.provider_offering_id));
       const data = (DEMO_TENANT_OFFERINGS ?? [])
-        .filter((to) => to.is_active)
+        .filter((to) => to.is_active && !restrictedSet.has(to.provider_offering_id))
         .map((to) => {
           const po = offeringMap.get(to.provider_offering_id);
           return {
@@ -47,11 +48,25 @@ export function GET(request: NextRequest) {
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
+    // Fetch restricted offering IDs for this tenant
+    const restrictionsResult = await admin
+      .from("benefit_restrictions")
+      .select("provider_offering_id")
+      .eq("tenant_id", appUser.tenant_id);
+    const restrictedIds = (restrictionsResult.data ?? []).map(
+      (r) => (r as { provider_offering_id: string }).provider_offering_id,
+    );
+
     let query = admin
       .from("tenant_offerings")
       .select("*, provider_offerings(*, providers(id, name, logo_url), global_categories(name, icon))", { count: "exact" })
       .eq("tenant_id", appUser.tenant_id)
       .eq("is_active", true);
+
+    // Exclude restricted offerings
+    if (restrictedIds.length > 0) {
+      query = query.not("provider_offering_id", "in", `(${restrictedIds.join(",")})`);
+    }
 
     if (categoryId) {
       query = query.eq("provider_offerings.global_category_id", categoryId);

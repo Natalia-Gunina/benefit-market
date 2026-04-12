@@ -19,6 +19,8 @@ export interface CartBenefit {
   provider_name?: string;
   provider_logo_url?: string;
   avg_rating?: number;
+  /** Whether this benefit can be added multiple times */
+  is_stackable?: boolean;
 }
 
 export interface CartItem {
@@ -50,6 +52,8 @@ export const useCartStore = create<CartState>()(
             (item) => item.benefit.id === benefit.id,
           );
           if (existing) {
+            // Non-stackable benefits can only be added once
+            if (!benefit.is_stackable) return state;
             const newQty = existing.quantity + 1;
             if (benefit.stock_limit != null && newQty > benefit.stock_limit) {
               return state; // stock_limit exceeded
@@ -85,6 +89,8 @@ export const useCartStore = create<CartState>()(
         set((state) => ({
           items: state.items.map((item) => {
             if (item.benefit.id !== benefitId) return item;
+            // Non-stackable benefits are locked at quantity 1
+            if (!item.benefit.is_stackable) return item;
             const limit = item.benefit.stock_limit;
             const capped = limit != null ? Math.min(quantity, limit) : quantity;
             return { ...item, quantity: capped };

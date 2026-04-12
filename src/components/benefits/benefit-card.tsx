@@ -18,6 +18,8 @@ import {
   Star,
   Building2,
   Check,
+  Plus,
+  Minus,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -52,6 +54,8 @@ export interface BenefitWithCategory extends Benefit {
   tenant_offering_id?: string;
   provider_name?: string;
   avg_rating?: number;
+  /** Whether this benefit can be added multiple times */
+  is_stackable?: boolean;
 }
 
 interface BenefitCardProps {
@@ -64,10 +68,12 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
   const outOfStock =
     benefit.stock_limit !== null && benefit.stock_limit <= 0;
 
-  const inCart = useCartStore((s) =>
-    s.items.some((item) => item.benefit.id === benefit.id),
+  const cartItem = useCartStore((s) =>
+    s.items.find((item) => item.benefit.id === benefit.id),
   );
+  const inCart = !!cartItem;
   const removeItem = useCartStore((s) => s.removeItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
 
   const href = benefit.tenant_offering_id
     ? `/dashboard/employee/catalog/offering/${benefit.tenant_offering_id}`
@@ -123,6 +129,28 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
           <Button className="w-full" disabled variant="outline">
             Нет в наличии
           </Button>
+        ) : inCart && benefit.is_stackable ? (
+          <div className="flex w-full items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0"
+              onClick={() => updateQuantity(benefit.id, (cartItem?.quantity ?? 1) - 1)}
+            >
+              <Minus className="size-4" />
+            </Button>
+            <span className="min-w-[3ch] text-center tabular-nums text-base font-semibold">
+              {cartItem?.quantity ?? 1}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0"
+              onClick={() => onAddToCart(benefit)}
+            >
+              <Plus className="size-4" />
+            </Button>
+          </div>
         ) : inCart ? (
           <Button
             className="w-full border-success text-success hover:bg-success/5"

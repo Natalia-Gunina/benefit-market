@@ -75,12 +75,19 @@ export default function RegisterPage() {
   };
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="font-[family-name:var(--font-source-serif)] text-2xl font-bold">
-          Benefit Market
-        </CardTitle>
-        <CardDescription>Регистрация</CardDescription>
+    <div className="space-y-6">
+    {/* Mobile branding */}
+    <div className="text-center lg:hidden">
+      <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-xl bg-gradient-primary font-bold text-sm text-white">
+        BM
+      </div>
+      <h1 className="text-xl font-bold">Benefit Market</h1>
+    </div>
+
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="text-xl font-bold">Регистрация</CardTitle>
+        <CardDescription>Создайте аккаунт для работы с платформой</CardDescription>
       </CardHeader>
       <form onSubmit={handleRegister}>
         <CardContent className="flex flex-col gap-4">
@@ -139,7 +146,7 @@ export default function RegisterPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full h-10 bg-gradient-primary hover:opacity-90 transition-opacity" disabled={loading}>
             {loading ? "Загрузка..." : "Зарегистрироваться"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
@@ -154,5 +161,6 @@ export default function RegisterPage() {
         </CardFooter>
       </form>
     </Card>
+    </div>
   );
 }

@@ -984,6 +984,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 24000,
     stock_limit: null,
+    is_stackable: false,
     status: 'published',
     delivery_info: 'Активация в любом клубе по паспорту',
     terms_conditions: 'Абонемент именной, не подлежит передаче',
@@ -1003,6 +1004,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 12000,
     stock_limit: null,
+    is_stackable: true,
     status: 'published',
     delivery_info: 'Активация в клубе',
     terms_conditions: '',
@@ -1022,6 +1024,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 15000,
     stock_limit: null,
+    is_stackable: false,
     status: 'published',
     delivery_info: 'Доступ к платформе в течение 24 часов',
     terms_conditions: 'Доступ к материалам — навсегда',
@@ -1041,6 +1044,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 12000,
     stock_limit: null,
+    is_stackable: false,
     status: 'published',
     delivery_info: 'Доступ к платформе в течение 24 часов',
     terms_conditions: 'Доступ к материалам — навсегда',
@@ -1060,6 +1064,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 30000,
     stock_limit: null,
+    is_stackable: false,
     status: 'published',
     delivery_info: 'Полис оформляется за 3 рабочих дня',
     terms_conditions: 'Срок действия — 1 год с момента активации',
@@ -1079,6 +1084,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 15000,
     stock_limit: null,
+    is_stackable: false,
     status: 'published',
     delivery_info: 'Запись через приложение Медси',
     terms_conditions: 'Действует 12 месяцев',
@@ -1098,6 +1104,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 5000,
     stock_limit: null,
+    is_stackable: true,
     status: 'published',
     delivery_info: 'Запись на первую сессию — в течение 1 дня',
     terms_conditions: 'Сессии необходимо использовать в течение 3 месяцев',
@@ -1117,6 +1124,7 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     image_urls: [],
     base_price_points: 6000,
     stock_limit: null,
+    is_stackable: false,
     status: 'draft',
     delivery_info: 'Активация через приложение',
     terms_conditions: '',
@@ -1417,3 +1425,9 @@ export const DEMO_HR_ANALYTICS: AnalyticsData = {
     ],
   },
 };
+
+// ========================== 21. DEMO BENEFIT RESTRICTIONS ======================
+
+export const DEMO_BENEFIT_RESTRICTIONS: { provider_offering_id: string; tenant_id: string }[] = [
+  // No restrictions by default in demo mode
+];

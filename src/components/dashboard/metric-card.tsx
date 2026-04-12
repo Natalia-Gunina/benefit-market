@@ -64,7 +64,7 @@ export function MetricCard({
             </div>
           )}
         </div>
-        <div className="rounded-lg bg-primary/10 p-2.5">
+        <div className="rounded-xl bg-gradient-to-br from-primary/12 to-primary/4 p-2.5 ring-1 ring-primary/8">
           <Icon className="size-5 text-primary" />
         </div>
       </CardContent>

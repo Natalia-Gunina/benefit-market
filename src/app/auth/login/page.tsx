@@ -72,81 +72,91 @@ function LoginForm() {
   };
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="font-[family-name:var(--font-source-serif)] text-2xl font-bold">
-          Benefit Market
-        </CardTitle>
-        <CardDescription>Вход в систему</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleLogin}>
-        <CardContent className="flex flex-col gap-4">
-          {justRegistered && !error && (
-            <div className="rounded-md bg-success-light p-3 text-sm text-success">
-              Регистрация прошла успешно! Войдите в систему.
+    <div className="space-y-6">
+      {/* Mobile branding */}
+      <div className="text-center lg:hidden">
+        <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-xl bg-gradient-primary font-bold text-sm text-white">
+          BM
+        </div>
+        <h1 className="text-xl font-bold">Benefit Market</h1>
+      </div>
+
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold">
+            Вход в систему
+          </CardTitle>
+          <CardDescription>
+            Войдите, чтобы управлять своими льготами
+          </CardDescription>
+        </CardHeader>
+        <form onSubmit={handleLogin}>
+          <CardContent className="flex flex-col gap-4">
+            {justRegistered && !error && (
+              <div className="rounded-lg bg-success-light p-3 text-sm text-success">
+                Регистрация прошла успешно! Войдите в систему.
+              </div>
+            )}
+            {error && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@company.ru"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
             </div>
-          )}
-          {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Пароль</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Введите пароль"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
             </div>
-          )}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@company.ru"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Пароль</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Введите пароль"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Загрузка..." : "Войти"}
-          </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            Нет аккаунта?{" "}
-            <Link
-              href="/auth/register"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Зарегистрироваться
-            </Link>
-          </p>
-        </CardFooter>
-      </form>
-    </Card>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-4">
+            <Button type="submit" className="w-full h-10 bg-gradient-primary hover:opacity-90 transition-opacity" disabled={loading}>
+              {loading ? "Загрузка..." : "Войти"}
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Нет аккаунта?{" "}
+              <Link
+                href="/auth/register"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Зарегистрироваться
+              </Link>
+            </p>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
   );
 }
 
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="font-[family-name:var(--font-source-serif)] text-2xl font-bold">
-            Benefit Market
-          </CardTitle>
-          <CardDescription>Вход в систему</CardDescription>
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold">Вход в систему</CardTitle>
+          <CardDescription>Войдите, чтобы управлять своими льготами</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="h-[200px] animate-pulse" />
+          <div className="h-[200px] animate-pulse rounded-lg bg-muted" />
         </CardContent>
       </Card>
     }>
