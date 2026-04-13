@@ -87,7 +87,6 @@ export default function CatalogPage() {
   // Provider form
   const [formProviderId, setFormProviderId] = useState<string>("new");
   const [formNewProviderName, setFormNewProviderName] = useState("");
-  const [formNewProviderSlug, setFormNewProviderSlug] = useState("");
   const [formNewProviderEmail, setFormNewProviderEmail] = useState("");
   const [formGlobalCategoryId, setFormGlobalCategoryId] = useState("");
   const [formIsStackable, setFormIsStackable] = useState(false);
@@ -145,7 +144,6 @@ export default function CatalogPage() {
     setFormStock("");
     setFormProviderId("new");
     setFormNewProviderName("");
-    setFormNewProviderSlug("");
     setFormNewProviderEmail("");
     setFormGlobalCategoryId(globalCategories[0]?.id ?? "");
     setFormIsStackable(false);
@@ -194,7 +192,6 @@ export default function CatalogPage() {
         if (formProviderId === "new") {
           body.new_provider = {
             name: formNewProviderName,
-            slug: formNewProviderSlug,
             contact_email: formNewProviderEmail,
           };
         } else {
@@ -206,7 +203,11 @@ export default function CatalogPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.error?.message ?? "Не удалось создать");
+          return;
+        }
         toast.success("Предложение провайдера создано");
       }
 
@@ -389,15 +390,6 @@ export default function CatalogPage() {
                       <Input
                         value={formNewProviderName}
                         onChange={(e) => setFormNewProviderName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Slug</Label>
-                      <Input
-                        value={formNewProviderSlug}
-                        onChange={(e) => setFormNewProviderSlug(e.target.value)}
-                        placeholder="my-provider"
                         required
                       />
                     </div>

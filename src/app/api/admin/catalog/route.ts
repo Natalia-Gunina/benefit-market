@@ -42,7 +42,33 @@ type CatalogItem = {
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return success({ data: [], meta: { page: 1, per_page: 20, total: 0 } });
+      const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES } = await import("@/lib/demo-data");
+      const providerMap = new Map((DEMO_PROVIDERS ?? []).map((p) => [p.id, p]));
+      const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
+
+      const { searchParams: demoParams } = new URL(request.url);
+      const demoSearch = demoParams.get("search") || "";
+
+      let demoItems: CatalogItem[] = (DEMO_PROVIDER_OFFERINGS ?? []).map((o) => ({
+        id: o.id,
+        name: o.name,
+        description: o.description ?? "",
+        price_points: o.base_price_points,
+        category_name: catMap.get(o.global_category_id ?? "")?.name ?? "—",
+        is_active: o.status === "published",
+        is_stackable: o.is_stackable ?? false,
+        provider_name: providerMap.get(o.provider_id)?.name ?? "—",
+        provider_status: providerMap.get(o.provider_id)?.status,
+        offering_status: o.status,
+        created_at: o.created_at,
+      }));
+
+      if (demoSearch) {
+        const q = demoSearch.toLowerCase();
+        demoItems = demoItems.filter((i) => i.name.toLowerCase().includes(q));
+      }
+
+      return success({ data: demoItems, meta: { page: 1, per_page: 20, total: demoItems.length } });
     }
 
     const appUser = await requireRole("admin");
@@ -98,7 +124,7 @@ const createCatalogSchema = z.object({
   provider_id: z.string().uuid().optional(),
   new_provider: z.object({
     name: z.string().min(1).max(255),
-    slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+    slug: z.string().max(100).regex(/^[a-z0-9-]*$/).optional().default(""),
     contact_email: z.string().email().optional().default(""),
   }).optional(),
   name: z.string().min(1).max(255),
@@ -112,7 +138,58 @@ const createCatalogSchema = z.object({
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return created({ id: "demo-catalog-new", name: "New Item" });
+      const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS } = await import("@/lib/demo-data");
+      const body = await request.json();
+      const id = "demo-po-" + Date.now().toString(36);
+
+      // Resolve or create provider
+      let providerId = body.provider_id;
+      if (!providerId && body.new_provider) {
+        const newPid = "demo-provider-" + Date.now().toString(36);
+        DEMO_PROVIDERS.push({
+          id: newPid,
+          owner_user_id: "demo-user-001",
+          name: body.new_provider.name,
+          slug: body.new_provider.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Date.now().toString(36),
+          description: "",
+          logo_url: null,
+          website: null,
+          contact_email: body.new_provider.contact_email ?? "",
+          contact_phone: null,
+          address: null,
+          status: "verified",
+          verified_at: null,
+          verified_by: null,
+          rejection_reason: null,
+          metadata: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        providerId = newPid;
+      }
+
+      DEMO_PROVIDER_OFFERINGS.push({
+        id,
+        provider_id: providerId ?? "demo-provider-001",
+        global_category_id: body.global_category_id ?? null,
+        name: body.name,
+        description: body.description ?? "",
+        long_description: "",
+        image_urls: [],
+        base_price_points: body.base_price_points,
+        stock_limit: body.stock_limit ?? null,
+        is_stackable: body.is_stackable ?? false,
+        status: "published",
+        delivery_info: "",
+        terms_conditions: "",
+        metadata: {},
+        avg_rating: 0,
+        review_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      return created({ id, name: body.name });
     }
 
     const appUser = await requireRole("admin");
@@ -123,11 +200,21 @@ export function POST(request: NextRequest) {
     let providerId = data.provider_id;
 
     if (!providerId && data.new_provider) {
+      // Auto-generate slug from name if not provided
+      const slug = data.new_provider.slug
+        || data.new_provider.name
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-")
+            .slice(0, 80)
+        + "-" + Date.now().toString(36);
+
       const providerResult = await admin
         .from("providers")
         .insert({
           name: data.new_provider.name,
-          slug: data.new_provider.slug,
+          slug,
           contact_email: data.new_provider.contact_email || "",
           status: "verified",
           owner_user_id: appUser.id,
