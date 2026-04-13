@@ -7,6 +7,7 @@ const benefit: CartBenefit = {
   name: "Test Benefit",
   price_points: 1000,
   stock_limit: null,
+  is_stackable: true,
 };
 
 const limitedBenefit: CartBenefit = {
@@ -14,6 +15,7 @@ const limitedBenefit: CartBenefit = {
   name: "Limited Benefit",
   price_points: 500,
   stock_limit: 3,
+  is_stackable: true,
 };
 
 describe("cart store", () => {
@@ -83,5 +85,19 @@ describe("cart store", () => {
     const outOfStock: CartBenefit = { ...benefit, id: "b3", stock_limit: 0 };
     useCartStore.getState().addItem(outOfStock);
     expect(useCartStore.getState().items).toHaveLength(0);
+  });
+
+  it("non-stackable benefit stays at quantity 1", () => {
+    const nonStackable: CartBenefit = { ...benefit, id: "b4", is_stackable: false };
+    useCartStore.getState().addItem(nonStackable);
+    useCartStore.getState().addItem(nonStackable);
+    expect(useCartStore.getState().items[0].quantity).toBe(1);
+  });
+
+  it("non-stackable benefit ignores updateQuantity", () => {
+    const nonStackable: CartBenefit = { ...benefit, id: "b5", is_stackable: false };
+    useCartStore.getState().addItem(nonStackable);
+    useCartStore.getState().updateQuantity("b5", 5);
+    expect(useCartStore.getState().items[0].quantity).toBe(1);
   });
 });
