@@ -6,11 +6,11 @@ export default function AuthLayout({
   return (
     <div className="flex min-h-screen">
       {/* Left brand panel — subtle gradient */}
-      <div className="hidden lg:flex lg:w-[420px] relative overflow-hidden bg-gradient-to-br from-[hsl(228,18%,14%)] to-[hsl(228,18%,10%)]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(16_65%_52%/0.12),transparent_60%)]" />
+      <div className="hidden lg:flex lg:w-[420px] relative overflow-hidden bg-gradient-to-br from-[hsl(262,60%,25%)] to-[hsl(252,30%,12%)]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(262_83%_58%/0.2),transparent_60%)]" />
         <div className="relative z-10 flex flex-col justify-between p-10 text-white">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm font-bold text-sm">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm font-bold text-sm">
               BM
             </div>
             <span className="text-[15px] font-bold tracking-tight">

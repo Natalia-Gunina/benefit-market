@@ -85,47 +85,47 @@
 }
 
 /* ========================================
-   LIGHT THEME — Refined Corporate Warmth
+   LIGHT THEME — Modern Violet
    ======================================== */
 :root {
   --radius: 0.625rem;
 
   /* Core palette */
-  --background: hsl(40 33% 96%);          /* Warm Sand #F7F4EF */
-  --foreground: hsl(220 25% 14%);         /* Slate Ink #1B2132 */
+  --background: hsl(240 5% 96%);          /* Cool Light Gray #F3F3F6 */
+  --foreground: hsl(240 20% 12%);         /* Deep Ink #1A1A2E */
 
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(220 25% 14%);
+  --card-foreground: hsl(240 20% 12%);
 
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(220 25% 14%);
+  --popover-foreground: hsl(240 20% 12%);
 
-  --primary: hsl(16 65% 52%);             /* Terracotta #C8623A */
+  --primary: hsl(262 83% 58%);            /* Violet #7C3AED */
   --primary-foreground: hsl(0 0% 100%);
 
-  --secondary: hsl(152 32% 40%);          /* Moss #458C6E */
-  --secondary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(270 50% 96%);          /* Soft Lavender */
+  --secondary-foreground: hsl(262 83% 45%);
 
-  --muted: hsl(38 20% 90%);
-  --muted-foreground: hsl(220 15% 46%);
+  --muted: hsl(240 5% 92%);
+  --muted-foreground: hsl(240 10% 46%);
 
-  --accent: hsl(38 25% 91%);              /* Warm Sand Dark */
-  --accent-foreground: hsl(220 25% 14%);
+  --accent: hsl(270 40% 95%);             /* Light Lavender */
+  --accent-foreground: hsl(240 20% 12%);
 
   --destructive: hsl(0 72% 51%);
-  --border: hsl(38 18% 84%);
-  --input: hsl(38 18% 84%);
-  --ring: hsl(16 65% 52%);
+  --border: hsl(240 6% 87%);
+  --input: hsl(240 6% 87%);
+  --ring: hsl(262 83% 58%);
 
-  /* Sidebar — refined dark with subtle warmth */
-  --sidebar: hsl(228 18% 14%);
-  --sidebar-foreground: hsl(220 15% 72%);
-  --sidebar-primary: hsl(16 65% 54%);
+  /* Sidebar — deep indigo */
+  --sidebar: hsl(252 30% 14%);
+  --sidebar-foreground: hsl(260 15% 72%);
+  --sidebar-primary: hsl(262 83% 60%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(228 15% 19%);
-  --sidebar-accent-foreground: hsl(220 15% 92%);
-  --sidebar-border: hsl(228 12% 20%);
-  --sidebar-ring: hsl(16 65% 54%);
+  --sidebar-accent: hsl(252 25% 19%);
+  --sidebar-accent-foreground: hsl(260 15% 92%);
+  --sidebar-border: hsl(252 20% 20%);
+  --sidebar-ring: hsl(262 83% 60%);
 
   /* Semantic */
   --success: hsl(152 55% 41%);
@@ -141,7 +141,7 @@
   --status-pending: hsl(38 92% 50%);
   --status-reserved: hsl(206 100% 50%);
   --status-paid: hsl(152 55% 41%);
-  --status-cancelled: hsl(220 15% 46%);
+  --status-cancelled: hsl(240 10% 46%);
   --status-expired: hsl(0 0% 55%);
 
   /* Transaction types */
@@ -149,56 +149,56 @@
   --txn-spend: hsl(0 72% 51%);
   --txn-reserve: hsl(38 92% 50%);
   --txn-release: hsl(206 100% 50%);
-  --txn-expire: hsl(220 10% 55%);
+  --txn-expire: hsl(240 10% 55%);
 
-  /* Charts */
-  --chart-1: hsl(16 65% 52%);
-  --chart-2: hsl(152 32% 40%);
+  /* Charts — purple-centric palette */
+  --chart-1: hsl(262 83% 58%);
+  --chart-2: hsl(330 65% 55%);
   --chart-3: hsl(206 100% 50%);
   --chart-4: hsl(38 92% 50%);
-  --chart-5: hsl(280 60% 50%);
-  --chart-6: hsl(340 65% 55%);
+  --chart-5: hsl(152 55% 41%);
+  --chart-6: hsl(290 60% 55%);
 }
 
 /* ========================================
    DARK THEME
    ======================================== */
 .dark {
-  --background: hsl(240 6% 8%);
-  --foreground: hsl(40 20% 90%);
+  --background: hsl(252 15% 8%);
+  --foreground: hsl(260 10% 90%);
 
-  --card: hsl(240 5% 11%);
-  --card-foreground: hsl(40 20% 90%);
+  --card: hsl(252 12% 11%);
+  --card-foreground: hsl(260 10% 90%);
 
-  --popover: hsl(240 5% 14%);
-  --popover-foreground: hsl(40 20% 90%);
+  --popover: hsl(252 12% 14%);
+  --popover-foreground: hsl(260 10% 90%);
 
-  --primary: hsl(16 65% 55%);
+  --primary: hsl(262 83% 62%);
   --primary-foreground: hsl(0 0% 100%);
 
-  --secondary: hsl(152 32% 45%);
-  --secondary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(270 30% 18%);
+  --secondary-foreground: hsl(262 60% 80%);
 
-  --muted: hsl(240 5% 16%);
-  --muted-foreground: hsl(220 10% 55%);
+  --muted: hsl(252 10% 16%);
+  --muted-foreground: hsl(260 10% 55%);
 
-  --accent: hsl(240 5% 14%);
-  --accent-foreground: hsl(40 20% 90%);
+  --accent: hsl(252 12% 16%);
+  --accent-foreground: hsl(260 10% 90%);
 
   --destructive: hsl(0 72% 55%);
-  --border: hsl(240 5% 18%);
-  --input: hsl(240 5% 18%);
-  --ring: hsl(16 65% 55%);
+  --border: hsl(252 10% 18%);
+  --input: hsl(252 10% 18%);
+  --ring: hsl(262 83% 62%);
 
   /* Sidebar */
-  --sidebar: hsl(240 6% 6%);
-  --sidebar-foreground: hsl(40 15% 75%);
-  --sidebar-primary: hsl(16 65% 55%);
+  --sidebar: hsl(252 18% 6%);
+  --sidebar-foreground: hsl(260 12% 75%);
+  --sidebar-primary: hsl(262 83% 62%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 5% 12%);
-  --sidebar-accent-foreground: hsl(40 15% 75%);
-  --sidebar-border: hsl(240 5% 12%);
-  --sidebar-ring: hsl(16 65% 55%);
+  --sidebar-accent: hsl(252 12% 12%);
+  --sidebar-accent-foreground: hsl(260 12% 75%);
+  --sidebar-border: hsl(252 10% 12%);
+  --sidebar-ring: hsl(262 83% 62%);
 
   /* Semantic */
   --success: hsl(152 55% 46%);
@@ -214,7 +214,7 @@
   --status-pending: hsl(38 92% 55%);
   --status-reserved: hsl(206 100% 55%);
   --status-paid: hsl(152 55% 46%);
-  --status-cancelled: hsl(220 10% 50%);
+  --status-cancelled: hsl(260 10% 50%);
   --status-expired: hsl(0 0% 45%);
 
   /* Transaction types */
@@ -222,15 +222,15 @@
   --txn-spend: hsl(0 72% 58%);
   --txn-reserve: hsl(38 92% 55%);
   --txn-release: hsl(206 100% 55%);
-  --txn-expire: hsl(220 10% 45%);
+  --txn-expire: hsl(260 10% 45%);
 
   /* Charts */
-  --chart-1: hsl(16 65% 58%);
-  --chart-2: hsl(152 32% 48%);
+  --chart-1: hsl(262 83% 65%);
+  --chart-2: hsl(330 65% 60%);
   --chart-3: hsl(206 100% 55%);
   --chart-4: hsl(38 92% 55%);
-  --chart-5: hsl(280 60% 58%);
-  --chart-6: hsl(340 65% 60%);
+  --chart-5: hsl(152 55% 46%);
+  --chart-6: hsl(290 60% 60%);
 }
 
 /* ========================================
@@ -256,8 +256,8 @@
     scroll-behavior: smooth;
   }
   ::selection {
-    background-color: hsl(16 65% 52% / 0.15);
-    color: hsl(220 25% 14%);
+    background-color: hsl(262 83% 58% / 0.15);
+    color: hsl(240 20% 12%);
   }
 }
 
@@ -301,7 +301,12 @@
 
   /* Gradient for primary accent — use sparingly */
   .bg-gradient-primary {
-    background: linear-gradient(135deg, hsl(16 65% 52%), hsl(16 75% 46%));
+    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(290 70% 50%));
+  }
+
+  /* CTA gradient — purple to pink, like in reference design */
+  .bg-gradient-cta {
+    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(330 80% 65%));
   }
 }
 
