@@ -34,7 +34,7 @@ type RestrictionItem = {
 // GET /api/hr/restrictions — list all offerings with restriction status
 // ---------------------------------------------------------------------------
 
-export function GET(_request: NextRequest) {
+export function GET() {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES, DEMO_BENEFIT_RESTRICTIONS } = await import("@/lib/demo-data");
