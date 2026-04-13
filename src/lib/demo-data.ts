@@ -1428,6 +1428,24 @@ export const DEMO_HR_ANALYTICS: AnalyticsData = {
 
 // ========================== 21. DEMO BENEFIT RESTRICTIONS ======================
 
-export const DEMO_BENEFIT_RESTRICTIONS: { provider_offering_id: string; tenant_id: string }[] = [
-  // No restrictions by default in demo mode
-];
+// Mutable in-memory store for demo mode restrictions
+const _demoRestrictedIds = new Set<string>();
+
+export const DEMO_BENEFIT_RESTRICTIONS = {
+  /** Check if a provider_offering_id is restricted */
+  has(id: string): boolean {
+    return _demoRestrictedIds.has(id);
+  },
+  /** Add a restriction */
+  add(id: string): void {
+    _demoRestrictedIds.add(id);
+  },
+  /** Remove a restriction */
+  remove(id: string): void {
+    _demoRestrictedIds.delete(id);
+  },
+  /** Get all restricted IDs as an array */
+  getAll(): string[] {
+    return Array.from(_demoRestrictedIds);
+  },
+};

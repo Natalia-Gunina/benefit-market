@@ -20,9 +20,8 @@ export function GET(request: NextRequest) {
       const offeringMap = new Map((DEMO_PROVIDER_OFFERINGS ?? []).map((o) => [o.id, o]));
       const providerMap = new Map((DEMO_PROVIDERS ?? []).map((p) => [p.id, p]));
       const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
-      const restrictedSet = new Set((DEMO_BENEFIT_RESTRICTIONS ?? []).map((r) => r.provider_offering_id));
       const data = (DEMO_TENANT_OFFERINGS ?? [])
-        .filter((to) => to.is_active && !restrictedSet.has(to.provider_offering_id))
+        .filter((to) => to.is_active && !DEMO_BENEFIT_RESTRICTIONS.has(to.provider_offering_id))
         .map((to) => {
           const po = offeringMap.get(to.provider_offering_id);
           return {

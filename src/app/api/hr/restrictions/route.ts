@@ -40,7 +40,6 @@ export function GET(request: NextRequest) {
       const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_GLOBAL_CATEGORIES, DEMO_BENEFIT_RESTRICTIONS } = await import("@/lib/demo-data");
       const providerMap = new Map((DEMO_PROVIDERS ?? []).map((p) => [p.id, p]));
       const catMap = new Map((DEMO_GLOBAL_CATEGORIES ?? []).map((c) => [c.id, c]));
-      const restrictedSet = new Set((DEMO_BENEFIT_RESTRICTIONS ?? []).map((r) => r.provider_offering_id));
 
       const items: RestrictionItem[] = (DEMO_PROVIDER_OFFERINGS ?? [])
         .filter((po) => po.status === "published")
@@ -51,7 +50,7 @@ export function GET(request: NextRequest) {
           price_points: po.base_price_points,
           category_name: catMap.get(po.global_category_id ?? "")?.name ?? "—",
           provider_name: providerMap.get(po.provider_id)?.name ?? "—",
-          is_restricted: restrictedSet.has(po.id),
+          is_restricted: DEMO_BENEFIT_RESTRICTIONS.has(po.id),
         }));
 
       return success(items);
@@ -101,17 +100,24 @@ export function GET(request: NextRequest) {
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    if (isDemo) {
-      return success({ ok: true });
-    }
-
-    const appUser = await requireRole("hr", "admin");
-    const admin = createAdminClient();
     const body = await request.json();
     const { provider_offering_id, restricted } = body as {
       provider_offering_id: string;
       restricted: boolean;
     };
+
+    if (isDemo) {
+      const { DEMO_BENEFIT_RESTRICTIONS } = await import("@/lib/demo-data");
+      if (restricted) {
+        DEMO_BENEFIT_RESTRICTIONS.add(provider_offering_id);
+      } else {
+        DEMO_BENEFIT_RESTRICTIONS.remove(provider_offering_id);
+      }
+      return success({ ok: true });
+    }
+
+    const appUser = await requireRole("hr", "admin");
+    const admin = createAdminClient();
 
     if (restricted) {
       // Add restriction
