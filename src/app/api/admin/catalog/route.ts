@@ -138,34 +138,39 @@ const createCatalogSchema = z.object({
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS } = await import("@/lib/demo-data");
+      const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_TENANT_OFFERINGS } = await import("@/lib/demo-data");
       const body = await request.json();
       const id = "demo-po-" + Date.now().toString(36);
 
-      // Resolve or create provider
+      // Resolve or create provider (check existing first)
       let providerId = body.provider_id;
       if (!providerId && body.new_provider) {
-        const newPid = "demo-provider-" + Date.now().toString(36);
-        DEMO_PROVIDERS.push({
-          id: newPid,
-          owner_user_id: "demo-user-001",
-          name: body.new_provider.name,
-          slug: body.new_provider.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Date.now().toString(36),
-          description: "",
-          logo_url: null,
-          website: null,
-          contact_email: body.new_provider.contact_email ?? "",
-          contact_phone: null,
-          address: null,
-          status: "verified",
-          verified_at: null,
-          verified_by: null,
-          rejection_reason: null,
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        providerId = newPid;
+        const existing = DEMO_PROVIDERS.find((p) => p.name === body.new_provider.name);
+        if (existing) {
+          providerId = existing.id;
+        } else {
+          const newPid = "demo-provider-" + Date.now().toString(36);
+          DEMO_PROVIDERS.push({
+            id: newPid,
+            owner_user_id: "demo-user-001",
+            name: body.new_provider.name,
+            slug: body.new_provider.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Date.now().toString(36),
+            description: "",
+            logo_url: null,
+            website: null,
+            contact_email: body.new_provider.contact_email ?? "",
+            contact_phone: null,
+            address: null,
+            status: "verified",
+            verified_at: null,
+            verified_by: null,
+            rejection_reason: null,
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          providerId = newPid;
+        }
       }
 
       DEMO_PROVIDER_OFFERINGS.push({
@@ -189,6 +194,25 @@ export function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       });
 
+      // Auto-enable for demo tenant so it appears in employee catalog
+      const toId = "demo-to-" + Date.now().toString(36);
+      DEMO_TENANT_OFFERINGS.push({
+        id: toId,
+        tenant_id: "demo-tenant-001",
+        provider_offering_id: id,
+        custom_price_points: null,
+        tenant_stock_limit: null,
+        is_active: true,
+        tenant_category_id: null,
+        enabled_by: "demo-user-001",
+        enabled_at: new Date().toISOString(),
+        tenant_avg_rating: 0,
+        tenant_review_count: 0,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
       return created({ id, name: body.name });
     }
 
@@ -200,36 +224,48 @@ export function POST(request: NextRequest) {
     let providerId = data.provider_id;
 
     if (!providerId && data.new_provider) {
-      // Auto-generate slug from name if not provided
-      const slug = data.new_provider.slug
-        || data.new_provider.name
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, "")
-            .replace(/\s+/g, "-")
-            .replace(/-+/g, "-")
-            .slice(0, 80)
-        + "-" + Date.now().toString(36);
-
-      const providerResult = await admin
+      // Check if provider with this name already exists
+      const existing = await admin
         .from("providers")
-        .insert({
-          name: data.new_provider.name,
-          slug,
-          contact_email: data.new_provider.contact_email || "",
-          status: "verified",
-          owner_user_id: appUser.id,
-        } as never)
         .select("id")
-        .single();
+        .eq("name", data.new_provider.name)
+        .limit(1)
+        .maybeSingle();
 
-      const newProvider = unwrapSingle<{ id: string }>(providerResult, "Failed to create provider");
-      providerId = newProvider.id;
+      if (existing.data) {
+        providerId = (existing.data as { id: string }).id;
+      } else {
+        // Auto-generate slug from name
+        const slug = data.new_provider.name
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .slice(0, 80)
+          + "-" + Date.now().toString(36);
+
+        const providerResult = await admin
+          .from("providers")
+          .insert({
+            name: data.new_provider.name,
+            slug,
+            contact_email: data.new_provider.contact_email || "",
+            status: "verified",
+            owner_user_id: appUser.id,
+          } as never)
+          .select("id")
+          .single();
+
+        const newProvider = unwrapSingle<{ id: string }>(providerResult, "Failed to create provider");
+        providerId = newProvider.id;
+      }
     }
 
     if (!providerId) {
       throw new Error("Either provider_id or new_provider is required");
     }
 
+    // Create the provider offering
     const offeringResult = await admin
       .from("provider_offerings")
       .insert({
@@ -246,6 +282,17 @@ export function POST(request: NextRequest) {
       .single();
 
     const row = unwrapSingle<OfferingRow>(offeringResult, "Failed to create offering");
+
+    // Auto-enable for the admin's tenant so it appears in the employee catalog
+    await admin
+      .from("tenant_offerings")
+      .insert({
+        tenant_id: appUser.tenant_id,
+        provider_offering_id: row.id,
+        is_active: true,
+        enabled_by: appUser.id,
+      } as never);
+
     return created({
       id: row.id,
       name: row.name,
