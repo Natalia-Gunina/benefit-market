@@ -33,7 +33,8 @@ export function GET(request: NextRequest) {
             } : null,
             effective_price: to.custom_price_points ?? (po?.base_price_points ?? 0),
           };
-        });
+        })
+        .filter((row) => row.provider_offerings?.status === "published");
       return success({ data, meta: { page: 1, per_page: 20, total: data.length } });
     }
 
@@ -58,9 +59,10 @@ export function GET(request: NextRequest) {
 
     let query = admin
       .from("tenant_offerings")
-      .select("*, provider_offerings(*, providers(id, name, logo_url), global_categories(name, icon))", { count: "exact" })
+      .select("*, provider_offerings!inner(*, providers(id, name, logo_url), global_categories(name, icon))", { count: "exact" })
       .eq("tenant_id", appUser.tenant_id)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("provider_offerings.status", "published");
 
     // Exclude restricted offerings
     if (restrictedIds.length > 0) {

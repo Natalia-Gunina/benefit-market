@@ -149,9 +149,15 @@ export const createProviderOfferingSchema = z.object({
   image_urls: z.array(z.string().url()).optional().default([]),
   base_price_points: z.number().int().min(1, "Цена должна быть > 0"),
   stock_limit: z.number().int().min(0).nullable().optional().default(null),
+  is_stackable: z.boolean().optional().default(false),
+  format: z.enum(["online", "offline"]).optional().default("online"),
+  cities: z.array(z.string().min(1).max(120)).optional().default([]),
   delivery_info: z.string().optional().default(""),
   terms_conditions: z.string().optional().default(""),
-});
+}).refine(
+  (d) => d.format !== "offline" || d.cities.length > 0,
+  { message: "Для офлайн-льготы требуется указать хотя бы один город", path: ["cities"] },
+);
 
 export const updateProviderOfferingSchema = z.object({
   global_category_id: z.string().uuid().optional().or(z.null()),
@@ -161,6 +167,9 @@ export const updateProviderOfferingSchema = z.object({
   image_urls: z.array(z.string().url()).optional(),
   base_price_points: z.number().int().min(1).optional(),
   stock_limit: z.number().int().min(0).nullable().optional(),
+  is_stackable: z.boolean().optional(),
+  format: z.enum(["online", "offline"]).optional(),
+  cities: z.array(z.string().min(1).max(120)).optional(),
   delivery_info: z.string().optional(),
   terms_conditions: z.string().optional(),
 });

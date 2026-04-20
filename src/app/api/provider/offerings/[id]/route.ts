@@ -96,8 +96,10 @@ export function PATCH(request: NextRequest, context: RouteContext) {
 
     if (!existing) throw notFound("Предложение не найдено");
     if (existing.provider_id !== provider.id) throw forbidden();
-    if (existing.status !== "draft") {
-      throw invalidStatus("Можно редактировать только предложения в статусе draft");
+    if (existing.status !== "draft" && existing.status !== "pending_review") {
+      throw invalidStatus(
+        "Редактировать можно только льготы со статусом «Черновик» или «На согласовании»",
+      );
     }
 
     const body = await request.json();

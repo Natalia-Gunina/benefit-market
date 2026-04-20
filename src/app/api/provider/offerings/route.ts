@@ -80,7 +80,7 @@ export function GET(request: NextRequest) {
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return created({ id: "demo-offering-new", name: "New Offering", status: "draft" });
+      return created({ id: "demo-offering-new", name: "New Offering", status: "pending_review" });
     }
 
     const appUser = await requireRole("provider", "admin");
@@ -112,7 +112,10 @@ export function POST(request: NextRequest) {
           image_urls: data.image_urls,
           base_price_points: data.base_price_points,
           stock_limit: data.stock_limit,
-          status: "draft",
+          is_stackable: data.is_stackable,
+          format: data.format,
+          cities: data.format === "offline" ? data.cities : [],
+          status: "pending_review",
           delivery_info: data.delivery_info,
           terms_conditions: data.terms_conditions,
         } as never)

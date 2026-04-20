@@ -32,17 +32,16 @@ interface Offering {
 
 const statusTabs = [
   { key: "all", label: "Все" },
-  { key: "draft", label: "Черновик" },
-  { key: "pending_review", label: "На модерации" },
-  { key: "published", label: "Опубликовано" },
-  { key: "archived", label: "Архив" },
+  { key: "pending_review", label: "На согласовании" },
+  { key: "published", label: "Активна" },
+  { key: "archived", label: "В архиве" },
 ] as const;
 
 const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft: { label: "Черновик", variant: "secondary" },
-  pending_review: { label: "На модерации", variant: "outline" },
-  published: { label: "Опубликовано", variant: "default" },
-  archived: { label: "Архив", variant: "destructive" },
+  pending_review: { label: "На согласовании", variant: "outline" },
+  published: { label: "Активна", variant: "default" },
+  archived: { label: "В архиве", variant: "destructive" },
 };
 
 export default function ProviderOfferingsPage() {
@@ -83,11 +82,11 @@ export default function ProviderOfferingsPage() {
   return (
     <div className="page-transition space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Мои предложения</h1>
+        <h1 className="text-2xl font-heading font-bold">Льготы</h1>
         <Button asChild>
           <Link href="/dashboard/provider/offerings/new">
             <Plus className="size-4" />
-            Новое предложение
+            Добавить льготу
           </Link>
         </Button>
       </div>
@@ -140,7 +139,7 @@ export default function ProviderOfferingsPage() {
             ) : offerings.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  Предложений не найдено
+                  Льготы не найдены
                 </TableCell>
               </TableRow>
             ) : (

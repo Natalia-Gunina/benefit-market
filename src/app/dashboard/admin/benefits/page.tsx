@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Search, Loader2, Trash2, X } from "lucide-react";
+import { Pencil, Search, Loader2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import { DataTablePagination } from "@/components/shared/data-table-pagination";
 /* -------------------------------------------------------------------------- */
 
 type OfferingFormat = "online" | "offline";
+type OfferingStatus = "draft" | "pending_review" | "published" | "archived";
 
 interface CatalogItem {
   id: string;
@@ -50,69 +51,46 @@ interface CatalogItem {
   cities: string[];
   provider_name?: string;
   provider_status?: string;
-  offering_status?: string;
+  offering_status?: OfferingStatus;
   created_at: string;
 }
 
-interface ProviderOption {
-  id: string;
-  name: string;
-  status: string;
-}
+const STATUS_OPTIONS: { value: OfferingStatus; label: string }[] = [
+  { value: "pending_review", label: "На согласовании" },
+  { value: "published", label: "Активна" },
+  { value: "archived", label: "В архиве" },
+];
 
-interface GlobalCategory {
-  id: string;
-  name: string;
-}
+const statusBadgeVariant: Record<OfferingStatus, "default" | "secondary" | "destructive" | "outline"> = {
+  draft: "secondary",
+  pending_review: "outline",
+  published: "default",
+  archived: "destructive",
+};
 
 /* -------------------------------------------------------------------------- */
 
 export default function CatalogPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
-  const [globalCategories, setGlobalCategories] = useState<GlobalCategory[]>([]);
-  const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 20;
 
-  // Dialog
+  // Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form fields
+  // Form fields (edit-only)
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formPrice, setFormPrice] = useState("");
-  const [formStock, setFormStock] = useState("");
-
-  // Provider form
-  const [formProviderId, setFormProviderId] = useState<string>("");
-  const [formGlobalCategoryId, setFormGlobalCategoryId] = useState("");
   const [formIsStackable, setFormIsStackable] = useState(false);
   const [formFormat, setFormFormat] = useState<OfferingFormat>("online");
   const [formCities, setFormCities] = useState<string[]>([]);
   const [formCityInput, setFormCityInput] = useState("");
-
-  /* ----- Fetch reference data --------------------------------------------- */
-  useEffect(() => {
-    fetch("/api/admin/global-categories")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((json) => {
-        const arr = json.data ?? json;
-        if (Array.isArray(arr)) setGlobalCategories(arr);
-      })
-      .catch(() => {});
-    fetch("/api/admin/providers")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((json) => {
-        const arr = json.data ?? json;
-        if (Array.isArray(arr)) setProviders(arr);
-      })
-      .catch(() => {});
-  }, []);
 
   /* ----- Fetch catalog --------------------------------------------------- */
   const fetchCatalog = useCallback(async () => {
@@ -141,27 +119,11 @@ export default function CatalogPage() {
   }, [fetchCatalog]);
 
   /* ----- Dialog helpers --------------------------------------------------- */
-  function openCreate() {
-    setEditing(null);
-    setFormName("");
-    setFormDescription("");
-    setFormPrice("");
-    setFormStock("");
-    setFormProviderId(providers[0]?.id ?? "");
-    setFormGlobalCategoryId(globalCategories[0]?.id ?? "");
-    setFormIsStackable(false);
-    setFormFormat("online");
-    setFormCities([]);
-    setFormCityInput("");
-    setDialogOpen(true);
-  }
-
   function openEdit(item: CatalogItem) {
     setEditing(item);
     setFormName(item.name);
     setFormDescription(item.description ?? "");
     setFormPrice(String(item.price_points));
-    setFormStock("");
     setFormIsStackable(item.is_stackable);
     setFormFormat(item.format ?? "online");
     setFormCities(item.cities ?? []);
@@ -186,6 +148,7 @@ export default function CatalogPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!editing) return;
 
     if (formFormat === "offline" && formCities.length === 0) {
       toast.error("Укажите хотя бы один город для офлайн-льготы");
@@ -194,54 +157,22 @@ export default function CatalogPage() {
 
     setSaving(true);
     try {
-      if (editing) {
-        const updates: Record<string, unknown> = {
-          name: formName,
-          description: formDescription,
-          base_price_points: Number(formPrice),
-          is_stackable: formIsStackable,
-          format: formFormat,
-          cities: formFormat === "offline" ? formCities : [],
-        };
+      const updates: Record<string, unknown> = {
+        name: formName,
+        description: formDescription,
+        base_price_points: Number(formPrice),
+        is_stackable: formIsStackable,
+        format: formFormat,
+        cities: formFormat === "offline" ? formCities : [],
+      };
 
-        const res = await fetch(`/api/admin/catalog/${editing.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updates),
-        });
-        if (!res.ok) throw new Error();
-        toast.success("Обновлено");
-      } else {
-        if (!formProviderId) {
-          toast.error("Выберите провайдера");
-          return;
-        }
-
-        const body: Record<string, unknown> = {
-          provider_id: formProviderId,
-          name: formName,
-          description: formDescription,
-          global_category_id: formGlobalCategoryId || null,
-          base_price_points: Number(formPrice),
-          stock_limit: formStock ? Number(formStock) : null,
-          is_stackable: formIsStackable,
-          format: formFormat,
-          cities: formFormat === "offline" ? formCities : [],
-        };
-
-        const res = await fetch("/api/admin/catalog", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          toast.error(err.error?.message ?? "Не удалось создать");
-          return;
-        }
-        toast.success("Предложение провайдера создано");
-      }
-
+      const res = await fetch(`/api/admin/catalog/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Обновлено");
       setDialogOpen(false);
       fetchCatalog();
     } catch {
@@ -251,8 +182,28 @@ export default function CatalogPage() {
     }
   }
 
+  async function handleStatusChange(item: CatalogItem, next: OfferingStatus) {
+    if (item.offering_status === next) return;
+    try {
+      const res = await fetch(`/api/admin/catalog/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error?.message ?? "Не удалось обновить статус");
+        return;
+      }
+      toast.success("Статус обновлён");
+      fetchCatalog();
+    } catch {
+      toast.error("Ошибка сети");
+    }
+  }
+
   async function handleDelete(item: CatalogItem) {
-    if (!confirm("Удалить этот элемент?")) return;
+    if (!confirm("Удалить эту льготу?")) return;
     try {
       const res = await fetch(`/api/admin/catalog/${item.id}`, {
         method: "DELETE",
@@ -270,11 +221,7 @@ export default function CatalogPage() {
     <div className="page-transition space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Каталог</h1>
-        <Button onClick={openCreate}>
-          <Plus className="size-4" />
-          Добавить
-        </Button>
+        <h1 className="text-2xl font-heading font-bold">Каталог льгот</h1>
       </div>
 
       {/* Filters */}
@@ -318,72 +265,86 @@ export default function CatalogPage() {
             ) : items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                  Элементы не найдены
+                  Льготы не найдены
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="text-muted-foreground">
-                    {item.provider_name ?? "—"}
-                  </TableCell>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell>{item.category_name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {item.price_points.toLocaleString("ru-RU")}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {item.format === "offline" ? (
-                      <div className="flex flex-col items-center gap-0.5">
-                        <Badge variant="outline" className="text-xs">Офлайн</Badge>
-                        {item.cities && item.cities.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {item.cities.join(", ")}
-                          </span>
-                        )}
+              items.map((item) => {
+                const currentStatus = item.offering_status ?? "pending_review";
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="text-muted-foreground">
+                      {item.provider_name ?? "—"}
+                    </TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.category_name}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {item.price_points.toLocaleString("ru-RU")}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {item.format === "offline" ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <Badge variant="outline" className="text-xs">Офлайн</Badge>
+                          {item.cities && item.cities.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {item.cities.join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Онлайн</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {item.is_stackable ? (
+                        <Badge variant="outline" className="text-xs">Можно увеличивать</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">1 шт.</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Select
+                        value={currentStatus}
+                        onValueChange={(v) =>
+                          handleStatusChange(item, v as OfferingStatus)
+                        }
+                      >
+                        <SelectTrigger
+                          className="h-8 w-[160px] mx-auto"
+                          aria-label="Статус"
+                        >
+                          <SelectValue>
+                            <Badge
+                              variant={statusBadgeVariant[currentStatus]}
+                              className="text-xs"
+                            >
+                              {STATUS_OPTIONS.find((s) => s.value === currentStatus)?.label ??
+                                "Черновик"}
+                            </Badge>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon-xs" onClick={() => openEdit(item)}>
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon-xs" onClick={() => handleDelete(item)}>
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">Онлайн</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {item.is_stackable ? (
-                      <Badge variant="outline" className="text-xs">Можно увеличивать</Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">1 шт.</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge
-                      variant={
-                        item.offering_status === "published"
-                          ? "default"
-                          : item.offering_status === "pending_review"
-                            ? "outline"
-                            : "secondary"
-                      }
-                    >
-                      {item.offering_status === "published"
-                        ? "Опубликовано"
-                        : item.offering_status === "pending_review"
-                          ? "На модерации"
-                          : item.offering_status === "draft"
-                            ? "Черновик"
-                            : "Архив"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon-xs" onClick={() => openEdit(item)}>
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon-xs" onClick={() => handleDelete(item)}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -398,42 +359,14 @@ export default function CatalogPage() {
         )}
       </div>
 
-      {/* Create / Edit Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editing ? "Редактировать" : "Новый элемент каталога"}
-            </DialogTitle>
+            <DialogTitle>Редактировать льготу</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Provider selector (create only) */}
-            {!editing && (
-              <div className="space-y-2">
-                <Label>Провайдер</Label>
-                {providers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Нет доступных провайдеров. Создайте провайдера на вкладке «Провайдеры».
-                  </p>
-                ) : (
-                  <Select value={formProviderId} onValueChange={setFormProviderId}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Выберите провайдера" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {providers.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
-
-            {/* Common fields */}
             <div className="space-y-2">
               <Label>Название</Label>
               <Input
@@ -452,49 +385,17 @@ export default function CatalogPage() {
               />
             </div>
 
-            {/* Global category (create only) */}
-            {!editing && (
-              <div className="space-y-2">
-                <Label>Глобальная категория</Label>
-                <Select value={formGlobalCategoryId} onValueChange={setFormGlobalCategoryId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выберите категорию" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {globalCategories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Price + Stock */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Цена (баллов)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={formPrice}
-                  onChange={(e) => setFormPrice(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Лимит (пусто = без лимита)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={formStock}
-                  onChange={(e) => setFormStock(e.target.value)}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Цена (баллов)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={formPrice}
+                onChange={(e) => setFormPrice(e.target.value)}
+                required
+              />
             </div>
 
-            {/* Stackable toggle */}
             <div className="flex items-center justify-between">
               <Label htmlFor="is-stackable">Множественный выбор</Label>
               <Switch
@@ -504,7 +405,6 @@ export default function CatalogPage() {
               />
             </div>
 
-            {/* Format */}
             <div className="space-y-2">
               <Label>Формат льготы</Label>
               <Select
@@ -521,7 +421,6 @@ export default function CatalogPage() {
               </Select>
             </div>
 
-            {/* Cities (offline only) */}
             {formFormat === "offline" && (
               <div className="space-y-2">
                 <Label>Города доступности</Label>
@@ -562,9 +461,6 @@ export default function CatalogPage() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Добавьте все города, в которых льгота доступна офлайн.
-                </p>
               </div>
             )}
 
@@ -574,7 +470,7 @@ export default function CatalogPage() {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="size-4 animate-spin" />}
-                {editing ? "Сохранить" : "Создать"}
+                Сохранить
               </Button>
             </DialogFooter>
           </form>

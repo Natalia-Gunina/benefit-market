@@ -63,7 +63,7 @@ const hrNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { title: "Компании-клиенты", href: "/dashboard/admin/tenants", icon: Building2 },
-  { title: "Каталог", href: "/dashboard/admin/benefits", icon: Package },
+  { title: "Каталог льгот", href: "/dashboard/admin/benefits", icon: Package },
   { title: "Провайдеры", href: "/dashboard/admin/providers", icon: Store },
   { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
   { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
@@ -73,7 +73,7 @@ const adminNavItems: NavItem[] = [
 
 const providerNavItems: NavItem[] = [
   { title: "Дашборд", href: "/dashboard/provider", icon: LayoutDashboard },
-  { title: "Предложения", href: "/dashboard/provider/offerings", icon: Package },
+  { title: "Льготы", href: "/dashboard/provider/offerings", icon: Package },
   { title: "Заказы", href: "/dashboard/provider/orders", icon: ClipboardList },
   { title: "Отзывы", href: "/dashboard/provider/reviews", icon: Star },
   { title: "Команда", href: "/dashboard/provider/team", icon: Users },
