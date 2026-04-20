@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Loader2, Search, Star } from "lucide-react";
+import { Plus, Loader2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ interface Offering {
   description: string;
   base_price_points: number;
   status: string;
+  format: "online" | "offline";
+  cities: string[] | null;
   avg_rating: number;
   review_count: number;
   created_at: string;
@@ -124,7 +126,8 @@ export default function ProviderOfferingsPage() {
               <TableHead>Название</TableHead>
               <TableHead>Категория</TableHead>
               <TableHead className="text-right">Цена</TableHead>
-              <TableHead className="text-center">Рейтинг</TableHead>
+              <TableHead className="text-center">Формат</TableHead>
+              <TableHead>Города</TableHead>
               <TableHead className="text-center">Статус</TableHead>
               <TableHead>Создано</TableHead>
             </TableRow>
@@ -132,19 +135,21 @@ export default function ProviderOfferingsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
+                <TableCell colSpan={7} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : offerings.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   Льготы не найдены
                 </TableCell>
               </TableRow>
             ) : (
               offerings.map((o) => {
                 const st = statusBadge[o.status] ?? statusBadge.draft;
+                const fmt = o.format === "offline" ? "offline" : "online";
+                const cities = Array.isArray(o.cities) ? o.cities : [];
                 return (
                   <TableRow key={o.id}>
                     <TableCell>
@@ -159,16 +164,21 @@ export default function ProviderOfferingsPage() {
                       {o.global_categories?.name ?? "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {o.base_price_points.toLocaleString()} pts
+                      {o.base_price_points.toLocaleString("ru-RU")}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                        <span className="text-sm">
-                          {o.avg_rating > 0 ? o.avg_rating.toFixed(1) : "—"}
-                        </span>
-                        <span className="text-sm text-muted-foreground">({o.review_count})</span>
-                      </div>
+                      {fmt === "offline" ? (
+                        <Badge variant="outline" className="text-xs">Офлайн</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Онлайн</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {fmt === "offline"
+                        ? cities.length > 0
+                          ? cities.join(", ")
+                          : "—"
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={st.variant}>{st.label}</Badge>

@@ -49,16 +49,39 @@ interface CatalogItem {
   is_stackable: boolean;
   format: OfferingFormat;
   cities: string[];
+  provider_id?: string;
   provider_name?: string;
   provider_status?: string;
   offering_status?: OfferingStatus;
   created_at: string;
 }
 
+interface ProviderOption {
+  id: string;
+  name: string;
+}
+
+type SortKey =
+  | "newest"
+  | "oldest"
+  | "price_asc"
+  | "price_desc"
+  | "name_asc"
+  | "name_desc";
+
 const STATUS_OPTIONS: { value: OfferingStatus; label: string }[] = [
   { value: "pending_review", label: "На согласовании" },
   { value: "published", label: "Активна" },
   { value: "archived", label: "В архиве" },
+];
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "newest", label: "Сначала новые" },
+  { value: "oldest", label: "Сначала старые" },
+  { value: "price_asc", label: "Цена: по возрастанию" },
+  { value: "price_desc", label: "Цена: по убыванию" },
+  { value: "name_asc", label: "Название А–Я" },
+  { value: "name_desc", label: "Название Я–А" },
 ];
 
 const statusBadgeVariant: Record<OfferingStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -75,8 +98,14 @@ export default function CatalogPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [formatFilter, setFormatFilter] = useState<string>("all");
+  const [providerFilter, setProviderFilter] = useState<string>("all");
+  const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const perPage = 20;
+
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
 
   // Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -99,8 +128,12 @@ export default function CatalogPage() {
       const params = new URLSearchParams({
         page: String(page),
         per_page: String(perPage),
+        sort,
       });
       if (search) params.set("search", search);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (formatFilter !== "all") params.set("format", formatFilter);
+      if (providerFilter !== "all") params.set("provider_id", providerFilter);
 
       const res = await fetch(`/api/admin/catalog?${params}`);
       if (!res.ok) throw new Error();
@@ -112,11 +145,39 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, statusFilter, formatFilter, providerFilter, sort]);
 
   useEffect(() => {
     fetchCatalog();
   }, [fetchCatalog]);
+
+  /* ----- Fetch providers for filter dropdown ----------------------------- */
+  useEffect(() => {
+    fetch("/api/admin/providers?per_page=100")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!json) return;
+        const arr: ProviderOption[] = json.data?.data ?? json.data ?? [];
+        if (Array.isArray(arr)) setProviders(arr);
+      })
+      .catch(() => {});
+  }, []);
+
+  function resetFilters() {
+    setSearch("");
+    setStatusFilter("all");
+    setFormatFilter("all");
+    setProviderFilter("all");
+    setSort("newest");
+    setPage(1);
+  }
+
+  const filtersActive =
+    search !== "" ||
+    statusFilter !== "all" ||
+    formatFilter !== "all" ||
+    providerFilter !== "all" ||
+    sort !== "newest";
 
   /* ----- Dialog helpers --------------------------------------------------- */
   function openEdit(item: CatalogItem) {
@@ -224,9 +285,9 @@ export default function CatalogPage() {
         <h1 className="text-2xl font-heading font-bold">Каталог льгот</h1>
       </div>
 
-      {/* Filters */}
+      {/* Filters + sort */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative max-w-sm flex-1">
+        <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             placeholder="Поиск по названию..."
@@ -238,6 +299,88 @@ export default function CatalogPage() {
             }}
           />
         </div>
+
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[180px]" aria-label="Статус">
+            <SelectValue placeholder="Статус" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все статусы</SelectItem>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={formatFilter}
+          onValueChange={(v) => {
+            setFormatFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[150px]" aria-label="Формат">
+            <SelectValue placeholder="Формат" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все форматы</SelectItem>
+            <SelectItem value="online">Онлайн</SelectItem>
+            <SelectItem value="offline">Офлайн</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={providerFilter}
+          onValueChange={(v) => {
+            setProviderFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[200px]" aria-label="Провайдер">
+            <SelectValue placeholder="Провайдер" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все провайдеры</SelectItem>
+            {providers.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={sort}
+          onValueChange={(v) => {
+            setSort(v as SortKey);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[210px]" aria-label="Сортировка">
+            <SelectValue placeholder="Сортировка" />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {filtersActive && (
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
+            Сбросить
+          </Button>
+        )}
       </div>
 
       {/* Table */}
