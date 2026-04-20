@@ -488,6 +488,8 @@ export type Database = {
           base_price_points: number;
           stock_limit: number | null;
           is_stackable: boolean;
+          format: Database['public']['Enums']['offering_format'];
+          cities: string[];
           status: Database['public']['Enums']['offering_status'];
           delivery_info: string;
           terms_conditions: string;
@@ -508,6 +510,8 @@ export type Database = {
           base_price_points: number;
           stock_limit?: number | null;
           is_stackable?: boolean;
+          format?: Database['public']['Enums']['offering_format'];
+          cities?: string[];
           status?: Database['public']['Enums']['offering_status'];
           delivery_info?: string;
           terms_conditions?: string;
@@ -528,6 +532,8 @@ export type Database = {
           base_price_points?: number;
           stock_limit?: number | null;
           is_stackable?: boolean;
+          format?: Database['public']['Enums']['offering_format'];
+          cities?: string[];
           status?: Database['public']['Enums']['offering_status'];
           delivery_info?: string;
           terms_conditions?: string;
@@ -670,6 +676,7 @@ export type Database = {
       budget_period: 'monthly' | 'quarterly' | 'yearly';
       provider_status: 'pending' | 'verified' | 'suspended' | 'rejected';
       offering_status: 'draft' | 'pending_review' | 'published' | 'archived';
+      offering_format: 'online' | 'offline';
       review_status: 'visible' | 'hidden' | 'flagged';
       provider_user_role: 'owner' | 'admin' | 'member';
     };

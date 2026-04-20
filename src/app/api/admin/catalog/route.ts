@@ -10,6 +10,8 @@ import { z } from "zod";
 // Types
 // ---------------------------------------------------------------------------
 
+type OfferingFormat = "online" | "offline";
+
 type OfferingRow = Record<string, unknown> & {
   id: string;
   name: string;
@@ -29,6 +31,8 @@ type CatalogItem = {
   category_name: string;
   is_active: boolean;
   is_stackable: boolean;
+  format: OfferingFormat;
+  cities: string[];
   provider_name?: string;
   provider_status?: string;
   offering_status?: string;
@@ -49,19 +53,26 @@ export function GET(request: NextRequest) {
       const { searchParams: demoParams } = new URL(request.url);
       const demoSearch = demoParams.get("search") || "";
 
-      let demoItems: CatalogItem[] = (DEMO_PROVIDER_OFFERINGS ?? []).map((o) => ({
-        id: o.id,
-        name: o.name,
-        description: o.description ?? "",
-        price_points: o.base_price_points,
-        category_name: catMap.get(o.global_category_id ?? "")?.name ?? "—",
-        is_active: o.status === "published",
-        is_stackable: o.is_stackable ?? false,
-        provider_name: providerMap.get(o.provider_id)?.name ?? "—",
-        provider_status: providerMap.get(o.provider_id)?.status,
-        offering_status: o.status,
-        created_at: o.created_at,
-      }));
+      let demoItems: CatalogItem[] = (DEMO_PROVIDER_OFFERINGS ?? []).map((o) => {
+        const rec = o as Record<string, unknown>;
+        const fmt = rec.format === "offline" ? "offline" : "online";
+        const cts = Array.isArray(rec.cities) ? (rec.cities as string[]) : [];
+        return {
+          id: o.id,
+          name: o.name,
+          description: o.description ?? "",
+          price_points: o.base_price_points,
+          category_name: catMap.get(o.global_category_id ?? "")?.name ?? "—",
+          is_active: o.status === "published",
+          is_stackable: o.is_stackable ?? false,
+          format: fmt as OfferingFormat,
+          cities: cts,
+          provider_name: providerMap.get(o.provider_id)?.name ?? "—",
+          provider_status: providerMap.get(o.provider_id)?.status,
+          offering_status: o.status,
+          created_at: o.created_at,
+        };
+      });
 
       if (demoSearch) {
         const q = demoSearch.toLowerCase();
@@ -83,7 +94,7 @@ export function GET(request: NextRequest) {
 
     let oQuery = admin
       .from("provider_offerings")
-      .select("id, name, description, base_price_points, is_stackable, status, created_at, providers(name, status), global_categories(name)")
+      .select("id, name, description, base_price_points, is_stackable, format, cities, status, created_at, providers(name, status), global_categories(name)")
       .order("created_at", { ascending: false });
 
     if (search) oQuery = oQuery.ilike("name", `%${search}%`);
@@ -93,19 +104,26 @@ export function GET(request: NextRequest) {
       "Failed to fetch offerings",
     );
 
-    const items: CatalogItem[] = offeringRows.map((o) => ({
-      id: o.id,
-      name: o.name,
-      description: o.description ?? "",
-      price_points: o.base_price_points,
-      category_name: o.global_categories?.name ?? "—",
-      is_active: o.status === "published",
-      is_stackable: !!(o as Record<string, unknown>).is_stackable,
-      provider_name: o.providers?.name ?? "—",
-      provider_status: o.providers?.status,
-      offering_status: o.status,
-      created_at: o.created_at,
-    }));
+    const items: CatalogItem[] = offeringRows.map((o) => {
+      const rec = o as Record<string, unknown>;
+      const fmt = rec.format === "offline" ? "offline" : "online";
+      const cts = Array.isArray(rec.cities) ? (rec.cities as string[]) : [];
+      return {
+        id: o.id,
+        name: o.name,
+        description: o.description ?? "",
+        price_points: o.base_price_points,
+        category_name: o.global_categories?.name ?? "—",
+        is_active: o.status === "published",
+        is_stackable: !!rec.is_stackable,
+        format: fmt as OfferingFormat,
+        cities: cts,
+        provider_name: o.providers?.name ?? "—",
+        provider_status: o.providers?.status,
+        offering_status: o.status,
+        created_at: o.created_at,
+      };
+    });
 
     // Paginate
     const total = items.length;
@@ -121,61 +139,41 @@ export function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 const createCatalogSchema = z.object({
-  provider_id: z.string().uuid().optional(),
-  new_provider: z.object({
-    name: z.string().min(1).max(255),
-    slug: z.string().max(100).regex(/^[a-z0-9-]*$/).optional().default(""),
-    contact_email: z.string().email().optional().default(""),
-  }).optional(),
+  provider_id: z.string().uuid(),
   name: z.string().min(1).max(255),
   description: z.string().optional().default(""),
   global_category_id: z.string().uuid().optional().or(z.null()),
   base_price_points: z.number().int().min(1),
   stock_limit: z.number().int().min(0).nullable().optional().default(null),
   is_stackable: z.boolean().optional().default(false),
-});
+  format: z.enum(["online", "offline"]).optional().default("online"),
+  cities: z.array(z.string().min(1).max(120)).optional().default([]),
+}).refine(
+  (d) => d.format !== "offline" || d.cities.length > 0,
+  { message: "Для офлайн-льготы требуется указать хотя бы один город", path: ["cities"] },
+);
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      const { DEMO_PROVIDER_OFFERINGS, DEMO_PROVIDERS, DEMO_TENANT_OFFERINGS } = await import("@/lib/demo-data");
+      const { DEMO_PROVIDER_OFFERINGS, DEMO_TENANT_OFFERINGS } = await import("@/lib/demo-data");
       const body = await request.json();
       const id = "demo-po-" + Date.now().toString(36);
 
-      // Resolve or create provider (check existing first)
-      let providerId = body.provider_id;
-      if (!providerId && body.new_provider) {
-        const existing = DEMO_PROVIDERS.find((p) => p.name === body.new_provider.name);
-        if (existing) {
-          providerId = existing.id;
-        } else {
-          const newPid = "demo-provider-" + Date.now().toString(36);
-          DEMO_PROVIDERS.push({
-            id: newPid,
-            owner_user_id: "demo-user-001",
-            name: body.new_provider.name,
-            slug: body.new_provider.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Date.now().toString(36),
-            description: "",
-            logo_url: null,
-            website: null,
-            contact_email: body.new_provider.contact_email ?? "",
-            contact_phone: null,
-            address: null,
-            status: "verified",
-            verified_at: null,
-            verified_by: null,
-            rejection_reason: null,
-            metadata: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          providerId = newPid;
-        }
+      const providerId = body.provider_id;
+      if (!providerId) {
+        throw new Error("provider_id is required");
+      }
+
+      const fmt: OfferingFormat = body.format === "offline" ? "offline" : "online";
+      const cts: string[] = Array.isArray(body.cities) ? body.cities : [];
+      if (fmt === "offline" && cts.length === 0) {
+        throw new Error("Для офлайн-льготы требуется указать хотя бы один город");
       }
 
       DEMO_PROVIDER_OFFERINGS.push({
         id,
-        provider_id: providerId ?? "demo-provider-001",
+        provider_id: providerId,
         global_category_id: body.global_category_id ?? null,
         name: body.name,
         description: body.description ?? "",
@@ -192,7 +190,9 @@ export function POST(request: NextRequest) {
         review_count: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+        format: fmt,
+        cities: fmt === "offline" ? cts : [],
+      } as unknown as (typeof DEMO_PROVIDER_OFFERINGS)[number]);
 
       // Auto-enable for demo tenant so it appears in employee catalog
       const toId = "demo-to-" + Date.now().toString(36);
@@ -221,49 +221,7 @@ export function POST(request: NextRequest) {
     const body = await request.json();
     const data = parseBody(createCatalogSchema, body);
 
-    let providerId = data.provider_id;
-
-    if (!providerId && data.new_provider) {
-      // Check if provider with this name already exists
-      const existing = await admin
-        .from("providers")
-        .select("id")
-        .eq("name", data.new_provider.name)
-        .limit(1)
-        .maybeSingle();
-
-      if (existing.data) {
-        providerId = (existing.data as { id: string }).id;
-      } else {
-        // Auto-generate slug from name
-        const slug = data.new_provider.name
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .slice(0, 80)
-          + "-" + Date.now().toString(36);
-
-        const providerResult = await admin
-          .from("providers")
-          .insert({
-            name: data.new_provider.name,
-            slug,
-            contact_email: data.new_provider.contact_email || "",
-            status: "verified",
-            owner_user_id: appUser.id,
-          } as never)
-          .select("id")
-          .single();
-
-        const newProvider = unwrapSingle<{ id: string }>(providerResult, "Failed to create provider");
-        providerId = newProvider.id;
-      }
-    }
-
-    if (!providerId) {
-      throw new Error("Either provider_id or new_provider is required");
-    }
+    const providerId = data.provider_id;
 
     // Create the provider offering
     const offeringResult = await admin
@@ -276,6 +234,8 @@ export function POST(request: NextRequest) {
         base_price_points: data.base_price_points,
         stock_limit: data.stock_limit,
         is_stackable: data.is_stackable,
+        format: data.format,
+        cities: data.format === "offline" ? data.cities : [],
         status: "published",
       } as never)
       .select("*, providers(name), global_categories(name)")

@@ -2,12 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Check, Ban, Trash2, Loader2 } from "lucide-react";
+import { Check, Ban, Trash2, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +77,61 @@ export default function AdminProvidersPage() {
   const [suspendReason, setSuspendReason] = useState("");
   const [isSuspending, setIsSuspending] = useState(false);
 
+  // Create provider dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formWebsite, setFormWebsite] = useState("");
+  const [formAddress, setFormAddress] = useState("");
+
+  function resetCreateForm() {
+    setFormName("");
+    setFormDescription("");
+    setFormEmail("");
+    setFormPhone("");
+    setFormWebsite("");
+    setFormAddress("");
+  }
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim()) {
+      toast.error("Укажите название провайдера");
+      return;
+    }
+    setIsCreating(true);
+    try {
+      const res = await fetch("/api/admin/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName.trim(),
+          description: formDescription.trim(),
+          contact_email: formEmail.trim(),
+          contact_phone: formPhone.trim(),
+          website: formWebsite.trim(),
+          address: formAddress.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error?.message ?? "Не удалось создать провайдера");
+        return;
+      }
+      toast.success("Провайдер создан");
+      setCreateOpen(false);
+      resetCreateForm();
+      loadProviders();
+    } catch {
+      toast.error("Ошибка сети");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleSuspend = async () => {
     if (!suspendId) return;
     setIsSuspending(true);
@@ -111,7 +174,13 @@ export default function AdminProvidersPage() {
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Управление провайдерами</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-heading font-bold">Управление провайдерами</h1>
+        <Button onClick={() => { resetCreateForm(); setCreateOpen(true); }}>
+          <Plus className="size-4" />
+          Добавить провайдера
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="text-muted-foreground">Загрузка...</div>
@@ -221,6 +290,99 @@ export default function AdminProvidersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create provider dialog */}
+      <Dialog open={createOpen} onOpenChange={(open) => {
+        setCreateOpen(open);
+        if (!open) resetCreateForm();
+      }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Новый провайдер</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="provider-name">Название компании-провайдера *</Label>
+              <Input
+                id="provider-name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Например, World Class"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="provider-description">Описание</Label>
+              <Textarea
+                id="provider-description"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                placeholder="Краткое описание провайдера и его услуг"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="provider-email">Email</Label>
+                <Input
+                  id="provider-email"
+                  type="email"
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="contact@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="provider-phone">Телефон</Label>
+                <Input
+                  id="provider-phone"
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
+                  placeholder="+7 (495) 000-00-00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="provider-website">Сайт</Label>
+              <Input
+                id="provider-website"
+                type="url"
+                value={formWebsite}
+                onChange={(e) => setFormWebsite(e.target.value)}
+                placeholder="https://example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="provider-address">Адрес</Label>
+              <Input
+                id="provider-address"
+                value={formAddress}
+                onChange={(e) => setFormAddress(e.target.value)}
+                placeholder="Город, улица, дом"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+                disabled={isCreating}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" disabled={isCreating}>
+                {isCreating && <Loader2 className="size-4 animate-spin" />}
+                Создать
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

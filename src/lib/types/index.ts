@@ -103,5 +103,6 @@ export type LedgerType       = Enums<'ledger_type'>;
 export type BudgetPeriod     = Enums<'budget_period'>;
 export type ProviderStatus   = Enums<'provider_status'>;
 export type OfferingStatus   = Enums<'offering_status'>;
+export type OfferingFormat   = Enums<'offering_format'>;
 export type ReviewStatus     = Enums<'review_status'>;
 export type ProviderUserRole = Enums<'provider_user_role'>;

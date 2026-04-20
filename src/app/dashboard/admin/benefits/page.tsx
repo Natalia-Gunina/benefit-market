@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Search, Loader2, Trash2 } from "lucide-react";
+import { Plus, Pencil, Search, Loader2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
 /* -------------------------------------------------------------------------- */
 
+type OfferingFormat = "online" | "offline";
+
 interface CatalogItem {
   id: string;
   name: string;
@@ -44,6 +46,8 @@ interface CatalogItem {
   category_name: string;
   is_active: boolean;
   is_stackable: boolean;
+  format: OfferingFormat;
+  cities: string[];
   provider_name?: string;
   provider_status?: string;
   offering_status?: string;
@@ -85,11 +89,12 @@ export default function CatalogPage() {
   const [formStock, setFormStock] = useState("");
 
   // Provider form
-  const [formProviderId, setFormProviderId] = useState<string>("new");
-  const [formNewProviderName, setFormNewProviderName] = useState("");
-  const [formNewProviderEmail, setFormNewProviderEmail] = useState("");
+  const [formProviderId, setFormProviderId] = useState<string>("");
   const [formGlobalCategoryId, setFormGlobalCategoryId] = useState("");
   const [formIsStackable, setFormIsStackable] = useState(false);
+  const [formFormat, setFormFormat] = useState<OfferingFormat>("online");
+  const [formCities, setFormCities] = useState<string[]>([]);
+  const [formCityInput, setFormCityInput] = useState("");
 
   /* ----- Fetch reference data --------------------------------------------- */
   useEffect(() => {
@@ -142,11 +147,12 @@ export default function CatalogPage() {
     setFormDescription("");
     setFormPrice("");
     setFormStock("");
-    setFormProviderId("new");
-    setFormNewProviderName("");
-    setFormNewProviderEmail("");
+    setFormProviderId(providers[0]?.id ?? "");
     setFormGlobalCategoryId(globalCategories[0]?.id ?? "");
     setFormIsStackable(false);
+    setFormFormat("online");
+    setFormCities([]);
+    setFormCityInput("");
     setDialogOpen(true);
   }
 
@@ -157,11 +163,35 @@ export default function CatalogPage() {
     setFormPrice(String(item.price_points));
     setFormStock("");
     setFormIsStackable(item.is_stackable);
+    setFormFormat(item.format ?? "online");
+    setFormCities(item.cities ?? []);
+    setFormCityInput("");
     setDialogOpen(true);
+  }
+
+  function addCity() {
+    const v = formCityInput.trim();
+    if (!v) return;
+    if (formCities.includes(v)) {
+      setFormCityInput("");
+      return;
+    }
+    setFormCities([...formCities, v]);
+    setFormCityInput("");
+  }
+
+  function removeCity(city: string) {
+    setFormCities(formCities.filter((c) => c !== city));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (formFormat === "offline" && formCities.length === 0) {
+      toast.error("Укажите хотя бы один город для офлайн-льготы");
+      return;
+    }
+
     setSaving(true);
     try {
       if (editing) {
@@ -170,6 +200,8 @@ export default function CatalogPage() {
           description: formDescription,
           base_price_points: Number(formPrice),
           is_stackable: formIsStackable,
+          format: formFormat,
+          cities: formFormat === "offline" ? formCities : [],
         };
 
         const res = await fetch(`/api/admin/catalog/${editing.id}`, {
@@ -180,23 +212,22 @@ export default function CatalogPage() {
         if (!res.ok) throw new Error();
         toast.success("Обновлено");
       } else {
+        if (!formProviderId) {
+          toast.error("Выберите провайдера");
+          return;
+        }
+
         const body: Record<string, unknown> = {
+          provider_id: formProviderId,
           name: formName,
           description: formDescription,
           global_category_id: formGlobalCategoryId || null,
           base_price_points: Number(formPrice),
           stock_limit: formStock ? Number(formStock) : null,
           is_stackable: formIsStackable,
+          format: formFormat,
+          cities: formFormat === "offline" ? formCities : [],
         };
-
-        if (formProviderId === "new") {
-          body.new_provider = {
-            name: formNewProviderName,
-            contact_email: formNewProviderEmail,
-          };
-        } else {
-          body.provider_id = formProviderId;
-        }
 
         const res = await fetch("/api/admin/catalog", {
           method: "POST",
@@ -271,6 +302,7 @@ export default function CatalogPage() {
               <TableHead>Название</TableHead>
               <TableHead>Категория</TableHead>
               <TableHead className="text-right">Цена</TableHead>
+              <TableHead className="text-center">Формат</TableHead>
               <TableHead className="text-center">Множественный выбор</TableHead>
               <TableHead className="text-center">Статус</TableHead>
               <TableHead className="w-20" />
@@ -279,13 +311,13 @@ export default function CatalogPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
+                <TableCell colSpan={8} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   Элементы не найдены
                 </TableCell>
               </TableRow>
@@ -299,6 +331,20 @@ export default function CatalogPage() {
                   <TableCell>{item.category_name}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {item.price_points.toLocaleString("ru-RU")}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {item.format === "offline" ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <Badge variant="outline" className="text-xs">Офлайн</Badge>
+                        {item.cities && item.cities.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {item.cities.join(", ")}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Онлайн</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {item.is_stackable ? (
@@ -364,15 +410,18 @@ export default function CatalogPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Provider selector (create only) */}
             {!editing && (
-              <>
-                <div className="space-y-2">
-                  <Label>Провайдер</Label>
+              <div className="space-y-2">
+                <Label>Провайдер</Label>
+                {providers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Нет доступных провайдеров. Создайте провайдера на вкладке «Провайдеры».
+                  </p>
+                ) : (
                   <Select value={formProviderId} onValueChange={setFormProviderId}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Выберите провайдера" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="new">+ Новый провайдер</SelectItem>
                       {providers.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
@@ -380,30 +429,8 @@ export default function CatalogPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {formProviderId === "new" && (
-                  <div className="space-y-3 rounded-md border p-3">
-                    <p className="text-sm font-medium text-muted-foreground">Новый провайдер</p>
-                    <div className="space-y-2">
-                      <Label>Название</Label>
-                      <Input
-                        value={formNewProviderName}
-                        onChange={(e) => setFormNewProviderName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={formNewProviderEmail}
-                        onChange={(e) => setFormNewProviderEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Common fields */}
@@ -476,6 +503,70 @@ export default function CatalogPage() {
                 onCheckedChange={setFormIsStackable}
               />
             </div>
+
+            {/* Format */}
+            <div className="space-y-2">
+              <Label>Формат льготы</Label>
+              <Select
+                value={formFormat}
+                onValueChange={(v) => setFormFormat(v as OfferingFormat)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="online">Онлайн</SelectItem>
+                  <SelectItem value="offline">Офлайн</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Cities (offline only) */}
+            {formFormat === "offline" && (
+              <div className="space-y-2">
+                <Label>Города доступности</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={formCityInput}
+                    onChange={(e) => setFormCityInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCity();
+                      }
+                    }}
+                    placeholder="Например, Москва"
+                  />
+                  <Button type="button" variant="outline" onClick={addCity}>
+                    Добавить
+                  </Button>
+                </div>
+                {formCities.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {formCities.map((city) => (
+                      <Badge
+                        key={city}
+                        variant="secondary"
+                        className="gap-1 pr-1"
+                      >
+                        {city}
+                        <button
+                          type="button"
+                          onClick={() => removeCity(city)}
+                          className="rounded-full p-0.5 hover:bg-muted"
+                          aria-label={`Удалить ${city}`}
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Добавьте все города, в которых льгота доступна офлайн.
+                </p>
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

@@ -61,7 +61,7 @@ export default function TenantsPage() {
       setTenants(json.data ?? json);
       setTotal(json.total ?? (json.data ?? json).length);
     } catch {
-      toast.error("Не удалось загрузить список компаний");
+      toast.error("Не удалось загрузить список компаний-клиентов");
     } finally {
       setLoading(false);
     }
@@ -104,7 +104,7 @@ export default function TenantsPage() {
           });
 
       if (!res.ok) throw new Error();
-      toast.success(editing ? "Компания обновлена" : "Компания создана");
+      toast.success(editing ? "Компания-клиент обновлена" : "Компания-клиент создана");
       setDialogOpen(false);
       fetchTenants();
     } catch {
@@ -119,10 +119,10 @@ export default function TenantsPage() {
     <div className="page-transition space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Управление компаниями</h1>
+        <h1 className="text-2xl font-heading font-bold">Управление компаниями-клиентами</h1>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
-          Добавить компанию
+          Добавить компанию-клиента
         </Button>
       </div>
 
@@ -164,7 +164,7 @@ export default function TenantsPage() {
                   colSpan={4}
                   className="h-32 text-center text-muted-foreground"
                 >
-                  Компании не найдены
+                  Компании-клиенты не найдены
                 </TableCell>
               </TableRow>
             ) : (
@@ -205,7 +205,7 @@ export default function TenantsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Редактировать компанию" : "Новая компания"}
+              {editing ? "Редактировать компанию-клиента" : "Новая компания-клиент"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
