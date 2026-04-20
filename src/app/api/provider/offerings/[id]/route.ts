@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { updateProviderOfferingSchema } from "@/lib/api/validators";
 import { notFound, providerNotFound, forbidden, invalidStatus } from "@/lib/errors";
-import type { ProviderOffering } from "@/lib/types";
+import type { ProviderOffering, User } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -20,6 +20,27 @@ type OfferingWithCategoryRow = Record<string, unknown> & {
   global_categories: { name: string; icon: string } | null;
 };
 
+/**
+ * Resolve the provider_id the caller is allowed to act on:
+ *   - admin: return null (admin may act on any provider)
+ *   - provider: return their owned provider_id (throws if none)
+ */
+async function resolveCallerProviderId(
+  admin: ReturnType<typeof createAdminClient>,
+  user: User,
+): Promise<string | null> {
+  if (user.role === "admin") return null;
+  const provider = unwrapSingleOrNull<ProviderIdRow>(
+    await admin
+      .from("providers")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .single(),
+  );
+  if (!provider) throw providerNotFound();
+  return provider.id;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/provider/offerings/[id] — offering details
 // ---------------------------------------------------------------------------
@@ -29,30 +50,21 @@ export function GET(_request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
 
     if (isDemo) {
-      return success({ id, name: "Demo Offering", status: "draft" });
+      return success({ id, name: "Demo Offering", status: "pending_review" });
     }
 
     const appUser = await requireRole("provider", "admin");
     const admin = createAdminClient();
 
-    const provider = unwrapSingleOrNull<ProviderIdRow>(
-      await admin
-        .from("providers")
-        .select("id")
-        .eq("owner_user_id", appUser.id)
-        .single(),
-    );
+    const callerProviderId = await resolveCallerProviderId(admin, appUser);
 
-    if (!provider) throw providerNotFound();
+    let query = admin
+      .from("provider_offerings")
+      .select("*, global_categories(name, icon)")
+      .eq("id", id);
+    if (callerProviderId) query = query.eq("provider_id", callerProviderId);
 
-    const offering = unwrapSingleOrNull<OfferingWithCategoryRow>(
-      await admin
-        .from("provider_offerings")
-        .select("*, global_categories(name, icon)")
-        .eq("id", id)
-        .eq("provider_id", provider.id)
-        .single(),
-    );
+    const offering = unwrapSingleOrNull<OfferingWithCategoryRow>(await query.single());
 
     if (!offering) throw notFound("Предложение не найдено");
 
@@ -75,17 +87,8 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const appUser = await requireRole("provider", "admin");
     const admin = createAdminClient();
 
-    const provider = unwrapSingleOrNull<ProviderIdRow>(
-      await admin
-        .from("providers")
-        .select("id")
-        .eq("owner_user_id", appUser.id)
-        .single(),
-    );
+    const callerProviderId = await resolveCallerProviderId(admin, appUser);
 
-    if (!provider) throw providerNotFound();
-
-    // Verify ownership
     const existing = unwrapSingleOrNull<OfferingOwnerRow>(
       await admin
         .from("provider_offerings")
@@ -95,7 +98,9 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     );
 
     if (!existing) throw notFound("Предложение не найдено");
-    if (existing.provider_id !== provider.id) throw forbidden();
+    if (callerProviderId && existing.provider_id !== callerProviderId) {
+      throw forbidden();
+    }
     if (existing.status !== "draft" && existing.status !== "pending_review") {
       throw invalidStatus(
         "Редактировать можно только льготы со статусом «Черновик» или «На согласовании»",
@@ -134,15 +139,7 @@ export function DELETE(_request: NextRequest, context: RouteContext) {
     const appUser = await requireRole("provider", "admin");
     const admin = createAdminClient();
 
-    const provider = unwrapSingleOrNull<ProviderIdRow>(
-      await admin
-        .from("providers")
-        .select("id")
-        .eq("owner_user_id", appUser.id)
-        .single(),
-    );
-
-    if (!provider) throw providerNotFound();
+    const callerProviderId = await resolveCallerProviderId(admin, appUser);
 
     const existing = unwrapSingleOrNull<OfferingOwnerRow>(
       await admin
@@ -153,7 +150,9 @@ export function DELETE(_request: NextRequest, context: RouteContext) {
     );
 
     if (!existing) throw notFound("Предложение не найдено");
-    if (existing.provider_id !== provider.id) throw forbidden();
+    if (callerProviderId && existing.provider_id !== callerProviderId) {
+      throw forbidden();
+    }
 
     const updated = unwrapSingle<ProviderOffering>(
       await admin

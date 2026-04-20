@@ -5,7 +5,7 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { createProviderOfferingSchema } from "@/lib/api/validators";
-import { providerNotFound, providerNotVerified } from "@/lib/errors";
+import { providerNotFound, providerNotVerified, validationError } from "@/lib/errors";
 import type { ProviderOffering } from "@/lib/types";
 
 // Explicit row types for Supabase query results
@@ -31,32 +31,38 @@ export function GET(request: NextRequest) {
     const appUser = await requireRole("provider", "admin");
     const admin = createAdminClient();
 
-    // Get provider
-    const provider = unwrapSingleOrNull<ProviderIdRow>(
-      await admin
-        .from("providers")
-        .select("id")
-        .eq("owner_user_id", appUser.id)
-        .single(),
-    );
-
-    if (!provider) {
-      throw providerNotFound();
-    }
-
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+    const providerIdFilter = searchParams.get("provider_id");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
+    // Resolve which provider scope to list:
+    //   - admin: all providers (optionally narrowed by ?provider_id=)
+    //   - provider: only their own (by owner_user_id)
+    let providerIds: string[] | null = null;
+    if (appUser.role === "admin") {
+      if (providerIdFilter) providerIds = [providerIdFilter];
+    } else {
+      const provider = unwrapSingleOrNull<ProviderIdRow>(
+        await admin
+          .from("providers")
+          .select("id")
+          .eq("owner_user_id", appUser.id)
+          .single(),
+      );
+      if (!provider) throw providerNotFound();
+      providerIds = [provider.id];
+    }
+
     let query = admin
       .from("provider_offerings")
-      .select("*, global_categories(name, icon)", { count: "exact" })
-      .eq("provider_id", provider.id)
+      .select("*, global_categories(name, icon), providers(name)", { count: "exact" })
       .order("created_at", { ascending: false });
 
+    if (providerIds) query = query.in("provider_id", providerIds);
     if (status) query = query.eq("status", status);
     if (search) query = query.ilike("name", `%${search}%`);
 
@@ -86,18 +92,37 @@ export function POST(request: NextRequest) {
     const appUser = await requireRole("provider", "admin");
     const admin = createAdminClient();
 
-    const provider = unwrapSingleOrNull<ProviderIdStatusRow>(
-      await admin
-        .from("providers")
-        .select("id, status")
-        .eq("owner_user_id", appUser.id)
-        .single(),
-    );
+    const body = await request.json();
+
+    // Resolve target provider:
+    //   - admin: must supply provider_id in the body
+    //   - provider: lookup by owner_user_id
+    let provider: ProviderIdStatusRow | null;
+    if (appUser.role === "admin") {
+      const providerId = typeof body.provider_id === "string" ? body.provider_id : "";
+      if (!providerId) {
+        throw validationError("Укажите provider_id (выберите провайдера)");
+      }
+      provider = unwrapSingleOrNull<ProviderIdStatusRow>(
+        await admin
+          .from("providers")
+          .select("id, status")
+          .eq("id", providerId)
+          .single(),
+      );
+    } else {
+      provider = unwrapSingleOrNull<ProviderIdStatusRow>(
+        await admin
+          .from("providers")
+          .select("id, status")
+          .eq("owner_user_id", appUser.id)
+          .single(),
+      );
+    }
 
     if (!provider) throw providerNotFound();
     if (provider.status !== "verified") throw providerNotVerified();
 
-    const body = await request.json();
     const data = parseBody(createProviderOfferingSchema, body);
 
     const offering = unwrapSingle<ProviderOffering>(

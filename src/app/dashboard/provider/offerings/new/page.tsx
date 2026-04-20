@@ -18,11 +18,20 @@ interface Category {
   name: string;
 }
 
+interface ProviderOption {
+  id: string;
+  name: string;
+  status?: string;
+}
+
 type OfferingFormat = "online" | "offline";
 
 export default function NewOfferingPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [providerId, setProviderId] = useState("");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -46,6 +55,27 @@ export default function NewOfferingPage() {
       .catch(() => {});
   }, []);
 
+  // Probe admin providers list — admins can pick any provider;
+  // a non-admin provider user receives 403 and we hide the picker.
+  useEffect(() => {
+    fetch("/api/admin/providers?per_page=100")
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((json) => {
+        if (!json) return;
+        const arr: ProviderOption[] = json.data?.data ?? json.data ?? [];
+        if (Array.isArray(arr) && arr.length > 0) {
+          setIsAdmin(true);
+          setProviders(arr);
+          const firstVerified = arr.find((p) => p.status === "verified") ?? arr[0];
+          setProviderId(firstVerified.id);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   function addCity() {
     const v = cityInput.trim();
     if (!v) return;
@@ -64,6 +94,11 @@ export default function NewOfferingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isAdmin && !providerId) {
+      toast.error("Выберите провайдера");
+      return;
+    }
+
     if (format === "offline" && cities.length === 0) {
       toast.error("Укажите хотя бы один город для офлайн-льготы");
       return;
@@ -71,18 +106,21 @@ export default function NewOfferingPage() {
 
     setLoading(true);
     try {
+      const payload: Record<string, unknown> = {
+        ...form,
+        base_price_points: parseInt(form.base_price_points, 10),
+        stock_limit: form.stock_limit ? parseInt(form.stock_limit, 10) : null,
+        global_category_id: form.global_category_id || null,
+        is_stackable: isStackable,
+        format,
+        cities: format === "offline" ? cities : [],
+      };
+      if (isAdmin) payload.provider_id = providerId;
+
       const res = await fetch("/api/provider/offerings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          base_price_points: parseInt(form.base_price_points, 10),
-          stock_limit: form.stock_limit ? parseInt(form.stock_limit, 10) : null,
-          global_category_id: form.global_category_id || null,
-          is_stackable: isStackable,
-          format,
-          cities: format === "offline" ? cities : [],
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -108,6 +146,28 @@ export default function NewOfferingPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label>Провайдер</Label>
+                <Select value={providerId} onValueChange={setProviderId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите провайдера" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                        {p.status && p.status !== "verified" ? ` (${p.status})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Льгота будет привязана к этому провайдеру.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="name">Название</Label>
               <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
