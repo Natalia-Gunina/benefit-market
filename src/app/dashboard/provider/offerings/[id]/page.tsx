@@ -136,7 +136,6 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
   }
 
   const st = statusLabel[offering.status] ?? statusLabel.draft;
-  const canEdit = offering.status === "draft" || offering.status === "pending_review";
 
   return (
     <div className="page-transition space-y-6 p-6 max-w-2xl">
@@ -148,31 +147,28 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
         <Badge variant={st.variant}>{st.label}</Badge>
       </div>
 
-      {!canEdit && (
-        <p className="text-sm text-muted-foreground">
-          Редактирование недоступно: статус изменён администратором.
-        </p>
-      )}
+      <p className="text-sm text-muted-foreground">
+        Смена статуса выполняется администратором. Данные льготы вы можете изменять в любой момент.
+      </p>
 
       <Card>
         <CardHeader><CardTitle>Информация</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Название</Label>
-            <Input disabled={!canEdit} value={offering.name} onChange={(e) => setOffering({ ...offering, name: e.target.value })} />
+            <Input value={offering.name} onChange={(e) => setOffering({ ...offering, name: e.target.value })} />
           </div>
           <div className="space-y-2">
             <Label>Описание</Label>
-            <Textarea disabled={!canEdit} value={offering.description} onChange={(e) => setOffering({ ...offering, description: e.target.value })} rows={2} />
+            <Textarea value={offering.description} onChange={(e) => setOffering({ ...offering, description: e.target.value })} rows={2} />
           </div>
           <div className="space-y-2">
             <Label>Подробное описание</Label>
-            <Textarea disabled={!canEdit} value={offering.long_description} onChange={(e) => setOffering({ ...offering, long_description: e.target.value })} rows={5} />
+            <Textarea value={offering.long_description} onChange={(e) => setOffering({ ...offering, long_description: e.target.value })} rows={5} />
           </div>
           <div className="space-y-2">
             <Label>Категория</Label>
             <Select
-              disabled={!canEdit}
               value={offering.global_category_id ?? ""}
               onValueChange={(v) => setOffering({ ...offering, global_category_id: v })}
             >
@@ -187,11 +183,11 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Цена (баллы)</Label>
-              <Input disabled={!canEdit} type="number" min="1" value={offering.base_price_points} onChange={(e) => setOffering({ ...offering, base_price_points: parseInt(e.target.value) || 0 })} />
+              <Input type="number" min="1" value={offering.base_price_points} onChange={(e) => setOffering({ ...offering, base_price_points: parseInt(e.target.value) || 0 })} />
             </div>
             <div className="space-y-2">
               <Label>Лимит</Label>
-              <Input disabled={!canEdit} type="number" min="0" value={offering.stock_limit ?? ""} onChange={(e) => setOffering({ ...offering, stock_limit: e.target.value ? parseInt(e.target.value) : null })} />
+              <Input type="number" min="0" value={offering.stock_limit ?? ""} onChange={(e) => setOffering({ ...offering, stock_limit: e.target.value ? parseInt(e.target.value) : null })} />
             </div>
           </div>
 
@@ -199,7 +195,6 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
             <Label htmlFor="is-stackable">Множественный выбор</Label>
             <Switch
               id="is-stackable"
-              disabled={!canEdit}
               checked={offering.is_stackable}
               onCheckedChange={(v) => setOffering({ ...offering, is_stackable: v })}
             />
@@ -208,7 +203,6 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
           <div className="space-y-2">
             <Label>Формат льготы</Label>
             <Select
-              disabled={!canEdit}
               value={offering.format}
               onValueChange={(v) => setOffering({ ...offering, format: v as OfferingFormat })}
             >
@@ -227,7 +221,6 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
               <Label>Города доступности</Label>
               <div className="flex gap-2">
                 <Input
-                  disabled={!canEdit}
                   value={cityInput}
                   onChange={(e) => setCityInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -238,7 +231,7 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
                   }}
                   placeholder="Например, Москва"
                 />
-                <Button type="button" variant="outline" onClick={addCity} disabled={!canEdit}>
+                <Button type="button" variant="outline" onClick={addCity}>
                   Добавить
                 </Button>
               </div>
@@ -247,16 +240,14 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
                   {offering.cities.map((c) => (
                     <Badge key={c} variant="secondary" className="gap-1 pr-1">
                       {c}
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => removeCity(c)}
-                          className="rounded-full p-0.5 hover:bg-muted"
-                          aria-label={`Удалить ${c}`}
-                        >
-                          <X className="size-3" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeCity(c)}
+                        className="rounded-full p-0.5 hover:bg-muted"
+                        aria-label={`Удалить ${c}`}
+                      >
+                        <X className="size-3" />
+                      </button>
                     </Badge>
                   ))}
                 </div>
@@ -266,20 +257,18 @@ export default function EditOfferingPage({ params }: { params: Promise<{ id: str
 
           <div className="space-y-2">
             <Label>Информация о доставке</Label>
-            <Textarea disabled={!canEdit} value={offering.delivery_info ?? ""} onChange={(e) => setOffering({ ...offering, delivery_info: e.target.value })} rows={2} />
+            <Textarea value={offering.delivery_info ?? ""} onChange={(e) => setOffering({ ...offering, delivery_info: e.target.value })} rows={2} />
           </div>
           <div className="space-y-2">
             <Label>Условия</Label>
-            <Textarea disabled={!canEdit} value={offering.terms_conditions ?? ""} onChange={(e) => setOffering({ ...offering, terms_conditions: e.target.value })} rows={2} />
+            <Textarea value={offering.terms_conditions ?? ""} onChange={(e) => setOffering({ ...offering, terms_conditions: e.target.value })} rows={2} />
           </div>
 
-          {canEdit && (
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleSave} disabled={loading}>
-                {loading ? "Сохранение..." : "Сохранить"}
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-2 pt-4">
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Сохранение..." : "Сохранить"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

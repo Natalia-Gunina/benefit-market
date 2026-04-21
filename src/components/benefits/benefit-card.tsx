@@ -56,6 +56,10 @@ export interface BenefitWithCategory extends Benefit {
   avg_rating?: number;
   /** Whether this benefit can be added multiple times */
   is_stackable?: boolean;
+  /** Delivery format of the offering */
+  format?: "online" | "offline";
+  /** Cities where an offline offering is available */
+  cities?: string[];
 }
 
 interface BenefitCardProps {

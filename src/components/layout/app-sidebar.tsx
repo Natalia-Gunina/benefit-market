@@ -48,7 +48,7 @@ type NavItem = {
 };
 
 const employeeNavItems: NavItem[] = [
-  { title: "Каталог", href: "/dashboard/employee/catalog", icon: ShoppingBag },
+  { title: "Каталог льгот", href: "/dashboard/employee/catalog", icon: ShoppingBag },
   { title: "Корзина", href: "/dashboard/employee/cart", icon: ShoppingCart },
   { title: "Мои заказы", href: "/dashboard/employee/orders", icon: ClipboardList },
   { title: "Кошелёк", href: "/dashboard/employee/wallet", icon: Wallet },

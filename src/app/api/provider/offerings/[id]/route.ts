@@ -5,7 +5,7 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { updateProviderOfferingSchema } from "@/lib/api/validators";
-import { notFound, providerNotFound, forbidden, invalidStatus } from "@/lib/errors";
+import { notFound, providerNotFound, forbidden } from "@/lib/errors";
 import type { ProviderOffering, User } from "@/lib/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -100,11 +100,6 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     if (!existing) throw notFound("Предложение не найдено");
     if (callerProviderId && existing.provider_id !== callerProviderId) {
       throw forbidden();
-    }
-    if (existing.status !== "draft" && existing.status !== "pending_review") {
-      throw invalidStatus(
-        "Редактировать можно только льготы со статусом «Черновик» или «На согласовании»",
-      );
     }
 
     const body = await request.json();

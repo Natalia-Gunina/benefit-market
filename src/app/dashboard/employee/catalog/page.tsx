@@ -1,13 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Wallet, RefreshCw } from "lucide-react";
+import { MapPin, Search, Wallet, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { BenefitCategory } from "@/lib/types";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
 import { useCartStore } from "@/lib/store/cart";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CategoryFilter } from "@/components/benefits/category-filter";
 import { BenefitGrid } from "@/components/benefits/benefit-grid";
 
@@ -23,12 +30,16 @@ interface OfferingItem {
     base_price_points: number;
     stock_limit: number | null;
     is_stackable: boolean;
+    format: "online" | "offline";
+    cities: string[] | null;
     avg_rating: number | null;
     review_count: number | null;
     providers: { id: string; name: string; logo_url: string | null } | null;
     global_categories: { name: string; icon: string } | null;
   } | null;
 }
+
+const CITY_STORAGE_KEY = "benefit-market:selected-city";
 
 interface GlobalCategory {
   id: string;
@@ -52,6 +63,8 @@ function offeringToBenefit(o: OfferingItem, categoryId: string): BenefitWithCate
     provider_name: po?.providers?.name,
     avg_rating: po?.avg_rating ?? undefined,
     is_stackable: po?.is_stackable ?? false,
+    format: po?.format === "offline" ? "offline" : "online",
+    cities: Array.isArray(po?.cities) ? po?.cities : [],
     category: po?.global_categories
       ? {
           id: categoryId,
@@ -74,7 +87,26 @@ export default function CatalogPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     null,
   );
+  const [selectedCity, setSelectedCity] = useState<string>("all");
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
+
+  // Restore last selected city after mount (localStorage is a browser API).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(CITY_STORAGE_KEY);
+      if (saved) setSelectedCity(saved);
+    } catch {
+      // ignore storage errors (private mode, etc.)
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CITY_STORAGE_KEY, selectedCity);
+    } catch {
+      // ignore
+    }
+  }, [selectedCity]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -137,8 +169,32 @@ export default function CatalogPage() {
     fetchData();
   }, [fetchData]);
 
+  // Collect the union of cities across all offline offerings for the city dropdown.
+  const availableCities = useMemo(() => {
+    const set = new Set<string>();
+    offerings.forEach((b) => {
+      if (b.format === "offline" && Array.isArray(b.cities)) {
+        b.cities.forEach((c) => {
+          const v = c.trim();
+          if (v) set.add(v);
+        });
+      }
+    });
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, "ru", { sensitivity: "base" }),
+    );
+  }, [offerings]);
+
   const filtered = useMemo(() => {
     let result = offerings;
+
+    // City filter: online always passes; offline must include the selected city
+    if (selectedCity !== "all") {
+      result = result.filter((b) => {
+        if (b.format !== "offline") return true;
+        return Array.isArray(b.cities) && b.cities.includes(selectedCity);
+      });
+    }
 
     if (selectedCategoryId) {
       result = result.filter((b) => b.category_id === selectedCategoryId);
@@ -154,7 +210,7 @@ export default function CatalogPage() {
     }
 
     return result;
-  }, [offerings, selectedCategoryId, searchQuery]);
+  }, [offerings, selectedCategoryId, searchQuery, selectedCity]);
 
   const addItem = useCartStore((s) => s.addItem);
 
@@ -190,6 +246,30 @@ export default function CatalogPage() {
             </span>
           </div>
         )}
+      </div>
+
+      {/* City banner */}
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-4">
+        <MapPin className="size-4 text-primary" />
+        <div className="flex-1 min-w-[180px]">
+          <p className="text-sm font-medium">Ваш город</p>
+          <p className="text-xs text-muted-foreground">
+            Онлайн-льготы доступны независимо от города. Офлайн — только для выбранного.
+          </p>
+        </div>
+        <Select value={selectedCity} onValueChange={setSelectedCity}>
+          <SelectTrigger className="w-[220px]" aria-label="Выбор города">
+            <SelectValue placeholder="Выберите город" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все города</SelectItem>
+            {availableCities.map((city) => (
+              <SelectItem key={city} value={city}>
+                {city}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Filters row */}
