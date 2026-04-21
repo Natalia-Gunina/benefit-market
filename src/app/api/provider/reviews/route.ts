@@ -22,7 +22,49 @@ type ReviewRow = Record<string, unknown> & {
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return success({ data: [], meta: { page: 1, per_page: 20, total: 0 } });
+      const { DEMO_REVIEWS, DEMO_PROVIDER_OFFERINGS, DEMO_EMPLOYEES } =
+        await import("@/lib/demo-data");
+
+      const { searchParams } = new URL(request.url);
+      const offeringFilter = searchParams.get("offering_id") || "";
+      const ratingFilter = searchParams.get("rating") || "";
+      const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+      const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+
+      const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
+      const userMap = new Map(DEMO_EMPLOYEES.map((e) => [e.user.id, e.user]));
+
+      let rows = DEMO_REVIEWS.map((r) => {
+        const offering = offeringMap.get(r.provider_offering_id);
+        const user = userMap.get(r.user_id);
+        return {
+          id: r.id,
+          rating: r.rating,
+          title: r.title,
+          body: r.body,
+          status: r.status,
+          created_at: r.created_at,
+          provider_offering_id: r.provider_offering_id,
+          provider_offerings: offering ? { name: offering.name } : null,
+          users: user ? { email: user.email } : null,
+        };
+      });
+
+      if (offeringFilter) {
+        rows = rows.filter((r) => r.provider_offering_id === offeringFilter);
+      }
+      if (ratingFilter) {
+        const n = parseInt(ratingFilter, 10);
+        rows = rows.filter((r) => r.rating === n);
+      }
+
+      rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+      const total = rows.length;
+      const offset = (page - 1) * perPage;
+      const paginated = rows.slice(offset, offset + perPage);
+
+      return success({ data: paginated, meta: { page, per_page: perPage, total } });
     }
 
     const appUser = await requireRole("provider", "admin");

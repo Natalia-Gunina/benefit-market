@@ -276,6 +276,86 @@ export const DEMO_WALLET: Wallet = {
   expires_at: '2025-06-30T23:59:59Z',
 };
 
+/**
+ * Wallet per demo user (covers every employee in DEMO_EMPLOYEES).
+ * DEMO_WALLET above is the primary wallet for the logged-in demo user
+ * (demo-user-001); this list lets the HR employees screen show realistic,
+ * differentiated balances for everyone.
+ */
+export const DEMO_WALLETS: Wallet[] = [
+  DEMO_WALLET,
+  // Петрова (HR, lead) — expanded budget, no spend
+  {
+    id: 'demo-wallet-002',
+    user_id: 'demo-user-002',
+    tenant_id: 'demo-tenant-001',
+    balance: 75000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Сидоров (middle) — spent 30000 on ДМС (demo-order-004, paid)
+  {
+    id: 'demo-wallet-003',
+    user_id: 'demo-user-003',
+    tenant_id: 'demo-tenant-001',
+    balance: 20000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Кузнецова (senior) — reserved 5000 on Психолог (demo-order-005, reserved)
+  {
+    id: 'demo-wallet-004',
+    user_id: 'demo-user-004',
+    tenant_id: 'demo-tenant-001',
+    balance: 45000,
+    reserved: 5000,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Волков (junior) — spent 12000 on Бассейн (demo-order-006, paid)
+  {
+    id: 'demo-wallet-005',
+    user_id: 'demo-user-005',
+    tenant_id: 'demo-tenant-001',
+    balance: 38000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Соколова (HR, middle) — accrual
+  {
+    id: 'demo-wallet-006',
+    user_id: 'demo-user-006',
+    tenant_id: 'demo-tenant-001',
+    balance: 50000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Морозов (admin, lead) — expanded budget
+  {
+    id: 'demo-wallet-007',
+    user_id: 'demo-user-007',
+    tenant_id: 'demo-tenant-001',
+    balance: 75000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+  // Новикова (middle) — accrual
+  {
+    id: 'demo-wallet-008',
+    user_id: 'demo-user-008',
+    tenant_id: 'demo-tenant-001',
+    balance: 50000,
+    reserved: 0,
+    period: '2025-Q1',
+    expires_at: '2025-06-30T23:59:59Z',
+  },
+];
+
 // ========================== 6. DEMO LEDGER ==================================
 
 export const DEMO_LEDGER: PointLedger[] = [
@@ -358,6 +438,110 @@ export const DEMO_LEDGER: PointLedger[] = [
     amount: 4000,
     description: 'Компенсация за переработки в январе',
     created_at: '2025-02-15T10:00:00Z',
+  },
+  // ----- demo-user-003 (Сидоров, middle) — купил ДМС -----
+  {
+    id: 'demo-ledger-101',
+    wallet_id: 'demo-wallet-003',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 50000,
+    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-102',
+    wallet_id: 'demo-wallet-003',
+    tenant_id: 'demo-tenant-001',
+    order_id: 'demo-order-004',
+    type: 'spend',
+    amount: -30000,
+    description: 'Оплата: ДМС расширенный',
+    created_at: '2025-02-12T09:35:00Z',
+  },
+  // ----- demo-user-004 (Кузнецова, senior) — резерв на психолога -----
+  {
+    id: 'demo-ledger-201',
+    wallet_id: 'demo-wallet-004',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 50000,
+    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-202',
+    wallet_id: 'demo-wallet-004',
+    tenant_id: 'demo-tenant-001',
+    order_id: 'demo-order-005',
+    type: 'reserve',
+    amount: -5000,
+    description: 'Резерв: Психолог онлайн',
+    created_at: '2025-03-01T15:00:00Z',
+  },
+  // ----- demo-user-005 (Волков, junior) — купил абонемент в бассейн -----
+  {
+    id: 'demo-ledger-301',
+    wallet_id: 'demo-wallet-005',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 50000,
+    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-302',
+    wallet_id: 'demo-wallet-005',
+    tenant_id: 'demo-tenant-001',
+    order_id: 'demo-order-006',
+    type: 'spend',
+    amount: -12000,
+    description: 'Оплата: Абонемент в бассейн',
+    created_at: '2025-03-05T11:05:00Z',
+  },
+  // ----- Остальные сотрудники — только Q1-начисление -----
+  {
+    id: 'demo-ledger-401',
+    wallet_id: 'demo-wallet-002',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 75000,
+    description: 'Начисление баллов за Q1 2025 — расширенный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-402',
+    wallet_id: 'demo-wallet-006',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 50000,
+    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-403',
+    wallet_id: 'demo-wallet-007',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 75000,
+    description: 'Начисление баллов за Q1 2025 — расширенный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-ledger-404',
+    wallet_id: 'demo-wallet-008',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 50000,
+    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
+    created_at: '2025-01-01T00:00:00Z',
   },
 ];
 

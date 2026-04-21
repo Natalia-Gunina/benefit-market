@@ -166,23 +166,28 @@ export async function demoAdminBenefitsList(): Promise<NextResponse> {
 // ---------------------------------------------------------------------------
 
 export async function demoEmployeesList(): Promise<NextResponse> {
-  const { DEMO_EMPLOYEES, DEMO_WALLET } = await loadDemoData();
-  const data = DEMO_EMPLOYEES.map((emp) => ({
-    id: emp.user.id,
-    email: emp.user.email,
-    role: emp.user.role,
-    created_at: emp.user.created_at,
-    name: emp.full_name,
-    profile: {
-      grade: emp.profile.grade,
-      tenure_months: emp.profile.tenure_months,
-      location: emp.profile.location,
-      legal_entity: emp.profile.legal_entity,
-      extra: emp.profile.extra,
-    },
-    wallet: emp.user.id === "demo-user-001"
-      ? { balance: DEMO_WALLET.balance, reserved: DEMO_WALLET.reserved }
-      : { balance: 30000, reserved: 0 },
-  }));
+  const { DEMO_EMPLOYEES, DEMO_WALLETS } = await loadDemoData();
+  const walletByUser = new Map(DEMO_WALLETS.map((w) => [w.user_id, w]));
+  const data = DEMO_EMPLOYEES.map((emp) => {
+    const w = walletByUser.get(emp.user.id);
+    return {
+      id: emp.user.id,
+      email: emp.user.email,
+      role: emp.user.role,
+      created_at: emp.user.created_at,
+      name: emp.full_name,
+      profile: {
+        grade: emp.profile.grade,
+        tenure_months: emp.profile.tenure_months,
+        location: emp.profile.location,
+        legal_entity: emp.profile.legal_entity,
+        extra: emp.profile.extra,
+      },
+      wallet: {
+        balance: w?.balance ?? 0,
+        reserved: w?.reserved ?? 0,
+      },
+    };
+  });
   return NextResponse.json({ data, meta: { page: 1, per_page: 20, total: data.length } });
 }
