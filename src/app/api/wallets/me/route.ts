@@ -26,7 +26,10 @@ export function GET() {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_WALLET, DEMO_LEDGER } = await import("@/lib/demo-data");
-      return success({ wallet: DEMO_WALLET, ledger: DEMO_LEDGER });
+      const ledger = DEMO_LEDGER
+        .filter((e) => e.wallet_id === DEMO_WALLET.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      return success({ wallet: DEMO_WALLET, ledger });
     }
 
     const appUser = await requireAuth();

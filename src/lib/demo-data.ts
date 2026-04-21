@@ -270,10 +270,10 @@ export const DEMO_WALLET: Wallet = {
   id: 'demo-wallet-001',
   user_id: 'demo-user-001',
   tenant_id: 'demo-tenant-001',
-  balance: 45000,
+  balance: 58000,
   reserved: 6000,
-  period: '2025-Q1',
-  expires_at: '2025-06-30T23:59:59Z',
+  period: '2025-Q2',
+  expires_at: '2025-09-30T23:59:59Z',
 };
 
 /**
@@ -438,6 +438,26 @@ export const DEMO_LEDGER: PointLedger[] = [
     amount: 4000,
     description: 'Компенсация за переработки в январе',
     created_at: '2025-02-15T10:00:00Z',
+  },
+  {
+    id: 'demo-ledger-009',
+    wallet_id: 'demo-wallet-001',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 10000,
+    description: 'Начисление за Q2 2025 — стандартный бюджет (апрель)',
+    created_at: '2025-04-01T09:00:00Z',
+  },
+  {
+    id: 'demo-ledger-010',
+    wallet_id: 'demo-wallet-001',
+    tenant_id: 'demo-tenant-001',
+    order_id: null,
+    type: 'accrual',
+    amount: 3000,
+    description: 'Бонус ко дню рождения',
+    created_at: '2025-04-15T09:00:00Z',
   },
   // ----- demo-user-003 (Сидоров, middle) — купил ДМС -----
   {
