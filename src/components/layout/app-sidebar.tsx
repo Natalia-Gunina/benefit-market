@@ -7,7 +7,6 @@ import {
   ShoppingCart,
   ClipboardList,
   Wallet,
-  LayoutDashboard,
   Users,
   Upload,
   Settings,
@@ -68,16 +67,13 @@ const adminNavItems: NavItem[] = [
   { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
   { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },
-  { title: "Модерация", href: "/dashboard/admin/offerings", icon: ShieldCheck },
 ];
 
 const providerNavItems: NavItem[] = [
-  { title: "Дашборд", href: "/dashboard/provider", icon: LayoutDashboard },
   { title: "Льготы", href: "/dashboard/provider/offerings", icon: Package },
   { title: "Заказы", href: "/dashboard/provider/orders", icon: ClipboardList },
-  { title: "Отзывы", href: "/dashboard/provider/reviews", icon: Star },
-  { title: "Команда", href: "/dashboard/provider/team", icon: Users },
   { title: "Аналитика", href: "/dashboard/provider/analytics", icon: BarChart },
+  { title: "Отзывы", href: "/dashboard/provider/reviews", icon: Star },
   { title: "Профиль", href: "/dashboard/provider/profile", icon: Building2 },
 ];
 
@@ -99,7 +95,7 @@ const demoRoles = [
   { key: "employee" as const, label: "Сотрудник", icon: UserRound, href: "/dashboard/employee/catalog" },
   { key: "hr" as const, label: "HR", icon: Users, href: "/dashboard/hr" },
   { key: "admin" as const, label: "Админ", icon: ShieldCheck, href: "/dashboard/admin/tenants" },
-  { key: "provider" as const, label: "Провайдер", icon: Store, href: "/dashboard/provider" },
+  { key: "provider" as const, label: "Провайдер", icon: Store, href: "/dashboard/provider/offerings" },
 ];
 
 interface AppSidebarProps {
@@ -155,7 +151,7 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
           <p className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40 group-data-[collapsible=icon]:hidden">
             {isDemo ? "Demo-кабинет" : "Кабинеты"}
           </p>
-          <div className="flex gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+          <div className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1 group-data-[collapsible=icon]:justify-items-center">
             {demoRoles.map((r) => {
               const isActive = activeRole === r.key;
               return (
@@ -164,8 +160,8 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
                   onClick={() => router.push(r.href)}
                   title={r.label}
                   className={`
-                    flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all duration-150
-                    group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:p-0
+                    flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all duration-150
+                    group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0
                     ${isActive
                       ? "bg-gradient-primary text-white shadow-sm"
                       : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
