@@ -84,8 +84,8 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
     : `/dashboard/employee/catalog/${benefit.id}`;
 
   return (
-    <Card className="group relative flex flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      <Link href={href} className="cursor-pointer">
+    <Card className="group relative flex h-full flex-col transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+      <Link href={href} className="flex flex-1 flex-col cursor-pointer">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
