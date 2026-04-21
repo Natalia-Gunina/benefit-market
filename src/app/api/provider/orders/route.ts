@@ -20,7 +20,67 @@ type OrderItemRow = Record<string, unknown> & {
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return success({ data: [], meta: { page: 1, per_page: 20, total: 0 } });
+      const {
+        DEMO_ORDER_ITEMS,
+        DEMO_ORDERS,
+        DEMO_PROVIDER_OFFERINGS,
+      } = await import("@/lib/demo-data");
+
+      const { searchParams } = new URL(request.url);
+      const statusFilter = searchParams.get("status") || "";
+      const search = (searchParams.get("search") || "").toLowerCase();
+      const providerIdFilter = searchParams.get("provider_id") || "";
+
+      const orderMap = new Map(DEMO_ORDERS.map((o) => [o.id, o]));
+      const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
+
+      const rows = DEMO_ORDER_ITEMS
+        .filter((oi) => !!oi.provider_offering_id)
+        .map((oi) => {
+          const po = offeringMap.get(oi.provider_offering_id!);
+          const order = orderMap.get(oi.order_id);
+          return {
+            id: oi.id,
+            order_id: oi.order_id,
+            provider_offering_id: oi.provider_offering_id,
+            quantity: oi.quantity,
+            price_points: oi.price_points,
+            provider_offerings: po ? { name: po.name, provider_id: po.provider_id } : null,
+            orders: order
+              ? {
+                  id: order.id,
+                  status: order.status,
+                  total_points: order.total_points,
+                  created_at: order.created_at,
+                  tenant_id: order.tenant_id,
+                }
+              : null,
+          };
+        })
+        .filter((row) => {
+          if (statusFilter && row.orders?.status !== statusFilter) return false;
+          if (
+            providerIdFilter &&
+            row.provider_offerings?.provider_id !== providerIdFilter
+          ) {
+            return false;
+          }
+          if (
+            search &&
+            !(row.provider_offerings?.name ?? "").toLowerCase().includes(search)
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) =>
+          (b.orders?.created_at ?? "").localeCompare(a.orders?.created_at ?? ""),
+        );
+
+      return success({
+        data: rows,
+        meta: { page: 1, per_page: rows.length || 20, total: rows.length },
+      });
     }
 
     const appUser = await requireRole("provider", "admin");
