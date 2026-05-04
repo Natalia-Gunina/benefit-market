@@ -51,6 +51,7 @@ const employeeNavItems: NavItem[] = [
   { title: "Корзина", href: "/dashboard/employee/cart", icon: ShoppingCart },
   { title: "Мои заказы", href: "/dashboard/employee/orders", icon: ClipboardList },
   { title: "Кошелёк", href: "/dashboard/employee/wallet", icon: Wallet },
+  { title: "Мой профиль", href: "/dashboard/employee/profile", icon: UserRound },
 ];
 
 const hrNavItems: NavItem[] = [

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Loader2, Search } from "lucide-react";
+import { Plus, Loader2, Search, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,18 +130,19 @@ export default function ProviderOfferingsPage() {
               <TableHead>Города</TableHead>
               <TableHead className="text-center">Статус</TableHead>
               <TableHead>Создано</TableHead>
+              <TableHead className="text-right">Действия</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
+                <TableCell colSpan={8} className="h-32 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : offerings.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   Льготы не найдены
                 </TableCell>
               </TableRow>
@@ -185,6 +186,17 @@ export default function ProviderOfferingsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(o.created_at).toLocaleDateString("ru")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild variant="outline" size="sm">
+                        <Link
+                          href={`/dashboard/provider/offerings/${o.id}`}
+                          aria-label={`Редактировать ${o.name}`}
+                        >
+                          <Pencil className="size-3.5" />
+                          Редактировать
+                        </Link>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
