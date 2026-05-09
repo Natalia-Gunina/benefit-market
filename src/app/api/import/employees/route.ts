@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/api/auth";
 import { success, withErrorHandling, errorResponse } from "@/lib/api/response";
+import { isDemo } from "@/lib/env";
 import { unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { validationError } from "@/lib/errors";
 import Papa from "papaparse";
@@ -30,10 +31,6 @@ interface ImportResult {
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    const appUser = await requireRole("hr", "admin");
-    const tenantId = appUser.tenant_id;
-    const admin = createAdminClient();
-
     // --- Parse multipart form data ---
     const formData = await request.formData();
     const file = formData.get("file");
@@ -48,6 +45,88 @@ export function POST(request: NextRequest) {
 
     // --- Read file content ---
     const text = await file.text();
+
+    if (isDemo) {
+      // Demo: validate rows, append in-memory, no real Supabase calls.
+      const { DEMO_EMPLOYEES, DEMO_WALLETS } = await import("@/lib/demo-data");
+      const parsedDemo = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h: string) => h.trim().toLowerCase(),
+      });
+      const demoResult: ImportResult = { created: 0, updated: 0, errors: [] };
+      const now = new Date();
+      const year = now.getFullYear();
+      const quarter = Math.floor(now.getMonth() / 3) + 1;
+      const periodLabel = `${year}-Q${quarter}`;
+      const nextQuarterStart = new Date(year, quarter * 3, 1);
+      const expiresAt = nextQuarterStart.toISOString();
+
+      for (let i = 0; i < parsedDemo.data.length; i++) {
+        const raw = parsedDemo.data[i];
+        const rowNum = i + 2;
+        const validation = importRowSchema.safeParse(raw);
+        if (!validation.success) {
+          for (const issue of validation.error.issues) {
+            demoResult.errors.push({
+              row: rowNum,
+              field: issue.path.join(".") || "unknown",
+              message: issue.message,
+            });
+          }
+          continue;
+        }
+        const row = validation.data;
+        const existing = DEMO_EMPLOYEES.find((e) => e.user.email === row.email);
+        if (existing) {
+          existing.profile.grade = row.grade;
+          existing.profile.tenure_months = row.tenure_months;
+          existing.profile.location = row.location;
+          existing.profile.legal_entity = row.legal_entity;
+          existing.full_name = row.name;
+          demoResult.updated++;
+        } else {
+          const id = `demo-user-imported-${Date.now()}-${i}`;
+          DEMO_EMPLOYEES.push({
+            user: {
+              id,
+              auth_id: `demo-auth-${id}`,
+              tenant_id: "demo-tenant-001",
+              email: row.email,
+              role: "employee",
+              created_at: now.toISOString(),
+            },
+            profile: {
+              id: `demo-ep-${id}`,
+              user_id: id,
+              tenant_id: "demo-tenant-001",
+              grade: row.grade,
+              tenure_months: row.tenure_months,
+              location: row.location,
+              legal_entity: row.legal_entity,
+              extra: {},
+            },
+            full_name: row.name,
+            department: "—",
+          });
+          DEMO_WALLETS.push({
+            id: `demo-wallet-${id}`,
+            user_id: id,
+            tenant_id: "demo-tenant-001",
+            balance: 0,
+            reserved: 0,
+            period: periodLabel,
+            expires_at: expiresAt,
+          });
+          demoResult.created++;
+        }
+      }
+      return success(demoResult);
+    }
+
+    const appUser = await requireRole("hr", "admin");
+    const tenantId = appUser.tenant_id;
+    const admin = createAdminClient();
 
     // --- Parse CSV ---
     const parsed = Papa.parse<Record<string, string>>(text, {

@@ -47,10 +47,25 @@ export function GET(request: NextRequest) {
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    const appUser = await requireRole("admin", "hr");
-
     const body = await request.json();
     const { points_amount, is_active } = parseBody(createPolicySchema, body);
+
+    if (isDemo) {
+      const { DEMO_POLICIES } = await import("@/lib/demo-data");
+      const policy: BudgetPolicy = {
+        id: `demo-policy-${Date.now()}`,
+        tenant_id: "demo-tenant-001",
+        name: "Бюджет",
+        points_amount,
+        period: "quarterly",
+        target_filter: {},
+        is_active,
+      };
+      DEMO_POLICIES.push(policy);
+      return created(policy);
+    }
+
+    const appUser = await requireRole("admin", "hr");
 
     // Admin can specify tenant_id; HR always uses their own
     const targetTenantId =

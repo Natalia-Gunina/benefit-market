@@ -24,13 +24,6 @@ type OfferingRow = Record<string, unknown> & {
 
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
-    if (isDemo) {
-      return success([]);
-    }
-
-    const appUser = await requireRole("provider", "admin");
-    const admin = createAdminClient();
-
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");
@@ -38,6 +31,14 @@ export function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
+
+    if (isDemo) {
+      const { demoProviderOfferingsList } = await import("@/lib/demo/demo-service");
+      return demoProviderOfferingsList({ status, search, page, perPage });
+    }
+
+    const appUser = await requireRole("provider", "admin");
+    const admin = createAdminClient();
 
     // Resolve which provider scope to list:
     //   - admin: all providers (optionally narrowed by ?provider_id=)

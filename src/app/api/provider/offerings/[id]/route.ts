@@ -50,7 +50,8 @@ export function GET(_request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
 
     if (isDemo) {
-      return success({ id, name: "Demo Offering", status: "pending_review" });
+      const { demoProviderOfferingDetail } = await import("@/lib/demo/demo-service");
+      return demoProviderOfferingDetail(id);
     }
 
     const appUser = await requireRole("provider", "admin");
@@ -81,7 +82,10 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
 
     if (isDemo) {
-      return success({ id, name: "Updated Offering" });
+      const body = await request.json();
+      const data = parseBody(updateProviderOfferingSchema, body);
+      const { demoProviderOfferingUpdate } = await import("@/lib/demo/demo-service");
+      return demoProviderOfferingUpdate(id, data as Record<string, unknown>);
     }
 
     const appUser = await requireRole("provider", "admin");

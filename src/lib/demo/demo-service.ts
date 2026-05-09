@@ -16,6 +16,13 @@ async function loadDemoData() {
   return import("@/lib/demo-data");
 }
 
+/**
+ * In demo mode there is no real auth; the provider cabinet always acts on
+ * behalf of "World Class" (demo-provider-001). Pin it once so analytics,
+ * offerings and reviews routes scope to the same provider consistently.
+ */
+export const DEMO_CURRENT_PROVIDER_ID = "demo-provider-001";
+
 // ---------------------------------------------------------------------------
 // Benefits
 // ---------------------------------------------------------------------------
@@ -68,13 +75,15 @@ export async function demoOrdersList(params: {
   status?: string | null;
   page?: number;
   perPage?: number;
+  userId?: string | null;
 }): Promise<NextResponse> {
   const { DEMO_ORDERS, DEMO_ORDER_ITEMS, DEMO_BENEFITS } = await loadDemoData();
-  const { status, page = 1, perPage = 20 } = params;
+  const { status, page = 1, perPage = 20, userId } = params;
   const offset = (page - 1) * perPage;
 
   const benefitMap = new Map(DEMO_BENEFITS.map((b) => [b.id, b]));
   let filtered = DEMO_ORDERS;
+  if (userId) filtered = filtered.filter((o) => o.user_id === userId);
   if (status) filtered = filtered.filter((o) => o.status === status);
 
   const total = filtered.length;
@@ -159,6 +168,69 @@ export async function demoAdminBenefitsList(): Promise<NextResponse> {
     return { ...b, benefit_categories: cat ? { name: cat.name, icon: cat.icon } : null };
   });
   return success(data);
+}
+
+// ---------------------------------------------------------------------------
+// Provider — own offerings (list / detail)
+// ---------------------------------------------------------------------------
+
+export async function demoProviderOfferingsList(params: {
+  status?: string | null;
+  search?: string | null;
+  page?: number;
+  perPage?: number;
+}): Promise<NextResponse> {
+  const { DEMO_PROVIDER_OFFERINGS, DEMO_GLOBAL_CATEGORIES } = await loadDemoData();
+  const { status, search, page = 1, perPage = 20 } = params;
+
+  let rows = DEMO_PROVIDER_OFFERINGS.filter(
+    (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+  );
+  if (status) rows = rows.filter((o) => o.status === status);
+  if (search) rows = rows.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()));
+
+  rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  const categoryMap = new Map(DEMO_GLOBAL_CATEGORIES.map((c) => [c.id, c]));
+  const total = rows.length;
+  const offset = (page - 1) * perPage;
+  const data = rows.slice(offset, offset + perPage).map((o) => {
+    const cat = o.global_category_id ? categoryMap.get(o.global_category_id) : null;
+    return {
+      ...o,
+      global_categories: cat ? { name: cat.name, icon: cat.icon } : null,
+    };
+  });
+
+  return success({ data, meta: { page, per_page: perPage, total } });
+}
+
+export async function demoProviderOfferingDetail(id: string): Promise<NextResponse> {
+  const { DEMO_PROVIDER_OFFERINGS, DEMO_GLOBAL_CATEGORIES } = await loadDemoData();
+  const offering = DEMO_PROVIDER_OFFERINGS.find(
+    (o) => o.id === id && o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+  );
+  if (!offering) throw notFound("Предложение не найдено");
+  const cat = offering.global_category_id
+    ? DEMO_GLOBAL_CATEGORIES.find((c) => c.id === offering.global_category_id)
+    : null;
+  return success({
+    ...offering,
+    global_categories: cat ? { name: cat.name, icon: cat.icon } : null,
+  });
+}
+
+export async function demoProviderOfferingUpdate(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<NextResponse> {
+  const { DEMO_PROVIDER_OFFERINGS } = await loadDemoData();
+  const offering = DEMO_PROVIDER_OFFERINGS.find(
+    (o) => o.id === id && o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+  );
+  if (!offering) throw notFound("Предложение не найдено");
+  Object.assign(offering, patch, { updated_at: new Date().toISOString() });
+  return success(offering);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,10 @@
 import { type NextRequest } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, withErrorHandling, parseBody } from "@/lib/api/response";
+import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle } from "@/lib/supabase/typed-queries";
-import { validationError } from "@/lib/errors";
+import { notFound, validationError } from "@/lib/errors";
 import { updateTenantSchema } from "@/lib/api/validators";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +25,6 @@ export function PATCH(
 ) {
   return withErrorHandling(async () => {
     const { id: tenantId } = await params;
-    await requireRole("admin");
 
     const body = await request.json();
     const updates = parseBody(updateTenantSchema, body);
@@ -33,6 +33,14 @@ export function PATCH(
       throw validationError("At least one field must be provided for update");
     }
 
+    if (isDemo) {
+      const { DEMO_TENANT } = await import("@/lib/demo-data");
+      if (DEMO_TENANT.id !== tenantId) throw notFound("Tenant not found");
+      Object.assign(DEMO_TENANT, updates);
+      return success(DEMO_TENANT);
+    }
+
+    await requireRole("admin");
     const admin = createAdminClient();
 
     const result = await admin

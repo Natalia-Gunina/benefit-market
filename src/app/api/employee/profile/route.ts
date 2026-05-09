@@ -58,18 +58,19 @@ export function GET() {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_EMPLOYEES } = await import("@/lib/demo-data");
-      const me = DEMO_EMPLOYEES[0];
+      const me = DEMO_EMPLOYEES.find((e) => e.user.id === "demo-user-001") ?? DEMO_EMPLOYEES[0];
+      const extra = (me.profile.extra ?? {}) as Record<string, unknown>;
       return success<EmployeeProfileResponse>({
         full_name: me.full_name,
         gender: "male",
         company: me.profile.legal_entity,
         birthday: "1992-03-15",
-        marital_status: "",
-        has_children: false,
-        children: [],
-        work_format: "",
-        has_pets: "",
-        priorities: [],
+        marital_status: (extra.marital_status as string) ?? "",
+        has_children: (extra.has_children as boolean) ?? false,
+        children: (extra.children as { birthday: string }[]) ?? [],
+        work_format: (extra.work_format as string) ?? "",
+        has_pets: (extra.has_pets as string) ?? "",
+        priorities: (extra.priorities as string[]) ?? [],
       });
     }
 
@@ -110,6 +111,12 @@ export function PATCH(request: NextRequest) {
     }
 
     if (isDemo) {
+      // Persist into the shared demo dataset so HR/admin views see the change.
+      const { DEMO_EMPLOYEES } = await import("@/lib/demo-data");
+      const me = DEMO_EMPLOYEES.find((e) => e.user.id === "demo-user-001");
+      if (me) {
+        me.profile.extra = { ...(me.profile.extra ?? {}), ...patch };
+      }
       return success({ ok: true, patch });
     }
 

@@ -13,13 +13,14 @@ import {
   Building2,
   Package,
   FolderOpen,
-  Calculator,
   LogOut,
   UserRound,
   ShieldCheck,
   Store,
   BarChart,
   Star,
+  ShieldAlert,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -63,11 +64,12 @@ const hrNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { title: "Компании-клиенты", href: "/dashboard/admin/tenants", icon: Building2 },
-  { title: "Каталог льгот", href: "/dashboard/admin/benefits", icon: Package },
   { title: "Провайдеры", href: "/dashboard/admin/providers", icon: Store },
-  { title: "Категории", href: "/dashboard/admin/categories", icon: FolderOpen },
-  { title: "Политики", href: "/dashboard/admin/policies", icon: Calculator },
+  { title: "Модерация льгот", href: "/dashboard/admin/offerings", icon: ShieldAlert },
+  { title: "Каталог льгот", href: "/dashboard/admin/benefits", icon: Package },
+  { title: "Категории", href: "/dashboard/admin/global-categories", icon: FolderOpen },
   { title: "Пользователи", href: "/dashboard/admin/users", icon: Users },
+  { title: "Журнал событий", href: "/dashboard/admin/audit", icon: History },
 ];
 
 const providerNavItems: NavItem[] = [

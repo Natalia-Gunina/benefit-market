@@ -1,9 +1,10 @@
 import { type NextRequest } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, withErrorHandling, parseBody } from "@/lib/api/response";
+import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle } from "@/lib/supabase/typed-queries";
-import { validationError } from "@/lib/errors";
+import { notFound, validationError } from "@/lib/errors";
 import { z } from "zod";
 import type { BudgetPolicy } from "@/lib/types";
 
@@ -26,7 +27,6 @@ export function PATCH(
 ) {
   return withErrorHandling(async () => {
     const { id: policyId } = await params;
-    const appUser = await requireRole("admin", "hr");
 
     const body = await request.json();
     const updates = parseBody(updatePolicySchema, body);
@@ -35,6 +35,15 @@ export function PATCH(
       throw validationError("At least one field must be provided for update");
     }
 
+    if (isDemo) {
+      const { DEMO_POLICIES } = await import("@/lib/demo-data");
+      const policy = DEMO_POLICIES.find((p) => p.id === policyId);
+      if (!policy) throw notFound("Policy not found");
+      Object.assign(policy, updates);
+      return success(policy);
+    }
+
+    const appUser = await requireRole("admin", "hr");
     const admin = createAdminClient();
 
     let query = admin
@@ -64,8 +73,16 @@ export function DELETE(
 ) {
   return withErrorHandling(async () => {
     const { id: policyId } = await params;
-    const appUser = await requireRole("admin");
 
+    if (isDemo) {
+      const { DEMO_POLICIES } = await import("@/lib/demo-data");
+      const policy = DEMO_POLICIES.find((p) => p.id === policyId);
+      if (!policy) throw notFound("Policy not found");
+      policy.is_active = false;
+      return success(policy);
+    }
+
+    const appUser = await requireRole("admin");
     const admin = createAdminClient();
 
     let query = admin

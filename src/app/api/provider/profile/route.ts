@@ -18,14 +18,14 @@ type ProviderIdRow = Record<string, unknown> & { id: string };
 export function GET() {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return success({
-        id: "demo-provider-001",
-        name: "World Class",
-        slug: "world-class",
-        status: "verified",
-        description: "Сеть премиальных фитнес-клубов",
-        offerings_count: 3,
-      });
+      const { DEMO_PROVIDERS, DEMO_PROVIDER_OFFERINGS } = await import("@/lib/demo-data");
+      const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
+      const provider =
+        DEMO_PROVIDERS.find((p) => p.id === DEMO_CURRENT_PROVIDER_ID) ?? DEMO_PROVIDERS[0];
+      const count = DEMO_PROVIDER_OFFERINGS.filter(
+        (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+      ).length;
+      return success({ ...provider, offerings_count: count });
     }
 
     const appUser = await requireRole("provider", "admin");
@@ -60,7 +60,13 @@ export function GET() {
 export function PATCH(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
-      return success({ id: "demo-provider-001", name: "Updated Provider" });
+      const body = await request.json();
+      const data = parseBody(updateProviderSchema, body);
+      const { DEMO_PROVIDERS } = await import("@/lib/demo-data");
+      const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
+      const provider = DEMO_PROVIDERS.find((p) => p.id === DEMO_CURRENT_PROVIDER_ID);
+      if (provider) Object.assign(provider, data);
+      return success(provider ?? { id: DEMO_CURRENT_PROVIDER_ID, ...data });
     }
 
     const appUser = await requireRole("provider", "admin");

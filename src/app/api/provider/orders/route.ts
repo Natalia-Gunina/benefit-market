@@ -26,16 +26,21 @@ export function GET(request: NextRequest) {
         DEMO_PROVIDER_OFFERINGS,
       } = await import("@/lib/demo-data");
 
+      const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
+
       const { searchParams } = new URL(request.url);
       const statusFilter = searchParams.get("status") || "";
       const search = (searchParams.get("search") || "").toLowerCase();
-      const providerIdFilter = searchParams.get("provider_id") || "";
+      const providerIdFilter = searchParams.get("provider_id") || DEMO_CURRENT_PROVIDER_ID;
 
       const orderMap = new Map(DEMO_ORDERS.map((o) => [o.id, o]));
       const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
+      const myOfferingIds = new Set(
+        DEMO_PROVIDER_OFFERINGS.filter((o) => o.provider_id === providerIdFilter).map((o) => o.id),
+      );
 
       const rows = DEMO_ORDER_ITEMS
-        .filter((oi) => !!oi.provider_offering_id)
+        .filter((oi) => !!oi.provider_offering_id && myOfferingIds.has(oi.provider_offering_id!))
         .map((oi) => {
           const po = offeringMap.get(oi.provider_offering_id!);
           const order = orderMap.get(oi.order_id);

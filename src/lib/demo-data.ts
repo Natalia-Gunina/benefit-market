@@ -35,7 +35,7 @@ export const DEMO_TENANT: Tenant = {
     fiscal_year_start: '01-01',
     default_budget_period: 'quarterly',
   },
-  created_at: '2025-01-15T10:00:00Z',
+  created_at: '2026-01-15T10:00:00Z',
 };
 
 // ========================== 2. DEMO USER ====================================
@@ -46,7 +46,7 @@ export const DEMO_USER: User = {
   tenant_id: 'demo-tenant-001',
   email: 'demo@techfuture.ru',
   role: 'employee',
-  created_at: '2025-01-20T10:00:00Z',
+  created_at: '2026-01-20T10:00:00Z',
 };
 
 // ========================== 3. DEMO CATEGORIES ==============================
@@ -108,7 +108,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 15000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-16T10:00:00Z',
+    created_at: '2026-01-16T10:00:00Z',
   },
   {
     id: 'demo-ben-002',
@@ -120,7 +120,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 8000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-16T10:30:00Z',
+    created_at: '2026-01-16T10:30:00Z',
   },
   {
     id: 'demo-ben-003',
@@ -132,7 +132,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 3000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-16T11:00:00Z',
+    created_at: '2026-01-16T11:00:00Z',
   },
 
   // --- Образование (demo-cat-002) ---
@@ -146,7 +146,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 5000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-17T10:00:00Z',
+    created_at: '2026-01-17T10:00:00Z',
   },
   {
     id: 'demo-ben-005',
@@ -158,7 +158,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 4000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-17T10:30:00Z',
+    created_at: '2026-01-17T10:30:00Z',
   },
   {
     id: 'demo-ben-006',
@@ -170,7 +170,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 7000,
     stock_limit: 20,
     is_active: true,
-    created_at: '2025-01-17T11:00:00Z',
+    created_at: '2026-01-17T11:00:00Z',
   },
 
   // --- Спорт (demo-cat-003) ---
@@ -184,7 +184,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 6000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-18T10:00:00Z',
+    created_at: '2026-01-18T10:00:00Z',
   },
   {
     id: 'demo-ben-008',
@@ -196,7 +196,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 4500,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-18T10:30:00Z',
+    created_at: '2026-01-18T10:30:00Z',
   },
   {
     id: 'demo-ben-009',
@@ -208,7 +208,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 3500,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-18T11:00:00Z',
+    created_at: '2026-01-18T11:00:00Z',
   },
 
   // --- Питание (demo-cat-004) ---
@@ -222,7 +222,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 2000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-19T10:00:00Z',
+    created_at: '2026-01-19T10:00:00Z',
   },
   {
     id: 'demo-ben-011',
@@ -234,7 +234,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 3000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-19T10:30:00Z',
+    created_at: '2026-01-19T10:30:00Z',
   },
 
   // --- Транспорт (demo-cat-005) ---
@@ -248,7 +248,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 2500,
     stock_limit: 30,
     is_active: true,
-    created_at: '2025-01-20T10:00:00Z',
+    created_at: '2026-01-20T10:00:00Z',
   },
   {
     id: 'demo-ben-013',
@@ -260,7 +260,7 @@ export const DEMO_BENEFITS: Benefit[] = [
     price_points: 4000,
     stock_limit: null,
     is_active: true,
-    created_at: '2025-01-20T10:30:00Z',
+    created_at: '2026-01-20T10:30:00Z',
   },
 ];
 
@@ -272,8 +272,8 @@ export const DEMO_WALLET: Wallet = {
   tenant_id: 'demo-tenant-001',
   balance: 58000,
   reserved: 6000,
-  period: '2025-Q2',
-  expires_at: '2025-09-30T23:59:59Z',
+  period: '2026-Q2',
+  expires_at: '2026-09-30T23:59:59Z',
 };
 
 /**
@@ -291,8 +291,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 75000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Сидоров (middle) — spent 30000 on ДМС (demo-order-004, paid)
   {
@@ -301,8 +301,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 20000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Кузнецова (senior) — reserved 5000 on Психолог (demo-order-005, reserved)
   {
@@ -311,8 +311,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 45000,
     reserved: 5000,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Волков (junior) — spent 12000 on Бассейн (demo-order-006, paid)
   {
@@ -321,8 +321,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 38000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Соколова (HR, middle) — accrual
   {
@@ -331,8 +331,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 50000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Морозов (admin, lead) — expanded budget
   {
@@ -341,8 +341,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 75000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
   // Новикова (middle) — accrual
   {
@@ -351,8 +351,8 @@ export const DEMO_WALLETS: Wallet[] = [
     tenant_id: 'demo-tenant-001',
     balance: 50000,
     reserved: 0,
-    period: '2025-Q1',
-    expires_at: '2025-06-30T23:59:59Z',
+    period: '2026-Q1',
+    expires_at: '2026-06-30T23:59:59Z',
   },
 ];
 
@@ -366,8 +366,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-002',
@@ -377,7 +377,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'spend',
     amount: -6000,
     description: 'Оплата: Фитнес-клуб',
-    created_at: '2025-01-10T14:23:00Z',
+    created_at: '2026-01-10T14:23:00Z',
   },
   {
     id: 'demo-ledger-003',
@@ -387,7 +387,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'accrual',
     amount: 5000,
     description: 'Бонус за успешное завершение проекта «Миграция»',
-    created_at: '2025-01-25T09:00:00Z',
+    created_at: '2026-01-25T09:00:00Z',
   },
   {
     id: 'demo-ledger-004',
@@ -397,7 +397,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'spend',
     amount: -4000,
     description: 'Оплата: Английский язык',
-    created_at: '2025-01-28T11:15:00Z',
+    created_at: '2026-01-28T11:15:00Z',
   },
   {
     id: 'demo-ledger-005',
@@ -407,7 +407,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'reserve',
     amount: -6000,
     description: 'Резерв: Фитнес-клуб (ожидание подтверждения)',
-    created_at: '2025-02-05T16:40:00Z',
+    created_at: '2026-02-05T16:40:00Z',
   },
   {
     id: 'demo-ledger-006',
@@ -417,7 +417,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'reserve',
     amount: -7000,
     description: 'Резерв: Конференция',
-    created_at: '2025-02-10T10:00:00Z',
+    created_at: '2026-02-10T10:00:00Z',
   },
   {
     id: 'demo-ledger-007',
@@ -427,7 +427,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'release',
     amount: 7000,
     description: 'Отмена резерва: Конференция (заказ отменён)',
-    created_at: '2025-02-12T09:30:00Z',
+    created_at: '2026-02-12T09:30:00Z',
   },
   {
     id: 'demo-ledger-008',
@@ -437,7 +437,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'accrual',
     amount: 4000,
     description: 'Компенсация за переработки в январе',
-    created_at: '2025-02-15T10:00:00Z',
+    created_at: '2026-02-15T10:00:00Z',
   },
   {
     id: 'demo-ledger-009',
@@ -446,8 +446,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 10000,
-    description: 'Начисление за Q2 2025 — стандартный бюджет (апрель)',
-    created_at: '2025-04-01T09:00:00Z',
+    description: 'Начисление за Q2 2026 — стандартный бюджет (апрель)',
+    created_at: '2026-04-01T09:00:00Z',
   },
   {
     id: 'demo-ledger-010',
@@ -457,7 +457,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'accrual',
     amount: 3000,
     description: 'Бонус ко дню рождения',
-    created_at: '2025-04-15T09:00:00Z',
+    created_at: '2026-04-15T09:00:00Z',
   },
   // ----- demo-user-003 (Сидоров, middle) — купил ДМС -----
   {
@@ -467,8 +467,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-102',
@@ -478,7 +478,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'spend',
     amount: -30000,
     description: 'Оплата: ДМС расширенный',
-    created_at: '2025-02-12T09:35:00Z',
+    created_at: '2026-02-12T09:35:00Z',
   },
   // ----- demo-user-004 (Кузнецова, senior) — резерв на психолога -----
   {
@@ -488,8 +488,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-202',
@@ -499,7 +499,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'reserve',
     amount: -5000,
     description: 'Резерв: Психолог онлайн',
-    created_at: '2025-03-01T15:00:00Z',
+    created_at: '2026-03-01T15:00:00Z',
   },
   // ----- demo-user-005 (Волков, junior) — купил абонемент в бассейн -----
   {
@@ -509,8 +509,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-302',
@@ -520,7 +520,7 @@ export const DEMO_LEDGER: PointLedger[] = [
     type: 'spend',
     amount: -12000,
     description: 'Оплата: Абонемент в бассейн',
-    created_at: '2025-03-05T11:05:00Z',
+    created_at: '2026-03-05T11:05:00Z',
   },
   // ----- Остальные сотрудники — только Q1-начисление -----
   {
@@ -530,8 +530,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 75000,
-    description: 'Начисление баллов за Q1 2025 — расширенный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — расширенный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-402',
@@ -540,8 +540,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-403',
@@ -550,8 +550,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 75000,
-    description: 'Начисление баллов за Q1 2025 — расширенный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — расширенный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 'demo-ledger-404',
@@ -560,8 +560,8 @@ export const DEMO_LEDGER: PointLedger[] = [
     order_id: null,
     type: 'accrual',
     amount: 50000,
-    description: 'Начисление баллов за Q1 2025 — стандартный бюджет',
-    created_at: '2025-01-01T00:00:00Z',
+    description: 'Начисление баллов за Q1 2026 — стандартный бюджет',
+    created_at: '2026-01-01T00:00:00Z',
   },
 ];
 
@@ -574,9 +574,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'paid',
     total_points: 10000,
-    reserved_at: '2025-01-10T14:20:00Z',
-    expires_at: '2025-01-17T14:20:00Z',
-    created_at: '2025-01-10T14:20:00Z',
+    reserved_at: '2026-01-10T14:20:00Z',
+    expires_at: '2026-01-17T14:20:00Z',
+    created_at: '2026-01-10T14:20:00Z',
   },
   {
     id: 'demo-order-002',
@@ -584,9 +584,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'reserved',
     total_points: 6000,
-    reserved_at: '2025-02-05T16:40:00Z',
-    expires_at: '2025-02-12T16:40:00Z',
-    created_at: '2025-02-05T16:40:00Z',
+    reserved_at: '2026-02-05T16:40:00Z',
+    expires_at: '2026-02-12T16:40:00Z',
+    created_at: '2026-02-05T16:40:00Z',
   },
   {
     id: 'demo-order-003',
@@ -594,9 +594,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'cancelled',
     total_points: 7000,
-    reserved_at: '2025-02-10T10:00:00Z',
-    expires_at: '2025-02-17T10:00:00Z',
-    created_at: '2025-02-10T10:00:00Z',
+    reserved_at: '2026-02-10T10:00:00Z',
+    expires_at: '2026-02-17T10:00:00Z',
+    created_at: '2026-02-10T10:00:00Z',
   },
   {
     id: 'demo-order-004',
@@ -604,9 +604,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'paid',
     total_points: 30000,
-    reserved_at: '2025-02-12T09:30:00Z',
-    expires_at: '2025-02-19T09:30:00Z',
-    created_at: '2025-02-12T09:30:00Z',
+    reserved_at: '2026-02-12T09:30:00Z',
+    expires_at: '2026-02-19T09:30:00Z',
+    created_at: '2026-02-12T09:30:00Z',
   },
   {
     id: 'demo-order-005',
@@ -614,9 +614,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'reserved',
     total_points: 5000,
-    reserved_at: '2025-03-01T15:00:00Z',
-    expires_at: '2025-03-08T15:00:00Z',
-    created_at: '2025-03-01T15:00:00Z',
+    reserved_at: '2026-03-01T15:00:00Z',
+    expires_at: '2026-03-08T15:00:00Z',
+    created_at: '2026-03-01T15:00:00Z',
   },
   {
     id: 'demo-order-006',
@@ -624,9 +624,9 @@ export const DEMO_ORDERS: Order[] = [
     tenant_id: 'demo-tenant-001',
     status: 'paid',
     total_points: 12000,
-    reserved_at: '2025-03-05T11:00:00Z',
-    expires_at: '2025-03-12T11:00:00Z',
-    created_at: '2025-03-05T11:00:00Z',
+    reserved_at: '2026-03-05T11:00:00Z',
+    expires_at: '2026-03-12T11:00:00Z',
+    created_at: '2026-03-05T11:00:00Z',
   },
 ];
 
@@ -722,7 +722,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'demo@techfuture.ru',
       role: 'employee',
-      created_at: '2025-01-20T10:00:00Z',
+      created_at: '2026-01-20T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-001',
@@ -744,7 +744,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'petrova@techfuture.ru',
       role: 'hr',
-      created_at: '2025-01-15T10:00:00Z',
+      created_at: '2026-01-15T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-002',
@@ -766,7 +766,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'sidorov@techfuture.ru',
       role: 'employee',
-      created_at: '2025-02-01T10:00:00Z',
+      created_at: '2026-02-01T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-003',
@@ -788,7 +788,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'kuznetsova@techfuture.ru',
       role: 'employee',
-      created_at: '2025-01-22T10:00:00Z',
+      created_at: '2026-01-22T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-004',
@@ -810,7 +810,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'volkov@techfuture.ru',
       role: 'employee',
-      created_at: '2025-01-25T10:00:00Z',
+      created_at: '2026-01-25T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-005',
@@ -832,7 +832,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'sokolova@techfuture.ru',
       role: 'hr',
-      created_at: '2025-01-18T10:00:00Z',
+      created_at: '2026-01-18T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-006',
@@ -854,7 +854,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'morozov@techfuture.ru',
       role: 'admin',
-      created_at: '2025-01-15T09:00:00Z',
+      created_at: '2026-01-15T09:00:00Z',
     },
     profile: {
       id: 'demo-ep-007',
@@ -876,7 +876,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       tenant_id: 'demo-tenant-001',
       email: 'novikova@techfuture.ru',
       role: 'employee',
-      created_at: '2025-02-10T10:00:00Z',
+      created_at: '2026-02-10T10:00:00Z',
     },
     profile: {
       id: 'demo-ep-008',
@@ -943,12 +943,12 @@ export const DEMO_HR_DASHBOARD: DemoHrDashboard = {
     { name: 'Транспорт', total_points: 12480, pct: 8 },
   ],
   monthly_trend: [
-    { month: '2024-09', accrued: 50000, spent: 18000 },
-    { month: '2024-10', accrued: 55000, spent: 22000 },
-    { month: '2024-11', accrued: 50000, spent: 28000 },
-    { month: '2024-12', accrued: 60000, spent: 35000 },
-    { month: '2025-01', accrued: 75000, spent: 30000 },
-    { month: '2025-02', accrued: 110000, spent: 23000 },
+    { month: '2025-09', accrued: 50000, spent: 18000 },
+    { month: '2025-10', accrued: 55000, spent: 22000 },
+    { month: '2025-11', accrued: 50000, spent: 28000 },
+    { month: '2025-12', accrued: 60000, spent: 35000 },
+    { month: '2026-01', accrued: 75000, spent: 30000 },
+    { month: '2026-02', accrued: 110000, spent: 23000 },
   ],
 };
 
@@ -1047,7 +1047,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'tenant',
     entity_id: 'demo-tenant-001',
     diff: { name: 'ООО Технологии Будущего' },
-    created_at: '2025-01-15T10:00:00Z',
+    created_at: '2026-01-15T10:00:00Z',
   },
   {
     id: 'demo-audit-002',
@@ -1057,7 +1057,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'user',
     entity_id: 'demo-user-001',
     diff: { email: 'demo@techfuture.ru', role: 'employee' },
-    created_at: '2025-01-20T10:00:00Z',
+    created_at: '2026-01-20T10:00:00Z',
   },
   {
     id: 'demo-audit-003',
@@ -1067,7 +1067,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'benefit',
     entity_id: 'demo-ben-001',
     diff: { name: 'ДМС расширенный', price_points: 15000 },
-    created_at: '2025-01-16T10:00:00Z',
+    created_at: '2026-01-16T10:00:00Z',
   },
   {
     id: 'demo-audit-004',
@@ -1077,7 +1077,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'benefit',
     entity_id: 'demo-ben-007',
     diff: { name: 'Фитнес-клуб', price_points: 6000 },
-    created_at: '2025-01-18T10:00:00Z',
+    created_at: '2026-01-18T10:00:00Z',
   },
   {
     id: 'demo-audit-005',
@@ -1087,7 +1087,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'budget_policy',
     entity_id: 'demo-policy-001',
     diff: { name: 'Стандартный бюджет', points_amount: 50000 },
-    created_at: '2025-01-20T12:00:00Z',
+    created_at: '2026-01-20T12:00:00Z',
   },
   {
     id: 'demo-audit-006',
@@ -1097,7 +1097,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'order',
     entity_id: 'demo-order-001',
     diff: { status: 'reserved', total_points: 10000 },
-    created_at: '2025-01-10T14:20:00Z',
+    created_at: '2026-01-10T14:20:00Z',
   },
   {
     id: 'demo-audit-007',
@@ -1107,7 +1107,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'order',
     entity_id: 'demo-order-001',
     diff: { status_from: 'reserved', status_to: 'paid' },
-    created_at: '2025-01-10T14:23:00Z',
+    created_at: '2026-01-10T14:23:00Z',
   },
   {
     id: 'demo-audit-008',
@@ -1117,7 +1117,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'order',
     entity_id: 'demo-order-002',
     diff: { status: 'reserved', total_points: 6000 },
-    created_at: '2025-02-05T16:40:00Z',
+    created_at: '2026-02-05T16:40:00Z',
   },
   {
     id: 'demo-audit-009',
@@ -1127,7 +1127,7 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'order',
     entity_id: 'demo-order-003',
     diff: { status_from: 'reserved', status_to: 'cancelled', reason: 'Пользователь отменил заказ' },
-    created_at: '2025-02-12T09:30:00Z',
+    created_at: '2026-02-12T09:30:00Z',
   },
   {
     id: 'demo-audit-010',
@@ -1137,21 +1137,21 @@ export const DEMO_AUDIT_LOG: AuditLog[] = [
     entity_type: 'budget_policy',
     entity_id: 'demo-policy-002',
     diff: { points_amount_from: 60000, points_amount_to: 75000 },
-    created_at: '2025-02-20T11:00:00Z',
+    created_at: '2026-02-20T11:00:00Z',
   },
 ];
 
 // ========================== 15. DEMO GLOBAL CATEGORIES ========================
 
 export const DEMO_GLOBAL_CATEGORIES: GlobalCategory[] = [
-  { id: 'demo-gcat-001', name: 'Здоровье',    icon: 'heart-pulse',    sort_order: 1, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-002', name: 'Образование', icon: 'graduation-cap', sort_order: 2, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-003', name: 'Спорт',       icon: 'dumbbell',       sort_order: 3, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-004', name: 'Питание',     icon: 'utensils',       sort_order: 4, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-005', name: 'Транспорт',   icon: 'car',            sort_order: 5, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-006', name: 'Развлечения', icon: 'sparkles',       sort_order: 6, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-007', name: 'Финансы',     icon: 'wallet',         sort_order: 7, is_active: true, created_at: '2025-01-01T00:00:00Z' },
-  { id: 'demo-gcat-008', name: 'Красота',     icon: 'heart',          sort_order: 8, is_active: true, created_at: '2025-01-01T00:00:00Z' },
+  { id: 'demo-gcat-001', name: 'Здоровье',    icon: 'heart-pulse',    sort_order: 1, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-002', name: 'Образование', icon: 'graduation-cap', sort_order: 2, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-003', name: 'Спорт',       icon: 'dumbbell',       sort_order: 3, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-004', name: 'Питание',     icon: 'utensils',       sort_order: 4, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-005', name: 'Транспорт',   icon: 'car',            sort_order: 5, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-006', name: 'Развлечения', icon: 'sparkles',       sort_order: 6, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-007', name: 'Финансы',     icon: 'wallet',         sort_order: 7, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'demo-gcat-008', name: 'Красота',     icon: 'heart',          sort_order: 8, is_active: true, created_at: '2026-01-01T00:00:00Z' },
 ];
 
 // ========================== 16. DEMO PROVIDERS ================================
@@ -1169,12 +1169,12 @@ export const DEMO_PROVIDERS: Provider[] = [
     contact_phone: '+7 (495) 500-00-00',
     address: 'Москва, Пресненская наб., 10',
     status: 'verified',
-    verified_at: '2025-01-20T12:00:00Z',
+    verified_at: '2026-01-20T12:00:00Z',
     verified_by: 'demo-user-007',
     rejection_reason: null,
     metadata: {},
-    created_at: '2025-01-18T10:00:00Z',
-    updated_at: '2025-01-20T12:00:00Z',
+    created_at: '2026-01-18T10:00:00Z',
+    updated_at: '2026-01-20T12:00:00Z',
   },
   {
     id: 'demo-provider-002',
@@ -1188,12 +1188,12 @@ export const DEMO_PROVIDERS: Provider[] = [
     contact_phone: '+7 (495) 120-00-00',
     address: 'Москва, ул. Ленинская Слобода, 19',
     status: 'verified',
-    verified_at: '2025-01-22T10:00:00Z',
+    verified_at: '2026-01-22T10:00:00Z',
     verified_by: 'demo-user-007',
     rejection_reason: null,
     metadata: {},
-    created_at: '2025-01-19T10:00:00Z',
-    updated_at: '2025-01-22T10:00:00Z',
+    created_at: '2026-01-19T10:00:00Z',
+    updated_at: '2026-01-22T10:00:00Z',
   },
   {
     id: 'demo-provider-003',
@@ -1207,12 +1207,12 @@ export const DEMO_PROVIDERS: Provider[] = [
     contact_phone: '+7 (495) 780-00-00',
     address: 'Москва, ул. Красная Пресня, 16',
     status: 'verified',
-    verified_at: '2025-01-25T10:00:00Z',
+    verified_at: '2026-01-25T10:00:00Z',
     verified_by: 'demo-user-007',
     rejection_reason: null,
     metadata: {},
-    created_at: '2025-01-20T10:00:00Z',
-    updated_at: '2025-01-25T10:00:00Z',
+    created_at: '2026-01-20T10:00:00Z',
+    updated_at: '2026-01-25T10:00:00Z',
   },
   {
     id: 'demo-provider-004',
@@ -1230,8 +1230,8 @@ export const DEMO_PROVIDERS: Provider[] = [
     verified_by: null,
     rejection_reason: null,
     metadata: {},
-    created_at: '2025-02-01T10:00:00Z',
-    updated_at: '2025-02-01T10:00:00Z',
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
   },
 ];
 
@@ -1257,8 +1257,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.7,
     review_count: 12,
-    created_at: '2025-01-20T10:00:00Z',
-    updated_at: '2025-01-20T10:00:00Z',
+    created_at: '2026-01-20T10:00:00Z',
+    updated_at: '2026-01-20T10:00:00Z',
   },
   {
     id: 'demo-po-002',
@@ -1279,8 +1279,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.5,
     review_count: 8,
-    created_at: '2025-01-20T11:00:00Z',
-    updated_at: '2025-01-20T11:00:00Z',
+    created_at: '2026-01-20T11:00:00Z',
+    updated_at: '2026-01-20T11:00:00Z',
   },
   {
     id: 'demo-po-003',
@@ -1301,8 +1301,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.4,
     review_count: 23,
-    created_at: '2025-01-22T10:00:00Z',
-    updated_at: '2025-01-22T10:00:00Z',
+    created_at: '2026-01-22T10:00:00Z',
+    updated_at: '2026-01-22T10:00:00Z',
   },
   {
     id: 'demo-po-004',
@@ -1323,8 +1323,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.3,
     review_count: 15,
-    created_at: '2025-01-22T11:00:00Z',
-    updated_at: '2025-01-22T11:00:00Z',
+    created_at: '2026-01-22T11:00:00Z',
+    updated_at: '2026-01-22T11:00:00Z',
   },
   {
     id: 'demo-po-005',
@@ -1345,8 +1345,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.6,
     review_count: 31,
-    created_at: '2025-01-25T10:00:00Z',
-    updated_at: '2025-01-25T10:00:00Z',
+    created_at: '2026-01-25T10:00:00Z',
+    updated_at: '2026-01-25T10:00:00Z',
   },
   {
     id: 'demo-po-006',
@@ -1367,8 +1367,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.2,
     review_count: 18,
-    created_at: '2025-01-25T11:00:00Z',
-    updated_at: '2025-01-25T11:00:00Z',
+    created_at: '2026-01-25T11:00:00Z',
+    updated_at: '2026-01-25T11:00:00Z',
   },
   {
     id: 'demo-po-007',
@@ -1389,8 +1389,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 4.8,
     review_count: 9,
-    created_at: '2025-01-25T12:00:00Z',
-    updated_at: '2025-01-25T12:00:00Z',
+    created_at: '2026-01-25T12:00:00Z',
+    updated_at: '2026-01-25T12:00:00Z',
   },
   {
     id: 'demo-po-008',
@@ -1411,8 +1411,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 0,
     review_count: 0,
-    created_at: '2025-02-01T10:00:00Z',
-    updated_at: '2025-02-01T10:00:00Z',
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
   },
   {
     id: 'demo-po-009',
@@ -1433,8 +1433,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 0,
     review_count: 0,
-    created_at: '2025-03-10T09:00:00Z',
-    updated_at: '2025-03-10T09:00:00Z',
+    created_at: '2026-03-10T09:00:00Z',
+    updated_at: '2026-03-10T09:00:00Z',
   },
   {
     id: 'demo-po-010',
@@ -1455,8 +1455,8 @@ export const DEMO_PROVIDER_OFFERINGS: ProviderOffering[] = [
     metadata: {},
     avg_rating: 0,
     review_count: 0,
-    created_at: '2025-03-15T14:00:00Z',
-    updated_at: '2025-03-15T14:00:00Z',
+    created_at: '2026-03-15T14:00:00Z',
+    updated_at: '2026-03-15T14:00:00Z',
   },
 ];
 
@@ -1472,12 +1472,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-25T10:00:00Z',
+    enabled_at: '2026-01-25T10:00:00Z',
     tenant_avg_rating: 4.8,
     tenant_review_count: 3,
     metadata: {},
-    created_at: '2025-01-25T10:00:00Z',
-    updated_at: '2025-01-25T10:00:00Z',
+    created_at: '2026-01-25T10:00:00Z',
+    updated_at: '2026-01-25T10:00:00Z',
   },
   {
     id: 'demo-to-002',
@@ -1488,12 +1488,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-25T10:30:00Z',
+    enabled_at: '2026-01-25T10:30:00Z',
     tenant_avg_rating: 4.5,
     tenant_review_count: 1,
     metadata: {},
-    created_at: '2025-01-25T10:30:00Z',
-    updated_at: '2025-01-25T10:30:00Z',
+    created_at: '2026-01-25T10:30:00Z',
+    updated_at: '2026-01-25T10:30:00Z',
   },
   {
     id: 'demo-to-003',
@@ -1504,12 +1504,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-26T10:00:00Z',
+    enabled_at: '2026-01-26T10:00:00Z',
     tenant_avg_rating: 4.0,
     tenant_review_count: 1,
     metadata: {},
-    created_at: '2025-01-26T10:00:00Z',
-    updated_at: '2025-01-26T10:00:00Z',
+    created_at: '2026-01-26T10:00:00Z',
+    updated_at: '2026-01-26T10:00:00Z',
   },
   {
     id: 'demo-to-004',
@@ -1520,12 +1520,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-27T10:00:00Z',
+    enabled_at: '2026-01-27T10:00:00Z',
     tenant_avg_rating: 4.5,
     tenant_review_count: 1,
     metadata: {},
-    created_at: '2025-01-27T10:00:00Z',
-    updated_at: '2025-01-27T10:00:00Z',
+    created_at: '2026-01-27T10:00:00Z',
+    updated_at: '2026-01-27T10:00:00Z',
   },
   {
     id: 'demo-to-005',
@@ -1536,12 +1536,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-27T11:00:00Z',
+    enabled_at: '2026-01-27T11:00:00Z',
     tenant_avg_rating: 0,
     tenant_review_count: 0,
     metadata: {},
-    created_at: '2025-01-27T11:00:00Z',
-    updated_at: '2025-01-27T11:00:00Z',
+    created_at: '2026-01-27T11:00:00Z',
+    updated_at: '2026-01-27T11:00:00Z',
   },
   {
     id: 'demo-to-006',
@@ -1552,12 +1552,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-28T10:00:00Z',
+    enabled_at: '2026-01-28T10:00:00Z',
     tenant_avg_rating: 5.0,
     tenant_review_count: 1,
     metadata: {},
-    created_at: '2025-01-28T10:00:00Z',
-    updated_at: '2025-01-28T10:00:00Z',
+    created_at: '2026-01-28T10:00:00Z',
+    updated_at: '2026-01-28T10:00:00Z',
   },
   {
     id: 'demo-to-007',
@@ -1568,12 +1568,12 @@ export const DEMO_TENANT_OFFERINGS: TenantOffering[] = [
     is_active: true,
     tenant_category_id: null,
     enabled_by: 'demo-user-002',
-    enabled_at: '2025-01-28T11:00:00Z',
+    enabled_at: '2026-01-28T11:00:00Z',
     tenant_avg_rating: 4.3,
     tenant_review_count: 2,
     metadata: {},
-    created_at: '2025-01-28T11:00:00Z',
-    updated_at: '2025-01-28T11:00:00Z',
+    created_at: '2026-01-28T11:00:00Z',
+    updated_at: '2026-01-28T11:00:00Z',
   },
 ];
 
@@ -1592,8 +1592,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-01T10:00:00Z',
-    updated_at: '2025-02-01T10:00:00Z',
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
   },
   {
     id: 'demo-review-002',
@@ -1607,8 +1607,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-05T10:00:00Z',
-    updated_at: '2025-02-05T10:00:00Z',
+    created_at: '2026-02-05T10:00:00Z',
+    updated_at: '2026-02-05T10:00:00Z',
   },
   {
     id: 'demo-review-003',
@@ -1622,8 +1622,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-10T10:00:00Z',
-    updated_at: '2025-02-10T10:00:00Z',
+    created_at: '2026-02-10T10:00:00Z',
+    updated_at: '2026-02-10T10:00:00Z',
   },
   {
     id: 'demo-review-004',
@@ -1637,8 +1637,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-08T10:00:00Z',
-    updated_at: '2025-02-08T10:00:00Z',
+    created_at: '2026-02-08T10:00:00Z',
+    updated_at: '2026-02-08T10:00:00Z',
   },
   {
     id: 'demo-review-005',
@@ -1652,8 +1652,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-15T10:00:00Z',
-    updated_at: '2025-02-15T10:00:00Z',
+    created_at: '2026-02-15T10:00:00Z',
+    updated_at: '2026-02-15T10:00:00Z',
   },
   {
     id: 'demo-review-006',
@@ -1667,8 +1667,8 @@ export const DEMO_REVIEWS: Review[] = [
     status: 'visible',
     moderated_by: null,
     moderated_at: null,
-    created_at: '2025-02-20T10:00:00Z',
-    updated_at: '2025-02-20T10:00:00Z',
+    created_at: '2026-02-20T10:00:00Z',
+    updated_at: '2026-02-20T10:00:00Z',
   },
 ];
 
@@ -1698,18 +1698,18 @@ export const DEMO_HR_ANALYTICS: AnalyticsData = {
       { grade: 'Junior', employee_count: 1, total_accrued: 50000,  total_spent: 3000,  utilization_pct: 6 },
     ],
     monthly_trend: [
-      { month: '2024-03', accrued: 25000, spent: 8000,  utilization_pct: 32 },
-      { month: '2024-04', accrued: 30000, spent: 10000, utilization_pct: 33 },
-      { month: '2024-05', accrued: 30000, spent: 12000, utilization_pct: 40 },
-      { month: '2024-06', accrued: 35000, spent: 15000, utilization_pct: 43 },
-      { month: '2024-07', accrued: 30000, spent: 11000, utilization_pct: 37 },
-      { month: '2024-08', accrued: 25000, spent: 8000,  utilization_pct: 32 },
-      { month: '2024-09', accrued: 50000, spent: 18000, utilization_pct: 36 },
-      { month: '2024-10', accrued: 55000, spent: 22000, utilization_pct: 40 },
-      { month: '2024-11', accrued: 50000, spent: 28000, utilization_pct: 56 },
-      { month: '2024-12', accrued: 60000, spent: 35000, utilization_pct: 58 },
-      { month: '2025-01', accrued: 75000, spent: 30000, utilization_pct: 40 },
-      { month: '2025-02', accrued: 110000, spent: 23000, utilization_pct: 21 },
+      { month: '2025-03', accrued: 25000, spent: 8000,  utilization_pct: 32 },
+      { month: '2025-04', accrued: 30000, spent: 10000, utilization_pct: 33 },
+      { month: '2025-05', accrued: 30000, spent: 12000, utilization_pct: 40 },
+      { month: '2025-06', accrued: 35000, spent: 15000, utilization_pct: 43 },
+      { month: '2025-07', accrued: 30000, spent: 11000, utilization_pct: 37 },
+      { month: '2025-08', accrued: 25000, spent: 8000,  utilization_pct: 32 },
+      { month: '2025-09', accrued: 50000, spent: 18000, utilization_pct: 36 },
+      { month: '2025-10', accrued: 55000, spent: 22000, utilization_pct: 40 },
+      { month: '2025-11', accrued: 50000, spent: 28000, utilization_pct: 56 },
+      { month: '2025-12', accrued: 60000, spent: 35000, utilization_pct: 58 },
+      { month: '2026-01', accrued: 75000, spent: 30000, utilization_pct: 40 },
+      { month: '2026-02', accrued: 110000, spent: 23000, utilization_pct: 21 },
     ],
   },
   popular: [
@@ -1756,12 +1756,12 @@ export const DEMO_HR_ANALYTICS: AnalyticsData = {
       { name: 'Транспорт',   total_points: 12480, pct: 8,  order_count: 2 },
     ],
     trend: [
-      { month: '2024-09', 'Здоровье': 8000,  'Спорт': 4000, 'Образование': 3000, 'Питание': 2000, 'Транспорт': 1000 },
-      { month: '2024-10', 'Здоровье': 9000,  'Спорт': 5000, 'Образование': 4000, 'Питание': 2500, 'Транспорт': 1500 },
-      { month: '2024-11', 'Здоровье': 12000, 'Спорт': 6000, 'Образование': 5000, 'Питание': 3000, 'Транспорт': 2000 },
-      { month: '2024-12', 'Здоровье': 15000, 'Спорт': 8000, 'Образование': 5000, 'Питание': 4000, 'Транспорт': 3000 },
-      { month: '2025-01', 'Здоровье': 12000, 'Спорт': 7000, 'Образование': 6000, 'Питание': 3000, 'Транспорт': 2000 },
-      { month: '2025-02', 'Здоровье': 6400,  'Спорт': 4320, 'Образование': 5080, 'Питание': 4220, 'Транспорт': 2980 },
+      { month: '2025-09', 'Здоровье': 8000,  'Спорт': 4000, 'Образование': 3000, 'Питание': 2000, 'Транспорт': 1000 },
+      { month: '2025-10', 'Здоровье': 9000,  'Спорт': 5000, 'Образование': 4000, 'Питание': 2500, 'Транспорт': 1500 },
+      { month: '2025-11', 'Здоровье': 12000, 'Спорт': 6000, 'Образование': 5000, 'Питание': 3000, 'Транспорт': 2000 },
+      { month: '2025-12', 'Здоровье': 15000, 'Спорт': 8000, 'Образование': 5000, 'Питание': 4000, 'Транспорт': 3000 },
+      { month: '2026-01', 'Здоровье': 12000, 'Спорт': 7000, 'Образование': 6000, 'Питание': 3000, 'Транспорт': 2000 },
+      { month: '2026-02', 'Здоровье': 6400,  'Спорт': 4320, 'Образование': 5080, 'Питание': 4220, 'Транспорт': 2980 },
     ],
   },
 };

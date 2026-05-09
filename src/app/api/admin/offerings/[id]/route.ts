@@ -14,12 +14,26 @@ export function PATCH(request: NextRequest, context: RouteContext) {
   return withErrorHandling(async () => {
     const { id } = await context.params;
 
-    if (isDemo) return success({ id, status: "published" });
+    const body = await request.json();
+
+    if (isDemo) {
+      const { DEMO_PROVIDER_OFFERINGS } = await import("@/lib/demo-data");
+      const offering = DEMO_PROVIDER_OFFERINGS.find((o) => o.id === id);
+      if (!offering) throw notFound("Предложение не найдено");
+      const VALID = ["draft", "pending_review", "published", "archived"];
+      if (body.status !== undefined) {
+        if (!VALID.includes(body.status)) {
+          throw validationError(`Invalid status: ${body.status}`);
+        }
+        offering.status = body.status;
+        offering.updated_at = new Date().toISOString();
+      }
+      return success(offering);
+    }
 
     await requireRole("admin");
     const admin = createAdminClient();
 
-    const body = await request.json();
     const updateData: Record<string, unknown> = {};
 
     const VALID_OFFERING_STATUSES = ["draft", "pending_review", "published", "archived"];

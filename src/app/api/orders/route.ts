@@ -36,7 +36,9 @@ export function GET(request: NextRequest) {
       const status = searchParams.get("status");
       const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
       const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
-      return demoOrdersList({ status, page, perPage });
+      // Demo employee is hard-pinned to demo-user-001 — keep their orders private.
+      // HR/admin use /api/hr/* endpoints (this route is consumed by /dashboard/employee/orders).
+      return demoOrdersList({ status, page, perPage, userId: "demo-user-001" });
     }
 
     const appUser = await requireAuth();

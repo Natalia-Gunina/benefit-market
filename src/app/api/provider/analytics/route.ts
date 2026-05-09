@@ -36,16 +36,22 @@ export function GET() {
         DEMO_REVIEWS,
         DEMO_TENANT_OFFERINGS,
       } = await import("@/lib/demo-data");
+      const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
 
-      // Aggregate across ALL providers in demo mode (no real "current user").
-      const allOfferings = DEMO_PROVIDER_OFFERINGS ?? [];
-      const offeringMap = new Map(allOfferings.map((o) => [o.id, o]));
-      const publishedOfferings = allOfferings.filter((o) => o.status === "published");
-      const pendingOfferings = allOfferings.filter((o) => o.status === "pending_review");
+      // Scope strictly to the current provider (World Class) so the cabinet
+      // never shows numbers belonging to other providers in the dataset.
+      const myOfferings = (DEMO_PROVIDER_OFFERINGS ?? []).filter(
+        (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+      );
+      const myOfferingIds = new Set(myOfferings.map((o) => o.id));
+
+      const offeringMap = new Map(myOfferings.map((o) => [o.id, o]));
+      const publishedOfferings = myOfferings.filter((o) => o.status === "published");
+      const pendingOfferings = myOfferings.filter((o) => o.status === "pending_review");
 
       const orderMap = new Map((DEMO_ORDERS ?? []).map((o) => [o.id, o]));
       const providerItems = (DEMO_ORDER_ITEMS ?? []).filter(
-        (oi) => !!oi.provider_offering_id,
+        (oi) => oi.provider_offering_id && myOfferingIds.has(oi.provider_offering_id),
       );
 
       const totalOrders = providerItems.length;
@@ -59,7 +65,7 @@ export function GET() {
 
       const tenantConnections = new Set(
         (DEMO_TENANT_OFFERINGS ?? [])
-          .filter((to) => to.is_active)
+          .filter((to) => to.is_active && myOfferingIds.has(to.provider_offering_id))
           .map((to) => to.tenant_id),
       ).size;
 
@@ -101,15 +107,18 @@ export function GET() {
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .slice(0, 5);
 
-      // Ratings distribution
+      // Ratings distribution — only reviews on this provider's offerings
+      const myReviews = (DEMO_REVIEWS ?? []).filter(
+        (r) => myOfferingIds.has(r.provider_offering_id) && r.status === "visible",
+      );
       const ratingsDistribution: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-      (DEMO_REVIEWS ?? []).forEach((r) => {
-        if (r.status === "visible" && r.rating >= 1 && r.rating <= 5) {
+      myReviews.forEach((r) => {
+        if (r.rating >= 1 && r.rating <= 5) {
           ratingsDistribution[r.rating] = (ratingsDistribution[r.rating] ?? 0) + 1;
         }
       });
 
-      const newReviews = (DEMO_REVIEWS ?? []).filter((r) => r.status === "visible").length;
+      const newReviews = myReviews.length;
 
       return success({
         total_orders: totalOrders,

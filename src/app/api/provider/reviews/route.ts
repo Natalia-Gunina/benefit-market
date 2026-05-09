@@ -24,6 +24,7 @@ export function GET(request: NextRequest) {
     if (isDemo) {
       const { DEMO_REVIEWS, DEMO_PROVIDER_OFFERINGS, DEMO_EMPLOYEES } =
         await import("@/lib/demo-data");
+      const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
 
       const { searchParams } = new URL(request.url);
       const offeringFilter = searchParams.get("offering_id") || "";
@@ -31,24 +32,31 @@ export function GET(request: NextRequest) {
       const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
       const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
 
-      const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
+      // Only offerings owned by the current provider — keep other providers'
+      // reviews invisible in this cabinet.
+      const myOfferings = DEMO_PROVIDER_OFFERINGS.filter(
+        (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
+      );
+      const offeringMap = new Map(myOfferings.map((o) => [o.id, o]));
       const userMap = new Map(DEMO_EMPLOYEES.map((e) => [e.user.id, e.user]));
 
-      let rows = DEMO_REVIEWS.map((r) => {
-        const offering = offeringMap.get(r.provider_offering_id);
-        const user = userMap.get(r.user_id);
-        return {
-          id: r.id,
-          rating: r.rating,
-          title: r.title,
-          body: r.body,
-          status: r.status,
-          created_at: r.created_at,
-          provider_offering_id: r.provider_offering_id,
-          provider_offerings: offering ? { name: offering.name } : null,
-          users: user ? { email: user.email } : null,
-        };
-      });
+      let rows = DEMO_REVIEWS.filter((r) => offeringMap.has(r.provider_offering_id)).map(
+        (r) => {
+          const offering = offeringMap.get(r.provider_offering_id);
+          const user = userMap.get(r.user_id);
+          return {
+            id: r.id,
+            rating: r.rating,
+            title: r.title,
+            body: r.body,
+            status: r.status,
+            created_at: r.created_at,
+            provider_offering_id: r.provider_offering_id,
+            provider_offerings: offering ? { name: offering.name } : null,
+            users: user ? { email: user.email } : null,
+          };
+        },
+      );
 
       if (offeringFilter) {
         rows = rows.filter((r) => r.provider_offering_id === offeringFilter);

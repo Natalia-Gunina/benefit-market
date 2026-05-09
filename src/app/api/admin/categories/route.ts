@@ -39,11 +39,24 @@ export function GET() {
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    const appUser = await requireRole("admin");
-
     const body = await request.json();
     const { name, icon, sort_order } = parseBody(createCategorySchema, body);
 
+    if (isDemo) {
+      const { DEMO_CATEGORIES } = await import("@/lib/demo-data");
+      const cat: BenefitCategory = {
+        id: `demo-cat-${Date.now()}`,
+        tenant_id: "demo-tenant-001",
+        name,
+        icon: icon ?? "",
+        sort_order: sort_order ?? DEMO_CATEGORIES.length + 1,
+        global_category_id: null,
+      };
+      DEMO_CATEGORIES.push(cat);
+      return created(cat);
+    }
+
+    const appUser = await requireRole("admin");
     const admin = createAdminClient();
 
     const result = await admin
@@ -68,11 +81,18 @@ export function POST(request: NextRequest) {
 
 export function PATCH(request: NextRequest) {
   return withErrorHandling(async () => {
-    const appUser = await requireRole("admin");
-
     const body = await request.json();
     const { id, ...updates } = parseBody(updateCategorySchema, body);
 
+    if (isDemo) {
+      const { DEMO_CATEGORIES } = await import("@/lib/demo-data");
+      const cat = DEMO_CATEGORIES.find((c) => c.id === id);
+      if (!cat) throw validationError("Category not found");
+      Object.assign(cat, updates);
+      return success(cat);
+    }
+
+    const appUser = await requireRole("admin");
     const admin = createAdminClient();
 
     const result = await admin
@@ -99,6 +119,13 @@ export function DELETE(request: NextRequest) {
 
     if (!id) {
       throw validationError("Category ID is required");
+    }
+
+    if (isDemo) {
+      const { DEMO_CATEGORIES } = await import("@/lib/demo-data");
+      const idx = DEMO_CATEGORIES.findIndex((c) => c.id === id);
+      if (idx >= 0) DEMO_CATEGORIES.splice(idx, 1);
+      return success({ id });
     }
 
     const appUser = await requireRole("admin");

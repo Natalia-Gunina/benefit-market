@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -270,7 +271,12 @@ export default function EmployeesPage() {
                   {sortedEmployees.map((emp) => (
                     <TableRow key={emp.id}>
                       <TableCell className="font-medium">
-                        {emp.name}
+                        <Link
+                          href={`/dashboard/hr/employees/${emp.id}`}
+                          className="hover:underline"
+                        >
+                          {emp.name}
+                        </Link>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {emp.email}
