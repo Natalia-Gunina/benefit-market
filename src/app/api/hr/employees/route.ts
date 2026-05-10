@@ -60,12 +60,13 @@ export function GET(request: NextRequest) {
       .eq("role", "employee");
 
     if (search) {
+      const escaped = search.replace(/[%,]/g, "\\$&");
       usersQuery = usersQuery.or(
-        `email.ilike.%${search}%`
+        `email.ilike.%${escaped}%,full_name.ilike.%${escaped}%`,
       );
     }
 
-    const allUsers = unwrapRows<User>(
+    const allUsers = unwrapRows<User & { full_name: string }>(
       await usersQuery.order("created_at", { ascending: false }),
       "Fetch tenant employees",
     );
@@ -108,44 +109,22 @@ export function GET(request: NextRequest) {
       }
     }
 
-    // --- Filter by name in profile extra if search includes name ---
-    let filteredUsers = allUsers;
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      filteredUsers = allUsers.filter((u) => {
-        // Check email
-        if (u.email.toLowerCase().includes(lowerSearch)) return true;
-        // Check name from profile extra
-        const profile = profileMap.get(u.id);
-        if (profile?.extra) {
-          const name = String((profile.extra as Record<string, unknown>).name || "");
-          if (name.toLowerCase().includes(lowerSearch)) return true;
-        }
-        return false;
-      });
-    }
-
     // --- Apply pagination ---
-    const total = filteredUsers.length;
+    const total = allUsers.length;
     const offset = (page - 1) * perPage;
-    const paginated = filteredUsers.slice(offset, offset + perPage);
+    const paginated = allUsers.slice(offset, offset + perPage);
 
     // --- Shape response ---
     const data: EmployeeWithProfile[] = paginated.map((u) => {
       const profile = profileMap.get(u.id);
       const wallet = walletMap.get(u.id);
 
-      // Try to get name from profile extra or auth metadata
-      const profileName = profile?.extra
-        ? String((profile.extra as Record<string, unknown>).name || "")
-        : "";
-
       return {
         id: u.id,
         email: u.email,
         role: u.role,
         created_at: u.created_at,
-        name: profileName || u.email.split("@")[0],
+        name: u.full_name?.trim() || u.email.split("@")[0],
         profile: profile
           ? {
               grade: profile.grade,

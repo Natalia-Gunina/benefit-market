@@ -197,7 +197,12 @@ export function POST(request: NextRequest) {
         const existingUser = existingUsers.length > 0 ? existingUsers[0] : null;
 
         if (existingUser) {
-          // --- Update existing employee_profile ---
+          // --- Update existing user.full_name + employee_profile ---
+          await admin
+            .from("users")
+            .update({ full_name: row.name } as never)
+            .eq("id", existingUser.id);
+
           const { error: updateError } = await admin
             .from("employee_profiles")
             .update({
@@ -248,6 +253,7 @@ export function POST(request: NextRequest) {
                 auth_id: authData.user.id,
                 email: row.email,
                 role: "employee",
+                full_name: row.name,
               } as never)
               .select("*"),
           );

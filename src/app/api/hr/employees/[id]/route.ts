@@ -118,12 +118,13 @@ export function GET(_request: NextRequest, context: RouteContext) {
       email: string;
       role: string;
       tenant_id: string;
+      full_name: string;
     };
 
     const user = unwrapSingleOrNull<UserRow>(
       await admin
         .from("users")
-        .select("id, email, role, tenant_id")
+        .select("id, email, role, tenant_id, full_name")
         .eq("id", id)
         .eq("tenant_id", appUser.tenant_id)
         .single(),
@@ -196,7 +197,7 @@ export function GET(_request: NextRequest, context: RouteContext) {
 
     const response: EmployeeDetailResponse = {
       id: user.id,
-      name: user.email.split("@")[0],
+      name: user.full_name?.trim() || user.email.split("@")[0],
       email: user.email,
       role: user.role,
       profile: {

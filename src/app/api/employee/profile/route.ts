@@ -26,21 +26,25 @@ export interface EmployeeProfileResponse {
 interface ProfileRow {
   id: string;
   legal_entity: string;
+  gender: string | null;
+  birthday: string | null;
   extra: Record<string, unknown> | null;
 }
 
-// Read-only base fields are stored under `extra.base` so the demo doesn't
-// require a schema change. In a non-demo deployment, full_name / gender /
-// birthday come from the same JSONB blob (legal_entity / company stays in
-// the dedicated column).
-function buildResponse(row: ProfileRow | null): EmployeeProfileResponse {
-  const extra = (row?.extra ?? {}) as Record<string, unknown>;
-  const base = (extra.base as Record<string, unknown> | undefined) ?? {};
+interface UserNameRow {
+  full_name: string;
+}
+
+function buildResponse(
+  profile: ProfileRow | null,
+  fullName: string,
+): EmployeeProfileResponse {
+  const extra = (profile?.extra ?? {}) as Record<string, unknown>;
   return {
-    full_name: (base.full_name as string) ?? "",
-    gender: (base.gender as string) ?? "",
-    company: row?.legal_entity ?? "",
-    birthday: (base.birthday as string) ?? "",
+    full_name: fullName,
+    gender: profile?.gender ?? "",
+    company: profile?.legal_entity ?? "",
+    birthday: profile?.birthday ?? "",
     marital_status: (extra.marital_status as string) ?? "",
     has_children: (extra.has_children as boolean) ?? false,
     children: (extra.children as { birthday: string }[]) ?? [],
@@ -58,7 +62,8 @@ export function GET() {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_EMPLOYEES } = await import("@/lib/demo-data");
-      const me = DEMO_EMPLOYEES.find((e) => e.user.id === "demo-user-001") ?? DEMO_EMPLOYEES[0];
+      const me =
+        DEMO_EMPLOYEES.find((e) => e.user.id === "demo-user-001") ?? DEMO_EMPLOYEES[0];
       const extra = (me.profile.extra ?? {}) as Record<string, unknown>;
       return success<EmployeeProfileResponse>({
         full_name: me.full_name,
@@ -77,15 +82,19 @@ export function GET() {
     const appUser = await requireAuth();
     const admin = createAdminClient();
 
+    const userRow = unwrapSingleOrNull<UserNameRow>(
+      await admin.from("users").select("full_name").eq("id", appUser.id).single(),
+    );
+
     const profile = unwrapSingleOrNull<ProfileRow>(
       await admin
         .from("employee_profiles")
-        .select("id, legal_entity, extra")
+        .select("id, legal_entity, gender, birthday, extra")
         .eq("user_id", appUser.id)
         .single(),
     );
 
-    return success(buildResponse(profile));
+    return success(buildResponse(profile, userRow?.full_name ?? ""));
   }, "GET /api/employee/profile");
 }
 
@@ -111,7 +120,6 @@ export function PATCH(request: NextRequest) {
     }
 
     if (isDemo) {
-      // Persist into the shared demo dataset so HR/admin views see the change.
       const { DEMO_EMPLOYEES } = await import("@/lib/demo-data");
       const me = DEMO_EMPLOYEES.find((e) => e.user.id === "demo-user-001");
       if (me) {
@@ -126,7 +134,7 @@ export function PATCH(request: NextRequest) {
     const existing = unwrapSingleOrNull<ProfileRow>(
       await admin
         .from("employee_profiles")
-        .select("id, legal_entity, extra")
+        .select("id, legal_entity, gender, birthday, extra")
         .eq("user_id", appUser.id)
         .single(),
     );
@@ -142,11 +150,15 @@ export function PATCH(request: NextRequest) {
         .from("employee_profiles")
         .update({ extra: merged } as never)
         .eq("id", existing.id)
-        .select("id, legal_entity, extra")
+        .select("id, legal_entity, gender, birthday, extra")
         .single(),
       "Failed to update employee profile",
     );
 
-    return success(buildResponse(updated));
+    const userRow = unwrapSingleOrNull<UserNameRow>(
+      await admin.from("users").select("full_name").eq("id", appUser.id).single(),
+    );
+
+    return success(buildResponse(updated, userRow?.full_name ?? ""));
   }, "PATCH /api/employee/profile");
 }
