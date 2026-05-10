@@ -73,7 +73,11 @@ BEGIN
     _tenant_id,
     _initial_balance,
     0,
-    TO_CHAR(NOW(), 'YYYY') || '-Q' || CEIL(EXTRACT(MONTH FROM NOW()) / 3.0)::int,
+    format(
+      '%s-Q%s',
+      TO_CHAR(NOW(), 'YYYY'),
+      CEIL(EXTRACT(MONTH FROM NOW()) / 3.0)::int
+    ),
     (DATE_TRUNC('quarter', NOW()) + INTERVAL '3 months')::timestamptz
   );
 
@@ -87,8 +91,12 @@ BEGIN
 
   -- Mirror tenant_id into auth metadata so RLS helpers can read it from JWT.
   UPDATE auth.users
-  SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb)
-    || jsonb_build_object('tenant_id', _tenant_id::text)
+  SET raw_user_meta_data = jsonb_set(
+    COALESCE(raw_user_meta_data, '{}'::jsonb),
+    '{tenant_id}',
+    to_jsonb(_tenant_id::text),
+    true
+  )
   WHERE id = NEW.id;
 
   RETURN NEW;
