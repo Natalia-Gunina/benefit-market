@@ -1,0 +1,59 @@
+name: DB seed
+
+# Runs supabase/seed_prod.sql against the linked project.
+# Manual only — seeding is intentionally a deliberate action.
+#
+# The seed file is idempotent (ON CONFLICT DO NOTHING / WHERE NOT EXISTS),
+# so re-running is safe. The providers/offerings block auto-skips when no
+# users are present, so the recommended sequence is:
+#   1. Run once after migrations: creates tenant/categories/policy.
+#   2. Register at least one user via /auth/register.
+#   3. Run again: provisions providers + marketplace catalog.
+#
+# Required GitHub secret:
+#   SUPABASE_DB_URL — Connection string from Supabase Dashboard
+#                     (Project Settings → Database → Connection string,
+#                      pick "URI" mode and copy as-is, **with the password
+#                      already substituted**).
+#                     Use the pooler URL (port 6543) — direct port 5432
+#                     uses IPv6 only and won't work from GitHub runners.
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "Seed file under supabase/ (default: seed_prod.sql)"
+        type: string
+        default: "seed_prod.sql"
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate seed file path
+        run: |
+          file="${{ inputs.file }}"
+          case "$file" in
+            ""|*..*|/*) echo "Invalid file: $file" >&2; exit 1 ;;
+          esac
+          test -f "supabase/$file" || { echo "Not found: supabase/$file" >&2; exit 1; }
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply seed
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "SUPABASE_DB_URL secret is not set." >&2
+            exit 1
+          fi
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f "supabase/${{ inputs.file }}"

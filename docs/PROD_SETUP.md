@@ -18,7 +18,57 @@
 Если эти условия не выполнены — сайт не сможет подключиться к Supabase
 и будет либо падать, либо работать в demo-режиме.
 
-## Шаги развёртывания
+## Автоматизированный путь (рекомендуется)
+
+Один раз настрой CI/CD — дальше миграции применяются сами на каждый push.
+
+### A. Создать секреты в GitHub
+
+Открой <https://github.com/Natalia-Gunina/benefit-market/settings/secrets/actions>
+и добавь три секрета:
+
+1. **`SUPABASE_ACCESS_TOKEN`** — персональный access token.
+   Получить: <https://supabase.com/dashboard/account/tokens> → **Generate new token**.
+2. **`SUPABASE_PROJECT_REF`** — короткий ID проекта.
+   Найти: Project Settings → General → **Reference ID** (что-то вроде `abcdefghijklmnop`).
+3. **`SUPABASE_DB_PASSWORD`** — пароль БД.
+   Найти/сгенерить: Project Settings → Database → **Database password**.
+4. **`SUPABASE_DB_URL`** *(нужен только для seed-workflow)* — полная connection string.
+   Project Settings → Database → **Connection string** → URI → mode `Transaction` или
+   `Session` → скопировать с уже подставленным паролем (port должен быть `6543`,
+   а не `5432`, иначе GitHub-runner не сможет подключиться через IPv6).
+
+### B. Зарегистрировать уже применённые миграции (один раз)
+
+Если миграции `00001`–`00007` (или дальше) ты уже применила вручную через SQL Editor,
+их нужно «пометить как applied» — иначе `supabase db push` попытается применить их
+заново и упадёт с «table already exists».
+
+1. Открой <https://github.com/Natalia-Gunina/benefit-market/actions/workflows/db-migrate.yml>
+2. Нажми **Run workflow** → в поле `mark_applied` укажи через запятую **все версии,
+   которые уже применены вручную** в твоей базе.
+   Например, если применены `00001..00007` (а `00008/00009` ещё нет):
+   ```
+   00001, 00002, 00003, 00004, 00005, 00006, 00007
+   ```
+3. Запусти. После этого `supabase db push` применит только то, что осталось
+   (в нашем случае — `00008` и `00009`).
+
+После этого однократного шага каждый push в `main`, который меняет файлы в
+`supabase/migrations/`, автоматически применит новые миграции.
+
+### C. Загрузить seed (опционально)
+
+После миграций запусти workflow `db-seed`:
+<https://github.com/Natalia-Gunina/benefit-market/actions/workflows/db-seed.yml>
+→ **Run workflow** (по умолчанию применит `seed_prod.sql`).
+
+Повторно запусти после регистрации первого пользователя — DO-блок наполнит
+провайдеров и каталог.
+
+---
+
+## Ручной путь (если без CI/CD)
 
 ### 1. Применить две новые миграции
 
