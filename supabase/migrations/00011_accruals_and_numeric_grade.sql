@@ -1,11 +1,8 @@
 -- ===========================================================================
--- Migration 00010: numeric grade + scheduled accruals (policies + individual)
+-- Migration 00011: numeric grade + scheduled accruals (policies + individual)
 -- ---------------------------------------------------------------------------
--- This migration replaces text grade values ('junior', 'middle' …) with an
--- explicit integer column `grade_numeric` in the range 10–18, extends
--- `budget_policies` with scheduling fields (frequency / first / next / last
--- accrual dates) and introduces `individual_accruals` for per-employee
--- accruals that either top-up policy accruals or replace them.
+-- Depends on 00010 having committed the `semiannual` value to the
+-- budget_period enum so that compute_next_accrual can reference it.
 --
 -- The text `grade` column is kept for backward compatibility with legacy
 -- eligibility_rules / target_filter JSON that referenced it by string. All
@@ -13,22 +10,7 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Extend budget_period enum with `semiannual`
--- ---------------------------------------------------------------------------
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum e
-    JOIN pg_type t ON t.oid = e.enumtypid
-    WHERE t.typname = 'budget_period' AND e.enumlabel = 'semiannual'
-  ) THEN
-    ALTER TYPE budget_period ADD VALUE 'semiannual' AFTER 'quarterly';
-  END IF;
-END $$;
-
--- ---------------------------------------------------------------------------
--- 2. employee_profiles: numeric grade (10..18)
+-- 1. employee_profiles: numeric grade (10..18)
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE employee_profiles
@@ -54,7 +36,7 @@ WHERE employee_profiles.id = sub.id
   AND employee_profiles.grade_numeric IS NULL;
 
 -- ---------------------------------------------------------------------------
--- 3. budget_policies: scheduling fields
+-- 2. budget_policies: scheduling fields
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE budget_policies
@@ -69,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_budget_policies_next_accrual
   WHERE is_active = true;
 
 -- ---------------------------------------------------------------------------
--- 4. individual_accruals: per-employee overrides
+-- 3. individual_accruals: per-employee overrides
 -- ---------------------------------------------------------------------------
 
 DO $$
@@ -134,7 +116,7 @@ CREATE POLICY "tenant write individual_accruals"
   );
 
 -- ---------------------------------------------------------------------------
--- 5. compute_next_accrual: interval helper used by application code
+-- 4. compute_next_accrual: interval helper used by application code
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION compute_next_accrual(
