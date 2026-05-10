@@ -5,10 +5,11 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapRows, unwrapSingle } from "@/lib/supabase/typed-queries";
 import { createPolicySchema } from "@/lib/api/validators";
+import { processAccruals } from "@/lib/services/accrual.service";
 import type { BudgetPolicy } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// GET /api/admin/policies — List all budget policies for tenant
+// GET /api/admin/policies — list active + inactive budget policies
 // ---------------------------------------------------------------------------
 
 export function GET(request: NextRequest) {
@@ -29,7 +30,6 @@ export function GET(request: NextRequest) {
       .select("*")
       .order("name", { ascending: true });
 
-    // Admin sees all companies' policies; HR sees only their own
     if (appUser.role === "hr") {
       query = query.eq("tenant_id", appUser.tenant_id);
     } else if (tenantId) {
@@ -42,36 +42,45 @@ export function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/admin/policies — Create a budget policy
+// POST /api/admin/policies — create a budget policy
 // ---------------------------------------------------------------------------
 
 export function POST(request: NextRequest) {
   return withErrorHandling(async () => {
     const body = await request.json();
-    const { points_amount, is_active } = parseBody(createPolicySchema, body);
+    const {
+      name,
+      points_amount,
+      period,
+      first_accrual_date,
+      target_filter,
+      is_active,
+    } = parseBody(createPolicySchema, body);
 
     if (isDemo) {
       const { DEMO_POLICIES } = await import("@/lib/demo-data");
+      const nowIso = new Date().toISOString();
       const policy: BudgetPolicy = {
         id: `demo-policy-${Date.now()}`,
         tenant_id: "demo-tenant-001",
-        name: "Бюджет",
+        name,
         points_amount,
-        period: "quarterly",
-        target_filter: {},
+        period,
+        target_filter,
         is_active,
+        first_accrual_date,
+        next_accrual_date: first_accrual_date,
+        last_accrual_date: null,
+        created_at: nowIso,
+        updated_at: nowIso,
       };
       DEMO_POLICIES.push(policy);
       return created(policy);
     }
 
     const appUser = await requireRole("admin", "hr");
-
-    // Admin can specify tenant_id; HR always uses their own
     const targetTenantId =
-      appUser.role === "admin" && body.tenant_id
-        ? body.tenant_id
-        : appUser.tenant_id;
+      appUser.role === "admin" && body.tenant_id ? body.tenant_id : appUser.tenant_id;
 
     const admin = createAdminClient();
 
@@ -79,16 +88,27 @@ export function POST(request: NextRequest) {
       .from("budget_policies")
       .insert({
         tenant_id: targetTenantId,
-        name: "Бюджет",
+        name,
         points_amount,
-        period: "quarterly",
-        target_filter: {},
+        period,
+        target_filter,
         is_active,
+        first_accrual_date,
+        next_accrual_date: first_accrual_date,
       } as never)
       .select("*")
       .single();
 
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to create policy");
+
+    if (policy.is_active) {
+      try {
+        await processAccruals(admin, targetTenantId);
+      } catch (err) {
+        console.error("[policies] processAccruals after create failed", err);
+      }
+    }
+
     return created(policy);
   }, "POST /api/admin/policies");
 }

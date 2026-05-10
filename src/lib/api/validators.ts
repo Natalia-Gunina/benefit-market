@@ -54,15 +54,73 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 
 // ---------------------------------------------------------------------------
-// Admin: Policies
+// Admin / HR: Budget policies (accrual rules)
 // ---------------------------------------------------------------------------
 
+const budgetPeriodEnum = z.enum(["monthly", "quarterly", "semiannual", "yearly"]);
+
+const matchConditionSchema = z.object({
+  field: z.enum(["grade_numeric", "tenure_months", "location"]),
+  operator: z.enum(["in", "gt", "lt", "gte", "lte", "eq"]),
+  value: z.union([
+    z.number(),
+    z.string(),
+    z.array(z.union([z.number(), z.string()])),
+  ]),
+});
+
+const targetFilterSchema = z
+  .object({
+    match_all: z.array(matchConditionSchema).optional(),
+  })
+  .passthrough();
+
 export const createPolicySchema = z.object({
-  points_amount: z.number().int().min(0, "points_amount must be >= 0"),
+  name: z.string().min(1, "Название обязательно").max(200),
+  points_amount: z.number().int().min(0, "Сумма баллов должна быть >= 0"),
+  period: budgetPeriodEnum,
+  first_accrual_date: z.string().min(8, "Укажите дату первого начисления"),
+  target_filter: targetFilterSchema.optional().default({}),
   is_active: z.boolean().optional().default(true),
 });
 
+export const updatePolicySchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  points_amount: z.number().int().min(0).optional(),
+  period: budgetPeriodEnum.optional(),
+  first_accrual_date: z.string().min(8).optional(),
+  target_filter: targetFilterSchema.optional(),
+  is_active: z.boolean().optional(),
+});
+
 export type CreatePolicyInput = z.infer<typeof createPolicySchema>;
+export type UpdatePolicyInput = z.infer<typeof updatePolicySchema>;
+
+// ---------------------------------------------------------------------------
+// HR: Individual accruals (per-employee exceptions)
+// ---------------------------------------------------------------------------
+
+export const createIndividualAccrualSchema = z.object({
+  user_id: z.string().min(1, "Сотрудник обязателен"),
+  mode: z.enum(["addition", "replacement"]),
+  points_amount: z.number().int().min(0, "Сумма баллов должна быть >= 0"),
+  period: budgetPeriodEnum,
+  first_accrual_date: z.string().min(8, "Укажите дату первого начисления"),
+  description: z.string().max(500).optional().default(""),
+  is_active: z.boolean().optional().default(true),
+});
+
+export const updateIndividualAccrualSchema = z.object({
+  mode: z.enum(["addition", "replacement"]).optional(),
+  points_amount: z.number().int().min(0).optional(),
+  period: budgetPeriodEnum.optional(),
+  first_accrual_date: z.string().min(8).optional(),
+  description: z.string().max(500).optional(),
+  is_active: z.boolean().optional(),
+});
+
+export type CreateIndividualAccrualInput = z.infer<typeof createIndividualAccrualSchema>;
+export type UpdateIndividualAccrualInput = z.infer<typeof updateIndividualAccrualSchema>;
 
 // ---------------------------------------------------------------------------
 // Admin: Rules
@@ -102,6 +160,12 @@ export const importRowSchema = z.object({
   email: z.string().email("Некорректный email"),
   name: z.string().min(1, "Имя обязательно"),
   grade: z.string().optional().default(""),
+  grade_numeric: z.coerce
+    .number()
+    .int()
+    .min(10, "Грейд должен быть от 10 до 18")
+    .max(18, "Грейд должен быть от 10 до 18")
+    .optional(),
   tenure_months: z.coerce.number().int().min(0, "Стаж должен быть >= 0"),
   location: z.string().optional().default(""),
   legal_entity: z.string().optional().default(""),

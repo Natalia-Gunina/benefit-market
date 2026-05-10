@@ -77,11 +77,19 @@ export async function demoOrdersList(params: {
   perPage?: number;
   userId?: string | null;
 }): Promise<NextResponse> {
-  const { DEMO_ORDERS, DEMO_ORDER_ITEMS, DEMO_BENEFITS } = await loadDemoData();
+  const {
+    DEMO_ORDERS,
+    DEMO_ORDER_ITEMS,
+    DEMO_BENEFITS,
+    DEMO_PROVIDER_OFFERINGS,
+    DEMO_PROVIDERS,
+  } = await loadDemoData();
   const { status, page = 1, perPage = 20, userId } = params;
   const offset = (page - 1) * perPage;
 
   const benefitMap = new Map(DEMO_BENEFITS.map((b) => [b.id, b]));
+  const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
+  const providerMap = new Map(DEMO_PROVIDERS.map((p) => [p.id, p]));
   let filtered = DEMO_ORDERS;
   if (userId) filtered = filtered.filter((o) => o.user_id === userId);
   if (status) filtered = filtered.filter((o) => o.status === status);
@@ -93,10 +101,22 @@ export async function demoOrdersList(params: {
     ...order,
     order_items: DEMO_ORDER_ITEMS.filter((oi) => oi.order_id === order.id).map((oi) => {
       const b = oi.benefit_id ? benefitMap.get(oi.benefit_id) : undefined;
+      const po = oi.provider_offering_id
+        ? offeringMap.get(oi.provider_offering_id)
+        : undefined;
+      const provider = po ? providerMap.get(po.provider_id) : undefined;
       return {
         ...oi,
         benefit: b
           ? { id: b.id, name: b.name, price_points: b.price_points, description: b.description }
+          : undefined,
+        offering: po
+          ? {
+              id: po.id,
+              name: po.name,
+              description: po.description,
+              providers: provider ? { name: provider.name } : null,
+            }
           : undefined,
       };
     }),
@@ -238,10 +258,46 @@ export async function demoProviderOfferingUpdate(
 // ---------------------------------------------------------------------------
 
 export async function demoEmployeesList(): Promise<NextResponse> {
-  const { DEMO_EMPLOYEES, DEMO_WALLETS } = await loadDemoData();
+  const {
+    DEMO_EMPLOYEES,
+    DEMO_WALLETS,
+    DEMO_POLICIES,
+    DEMO_INDIVIDUAL_ACCRUALS,
+  } = await loadDemoData();
+  const { evaluateConditions } = await import("@/lib/domain/condition-evaluator");
+
   const walletByUser = new Map(DEMO_WALLETS.map((w) => [w.user_id, w]));
+
   const data = DEMO_EMPLOYEES.map((emp) => {
     const w = walletByUser.get(emp.user.id);
+
+    // ---- Initial limit ----
+    // = points from individual replacement (if any) OR points from matching active policies
+    //   + addition from individual accruals
+    const additions = DEMO_INDIVIDUAL_ACCRUALS
+      .filter((a) => a.user_id === emp.user.id && a.is_active && a.mode === "addition")
+      .reduce((sum, a) => sum + a.points_amount, 0);
+
+    const replacement = DEMO_INDIVIDUAL_ACCRUALS.find(
+      (a) => a.user_id === emp.user.id && a.is_active && a.mode === "replacement",
+    );
+
+    let policyTotal = 0;
+    if (replacement) {
+      policyTotal = replacement.points_amount;
+    } else {
+      for (const p of DEMO_POLICIES) {
+        if (!p.is_active) continue;
+        if (p.tenant_id !== emp.user.tenant_id) continue;
+        if (evaluateConditions(emp.profile, p.target_filter)) {
+          policyTotal += p.points_amount;
+        }
+      }
+    }
+
+    const initialLimit = policyTotal + additions;
+    const remaining = w?.balance ?? 0;
+
     return {
       id: emp.user.id,
       email: emp.user.email,
@@ -250,6 +306,7 @@ export async function demoEmployeesList(): Promise<NextResponse> {
       name: emp.full_name,
       profile: {
         grade: emp.profile.grade,
+        grade_numeric: emp.profile.grade_numeric,
         tenure_months: emp.profile.tenure_months,
         location: emp.profile.location,
         legal_entity: emp.profile.legal_entity,
@@ -259,6 +316,8 @@ export async function demoEmployeesList(): Promise<NextResponse> {
         balance: w?.balance ?? 0,
         reserved: w?.reserved ?? 0,
       },
+      initial_limit: initialLimit,
+      remaining_balance: remaining,
     };
   });
   return NextResponse.json({ data, meta: { page: 1, per_page: 20, total: data.length } });

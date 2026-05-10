@@ -5,20 +5,12 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle } from "@/lib/supabase/typed-queries";
 import { notFound, validationError } from "@/lib/errors";
-import { z } from "zod";
+import { updatePolicySchema } from "@/lib/api/validators";
+import { processAccruals } from "@/lib/services/accrual.service";
 import type { BudgetPolicy } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-const updatePolicySchema = z.object({
-  points_amount: z.number().int().min(0).optional(),
-  is_active: z.boolean().optional(),
-});
-
-// ---------------------------------------------------------------------------
-// PATCH /api/admin/policies/[id] — Update a budget policy
+// PATCH /api/admin/policies/[id] — update a budget policy
 // ---------------------------------------------------------------------------
 
 export function PATCH(
@@ -40,31 +32,48 @@ export function PATCH(
       const policy = DEMO_POLICIES.find((p) => p.id === policyId);
       if (!policy) throw notFound("Policy not found");
       Object.assign(policy, updates);
+      if (updates.first_accrual_date) {
+        policy.next_accrual_date = updates.first_accrual_date;
+      }
+      policy.updated_at = new Date().toISOString();
       return success(policy);
     }
 
     const appUser = await requireRole("admin", "hr");
     const admin = createAdminClient();
 
+    const patch: Record<string, unknown> = { ...updates };
+    if (updates.first_accrual_date) {
+      patch.next_accrual_date = updates.first_accrual_date;
+    }
+    patch.updated_at = new Date().toISOString();
+
     let query = admin
       .from("budget_policies")
-      .update(updates as never)
+      .update(patch as never)
       .eq("id", policyId);
 
-    // HR can only update their own tenant's policies
     if (appUser.role !== "admin") {
       query = query.eq("tenant_id", appUser.tenant_id);
     }
 
     const result = await query.select("*").single();
-
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to update policy");
+
+    if (policy.is_active) {
+      try {
+        await processAccruals(admin, policy.tenant_id);
+      } catch (err) {
+        console.error("[policies] processAccruals after update failed", err);
+      }
+    }
+
     return success(policy);
   }, "PATCH /api/admin/policies/[id]");
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/admin/policies/[id] — Soft delete (set is_active=false)
+// DELETE /api/admin/policies/[id] — soft delete (is_active=false)
 // ---------------------------------------------------------------------------
 
 export function DELETE(
@@ -79,24 +88,23 @@ export function DELETE(
       const policy = DEMO_POLICIES.find((p) => p.id === policyId);
       if (!policy) throw notFound("Policy not found");
       policy.is_active = false;
+      policy.updated_at = new Date().toISOString();
       return success(policy);
     }
 
-    const appUser = await requireRole("admin");
+    const appUser = await requireRole("admin", "hr");
     const admin = createAdminClient();
 
     let query = admin
       .from("budget_policies")
-      .update({ is_active: false } as never)
+      .update({ is_active: false, updated_at: new Date().toISOString() } as never)
       .eq("id", policyId);
 
-    // Admin can delete any policy; others restricted to own tenant
     if (appUser.role !== "admin") {
       query = query.eq("tenant_id", appUser.tenant_id);
     }
 
     const result = await query.select("*").single();
-
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to deactivate policy");
     return success(policy);
   }, "DELETE /api/admin/policies/[id]");

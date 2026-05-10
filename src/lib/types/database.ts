@@ -58,6 +58,7 @@ export type Database = {
           user_id: string;
           tenant_id: string;
           grade: string;
+          grade_numeric: number | null;
           tenure_months: number;
           location: string;
           legal_entity: string;
@@ -68,6 +69,7 @@ export type Database = {
           user_id: string;
           tenant_id: string;
           grade?: string;
+          grade_numeric?: number | null;
           tenure_months?: number;
           location?: string;
           legal_entity?: string;
@@ -78,6 +80,7 @@ export type Database = {
           user_id?: string;
           tenant_id?: string;
           grade?: string;
+          grade_numeric?: number | null;
           tenure_months?: number;
           location?: string;
           legal_entity?: string;
@@ -205,6 +208,11 @@ export type Database = {
           period: Database['public']['Enums']['budget_period'];
           target_filter: Record<string, unknown>;
           is_active: boolean;
+          first_accrual_date: string;
+          next_accrual_date: string;
+          last_accrual_date: string | null;
+          created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -214,6 +222,11 @@ export type Database = {
           period?: Database['public']['Enums']['budget_period'];
           target_filter?: Record<string, unknown>;
           is_active?: boolean;
+          first_accrual_date?: string;
+          next_accrual_date?: string;
+          last_accrual_date?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -223,6 +236,62 @@ export type Database = {
           period?: Database['public']['Enums']['budget_period'];
           target_filter?: Record<string, unknown>;
           is_active?: boolean;
+          first_accrual_date?: string;
+          next_accrual_date?: string;
+          last_accrual_date?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+
+      individual_accruals: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string;
+          mode: Database['public']['Enums']['individual_accrual_mode'];
+          points_amount: number;
+          period: Database['public']['Enums']['budget_period'];
+          first_accrual_date: string;
+          next_accrual_date: string;
+          last_accrual_date: string | null;
+          description: string;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          user_id: string;
+          mode?: Database['public']['Enums']['individual_accrual_mode'];
+          points_amount: number;
+          period?: Database['public']['Enums']['budget_period'];
+          first_accrual_date?: string;
+          next_accrual_date?: string;
+          last_accrual_date?: string | null;
+          description?: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          user_id?: string;
+          mode?: Database['public']['Enums']['individual_accrual_mode'];
+          points_amount?: number;
+          period?: Database['public']['Enums']['budget_period'];
+          first_accrual_date?: string;
+          next_accrual_date?: string;
+          last_accrual_date?: string | null;
+          description?: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
 
@@ -673,7 +742,8 @@ export type Database = {
       user_role: 'employee' | 'hr' | 'admin' | 'provider';
       order_status: 'pending' | 'reserved' | 'paid' | 'cancelled' | 'expired';
       ledger_type: 'accrual' | 'reserve' | 'spend' | 'release' | 'expire';
-      budget_period: 'monthly' | 'quarterly' | 'yearly';
+      budget_period: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+      individual_accrual_mode: 'addition' | 'replacement';
       provider_status: 'pending' | 'verified' | 'suspended' | 'rejected';
       offering_status: 'draft' | 'pending_review' | 'published' | 'archived';
       offering_format: 'online' | 'offline';

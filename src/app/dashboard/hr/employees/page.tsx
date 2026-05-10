@@ -22,6 +22,7 @@ import {
 
 interface EmployeeProfile {
   grade: string;
+  grade_numeric: number | null;
   tenure_months: number;
   location: string;
   legal_entity: string;
@@ -41,6 +42,8 @@ interface Employee {
   name: string;
   profile: EmployeeProfile | null;
   wallet: EmployeeWallet | null;
+  initial_limit: number;
+  remaining_balance: number;
 }
 
 interface Meta {
@@ -49,7 +52,15 @@ interface Meta {
   total: number;
 }
 
-type SortKey = "name" | "email" | "grade" | "location" | "legal_entity" | "balance" | "tenure";
+type SortKey =
+  | "name"
+  | "email"
+  | "grade"
+  | "location"
+  | "tenure"
+  | "initial_limit"
+  | "remaining"
+  | "legal_entity";
 type SortDir = "asc" | "desc";
 
 // ---------------------------------------------------------------------------
@@ -64,8 +75,16 @@ function formatTenure(months: number): string {
   return `${years} г. ${remaining} мес.`;
 }
 
+function formatGrade(profile: EmployeeProfile | null): string {
+  if (!profile) return "-";
+  if (profile.grade_numeric !== null && profile.grade_numeric !== undefined) {
+    return String(profile.grade_numeric);
+  }
+  return profile.grade || "-";
+}
+
 // ---------------------------------------------------------------------------
-// Table Skeleton
+// Table skeleton
 // ---------------------------------------------------------------------------
 
 function TableSkeleton() {
@@ -150,24 +169,28 @@ export default function EmployeesPage() {
           bVal = b.email.toLowerCase();
           break;
         case "grade":
-          aVal = (a.profile?.grade ?? "").toLowerCase();
-          bVal = (b.profile?.grade ?? "").toLowerCase();
+          aVal = a.profile?.grade_numeric ?? -1;
+          bVal = b.profile?.grade_numeric ?? -1;
           break;
         case "location":
           aVal = (a.profile?.location ?? "").toLowerCase();
           bVal = (b.profile?.location ?? "").toLowerCase();
           break;
-        case "legal_entity":
-          aVal = (a.profile?.legal_entity ?? "").toLowerCase();
-          bVal = (b.profile?.legal_entity ?? "").toLowerCase();
-          break;
-        case "balance":
-          aVal = a.wallet?.balance ?? 0;
-          bVal = b.wallet?.balance ?? 0;
-          break;
         case "tenure":
           aVal = a.profile?.tenure_months ?? 0;
           bVal = b.profile?.tenure_months ?? 0;
+          break;
+        case "initial_limit":
+          aVal = a.initial_limit ?? 0;
+          bVal = b.initial_limit ?? 0;
+          break;
+        case "remaining":
+          aVal = a.remaining_balance ?? 0;
+          bVal = b.remaining_balance ?? 0;
+          break;
+        case "legal_entity":
+          aVal = (a.profile?.legal_entity ?? "").toLowerCase();
+          bVal = (b.profile?.legal_entity ?? "").toLowerCase();
           break;
       }
 
@@ -178,7 +201,6 @@ export default function EmployeesPage() {
     return sorted;
   }, [employees, sortKey, sortDir]);
 
-  // --- Sort toggle ---
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -188,18 +210,19 @@ export default function EmployeesPage() {
     }
   };
 
-  // --- Pagination ---
   const totalPages = Math.ceil(meta.total / meta.per_page) || 1;
 
   function SortableHead({
     label,
     sortKeyName,
+    className,
   }: {
     label: string;
     sortKeyName: SortKey;
+    className?: string;
   }) {
     return (
-      <TableHead>
+      <TableHead className={className}>
         <button
           className="flex items-center gap-1 hover:text-foreground"
           onClick={() => toggleSort(sortKeyName)}
@@ -221,7 +244,6 @@ export default function EmployeesPage() {
     <div className="page-transition space-y-6 p-6">
       <h1 className="text-2xl font-heading font-bold">Сотрудники</h1>
 
-      {/* --- Search --- */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -232,23 +254,19 @@ export default function EmployeesPage() {
         />
       </div>
 
-      {/* --- Error --- */}
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-error-light px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      {/* --- Table --- */}
       <Card>
         <CardContent>
           {loading ? (
             <TableSkeleton />
           ) : sortedEmployees.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
-              {debouncedSearch
-                ? "Сотрудники не найдены"
-                : "Нет сотрудников"}
+              {debouncedSearch ? "Сотрудники не найдены" : "Нет сотрудников"}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -259,12 +277,18 @@ export default function EmployeesPage() {
                     <SortableHead label="Email" sortKeyName="email" />
                     <SortableHead label="Грейд" sortKeyName="grade" />
                     <SortableHead label="Локация" sortKeyName="location" />
-                    <SortableHead
-                      label="Юрлицо"
-                      sortKeyName="legal_entity"
-                    />
-                    <SortableHead label="Баланс баллов" sortKeyName="balance" />
                     <SortableHead label="Стаж" sortKeyName="tenure" />
+                    <SortableHead
+                      label="Исходный лимит"
+                      sortKeyName="initial_limit"
+                      className="text-right"
+                    />
+                    <SortableHead
+                      label="Остаток баллов"
+                      sortKeyName="remaining"
+                      className="text-right"
+                    />
+                    <SortableHead label="Юрлицо" sortKeyName="legal_entity" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -281,21 +305,22 @@ export default function EmployeesPage() {
                       <TableCell className="text-muted-foreground">
                         {emp.email}
                       </TableCell>
-                      <TableCell>{emp.profile?.grade ?? "-"}</TableCell>
-                      <TableCell>{emp.profile?.location ?? "-"}</TableCell>
-                      <TableCell>
-                        {emp.profile?.legal_entity ?? "-"}
-                      </TableCell>
                       <TableCell className="tabular-nums">
-                        {emp.wallet
-                          ? emp.wallet.balance.toLocaleString("ru-RU")
-                          : "-"}
+                        {formatGrade(emp.profile)}
                       </TableCell>
+                      <TableCell>{emp.profile?.location ?? "-"}</TableCell>
                       <TableCell>
                         {emp.profile
                           ? formatTenure(emp.profile.tenure_months)
                           : "-"}
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {emp.initial_limit.toLocaleString("ru-RU")}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {emp.remaining_balance.toLocaleString("ru-RU")}
+                      </TableCell>
+                      <TableCell>{emp.profile?.legal_entity ?? "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -305,7 +330,6 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
-      {/* --- Pagination --- */}
       {!loading && meta.total > 0 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">

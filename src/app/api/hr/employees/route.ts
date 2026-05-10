@@ -6,6 +6,8 @@ import { withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { demoEmployeesList } from "@/lib/demo/demo-service";
+import { fetchInitialLimits } from "@/lib/services/accrual.service";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { User, EmployeeProfile, Wallet } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +21,7 @@ export interface EmployeeWithProfile {
   created_at: string;
   profile: {
     grade: string;
+    grade_numeric: number | null;
     tenure_months: number;
     location: string;
     legal_entity: string;
@@ -28,11 +31,13 @@ export interface EmployeeWithProfile {
     balance: number;
     reserved: number;
   } | null;
+  initial_limit: number;
+  remaining_balance: number;
   name: string;
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/hr/employees --- Employee list with search and pagination
+// GET /api/hr/employees — paginated employee list with profile + wallet
 // ---------------------------------------------------------------------------
 
 export function GET(request: NextRequest) {
@@ -78,7 +83,7 @@ export function GET(request: NextRequest) {
       });
     }
 
-    // --- Fetch employee profiles for these users ---
+    // --- Fetch employee profiles ---
     const userIds = allUsers.map((u) => u.id);
 
     const profiles = unwrapRowsSoft<EmployeeProfile>(
@@ -101,15 +106,16 @@ export function GET(request: NextRequest) {
         .order("period", { ascending: false }),
     );
 
-    // Group by user_id, take latest (first due to order desc)
     const walletMap = new Map<string, Wallet>();
     for (const w of wallets) {
-      if (!walletMap.has(w.user_id)) {
-        walletMap.set(w.user_id, w);
-      }
+      if (!walletMap.has(w.user_id)) walletMap.set(w.user_id, w);
     }
 
-    // --- Apply pagination ---
+    // --- Compute initial limits via point_ledger (sum of type='accrual') ---
+    const admin = createAdminClient();
+    const initialLimitMap = await fetchInitialLimits(admin, tenantId, userIds);
+
+    // --- Pagination ---
     const total = allUsers.length;
     const offset = (page - 1) * perPage;
     const paginated = allUsers.slice(offset, offset + perPage);
@@ -118,6 +124,8 @@ export function GET(request: NextRequest) {
     const data: EmployeeWithProfile[] = paginated.map((u) => {
       const profile = profileMap.get(u.id);
       const wallet = walletMap.get(u.id);
+      const initialLimit = initialLimitMap.get(u.id) ?? 0;
+      const remaining = wallet ? wallet.balance : 0;
 
       return {
         id: u.id,
@@ -128,6 +136,7 @@ export function GET(request: NextRequest) {
         profile: profile
           ? {
               grade: profile.grade,
+              grade_numeric: profile.grade_numeric,
               tenure_months: profile.tenure_months,
               location: profile.location,
               legal_entity: profile.legal_entity,
@@ -135,11 +144,10 @@ export function GET(request: NextRequest) {
             }
           : null,
         wallet: wallet
-          ? {
-              balance: wallet.balance,
-              reserved: wallet.reserved,
-            }
+          ? { balance: wallet.balance, reserved: wallet.reserved }
           : null,
+        initial_limit: initialLimit,
+        remaining_balance: remaining,
       };
     });
 

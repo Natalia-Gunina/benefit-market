@@ -80,6 +80,7 @@ export function POST(request: NextRequest) {
         const existing = DEMO_EMPLOYEES.find((e) => e.user.email === row.email);
         if (existing) {
           existing.profile.grade = row.grade;
+          existing.profile.grade_numeric = row.grade_numeric ?? existing.profile.grade_numeric;
           existing.profile.tenure_months = row.tenure_months;
           existing.profile.location = row.location;
           existing.profile.legal_entity = row.legal_entity;
@@ -101,6 +102,7 @@ export function POST(request: NextRequest) {
               user_id: id,
               tenant_id: "demo-tenant-001",
               grade: row.grade,
+              grade_numeric: row.grade_numeric ?? null,
               tenure_months: row.tenure_months,
               location: row.location,
               legal_entity: row.legal_entity,

@@ -7,6 +7,7 @@ const profile: EmployeeProfile = {
   user_id: "u1",
   tenant_id: "t1",
   grade: "senior",
+  grade_numeric: 15,
   tenure_months: 36,
   location: "Москва",
   legal_entity: "ООО Тест",

@@ -22,6 +22,7 @@ import type {
   ProviderOffering,
   TenantOffering,
   Review,
+  IndividualAccrual,
 } from '@/lib/types';
 
 // ========================== 1. DEMO TENANT ==================================
@@ -729,6 +730,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-001',
       tenant_id: 'demo-tenant-001',
       grade: 'senior',
+      grade_numeric: 15,
       tenure_months: 36,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -751,6 +753,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-002',
       tenant_id: 'demo-tenant-001',
       grade: 'lead',
+      grade_numeric: 17,
       tenure_months: 48,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -773,6 +776,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-003',
       tenant_id: 'demo-tenant-001',
       grade: 'middle',
+      grade_numeric: 13,
       tenure_months: 18,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -795,6 +799,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-004',
       tenant_id: 'demo-tenant-001',
       grade: 'senior',
+      grade_numeric: 15,
       tenure_months: 30,
       location: 'Санкт-Петербург',
       legal_entity: 'ООО Технологии Будущего',
@@ -817,6 +822,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-005',
       tenant_id: 'demo-tenant-001',
       grade: 'junior',
+      grade_numeric: 11,
       tenure_months: 6,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -839,6 +845,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-006',
       tenant_id: 'demo-tenant-001',
       grade: 'middle',
+      grade_numeric: 13,
       tenure_months: 24,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -861,6 +868,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-007',
       tenant_id: 'demo-tenant-001',
       grade: 'lead',
+      grade_numeric: 18,
       tenure_months: 60,
       location: 'Москва',
       legal_entity: 'ООО Технологии Будущего',
@@ -883,6 +891,7 @@ export const DEMO_EMPLOYEES: DemoEmployee[] = [
       user_id: 'demo-user-008',
       tenant_id: 'demo-tenant-001',
       grade: 'middle',
+      grade_numeric: 13,
       tenure_months: 12,
       location: 'Казань',
       legal_entity: 'ООО Технологии Будущего',
@@ -961,8 +970,18 @@ export const DEMO_POLICIES: BudgetPolicy[] = [
     name: 'Стандартный бюджет',
     points_amount: 50000,
     period: 'quarterly',
-    target_filter: { grades: ['junior', 'middle', 'senior', 'lead'] },
+    target_filter: {
+      match_all: [
+        { field: 'grade_numeric', operator: 'gte', value: 10 },
+        { field: 'grade_numeric', operator: 'lte', value: 14 },
+      ],
+    },
     is_active: true,
+    first_accrual_date: '2026-01-01',
+    next_accrual_date: '2026-07-01',
+    last_accrual_date: '2026-04-01',
+    created_at: '2026-01-15T10:00:00Z',
+    updated_at: '2026-04-01T00:00:00Z',
   },
   {
     id: 'demo-policy-002',
@@ -970,8 +989,36 @@ export const DEMO_POLICIES: BudgetPolicy[] = [
     name: 'Расширенный бюджет',
     points_amount: 75000,
     period: 'quarterly',
-    target_filter: { grades: ['senior', 'lead'] },
+    target_filter: {
+      match_all: [{ field: 'grade_numeric', operator: 'gte', value: 15 }],
+    },
     is_active: true,
+    first_accrual_date: '2026-01-01',
+    next_accrual_date: '2026-07-01',
+    last_accrual_date: '2026-04-01',
+    created_at: '2026-01-15T10:00:00Z',
+    updated_at: '2026-04-01T00:00:00Z',
+  },
+];
+
+// ========================== 11b. DEMO INDIVIDUAL ACCRUALS ===================
+
+export const DEMO_INDIVIDUAL_ACCRUALS: IndividualAccrual[] = [
+  {
+    id: 'demo-ind-acc-001',
+    tenant_id: 'demo-tenant-001',
+    user_id: 'demo-user-003',
+    mode: 'addition',
+    points_amount: 10000,
+    period: 'quarterly',
+    first_accrual_date: '2026-02-01',
+    next_accrual_date: '2026-05-01',
+    last_accrual_date: '2026-02-01',
+    description: 'Бонус за успешное завершение проекта',
+    is_active: true,
+    created_by: 'demo-user-002',
+    created_at: '2026-02-01T10:00:00Z',
+    updated_at: '2026-02-01T10:00:00Z',
   },
 ];
 

@@ -1,12 +1,12 @@
 import { unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { dbError } from "@/lib/errors";
-import { findApplicablePolicy } from "@/lib/budget";
+import { evaluateConditions } from "@/lib/domain/condition-evaluator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   EmployeeProfile,
   BudgetPolicy,
   Wallet,
-  PointLedger,
+  IndividualAccrual,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -21,8 +21,32 @@ export interface AccrualResult {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Period helpers
 // ---------------------------------------------------------------------------
+
+export function computeNextAccrual(
+  from: Date | string,
+  period: BudgetPolicy["period"],
+): string {
+  const d = typeof from === "string" ? new Date(from) : new Date(from.getTime());
+  switch (period) {
+    case "monthly":
+      d.setMonth(d.getMonth() + 1);
+      break;
+    case "quarterly":
+      d.setMonth(d.getMonth() + 3);
+      break;
+    case "semiannual":
+      d.setMonth(d.getMonth() + 6);
+      break;
+    case "yearly":
+      d.setFullYear(d.getFullYear() + 1);
+      break;
+    default:
+      d.setMonth(d.getMonth() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+}
 
 export function computePeriodInfo(period: BudgetPolicy["period"]): {
   periodLabel: string;
@@ -44,6 +68,11 @@ export function computePeriodInfo(period: BudgetPolicy["period"]): {
       const expiresDate = new Date(year, nextQuarterStartMonth, 1);
       return { periodLabel: `${year}-Q${quarter}`, expiresAt: expiresDate.toISOString() };
     }
+    case "semiannual": {
+      const half = month < 6 ? 1 : 2;
+      const expiresDate = new Date(year, half === 1 ? 6 : 12, 1);
+      return { periodLabel: `${year}-H${half}`, expiresAt: expiresDate.toISOString() };
+    }
     case "yearly": {
       const expiresDate = new Date(year + 1, 0, 1);
       return { periodLabel: `${year}`, expiresAt: expiresDate.toISOString() };
@@ -57,135 +86,262 @@ export function computePeriodInfo(period: BudgetPolicy["period"]): {
 }
 
 // ---------------------------------------------------------------------------
-// Service
+// Internal: accrue points to the active wallet for a single user.
+// Creates the wallet on first accrual.
 // ---------------------------------------------------------------------------
 
+async function accrueToWallet(
+  admin: SupabaseClient,
+  params: {
+    tenantId: string;
+    userId: string;
+    amount: number;
+    description: string;
+    period: BudgetPolicy["period"];
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { tenantId, userId, amount, description, period } = params;
+  const { periodLabel, expiresAt } = computePeriodInfo(period);
+
+  const wallets = unwrapRowsSoft<Wallet>(
+    await admin
+      .from("wallets")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId)
+      .eq("period", periodLabel)
+      .limit(1),
+  );
+
+  let wallet = wallets[0];
+  if (!wallet) {
+    const inserted = unwrapRowsSoft<Wallet>(
+      await admin
+        .from("wallets")
+        .insert({
+          user_id: userId,
+          tenant_id: tenantId,
+          balance: 0,
+          reserved: 0,
+          period: periodLabel,
+          expires_at: expiresAt,
+        } as never)
+        .select("*"),
+    );
+    if (inserted.length === 0) {
+      return { ok: false, error: `wallet create failed for user ${userId}` };
+    }
+    wallet = inserted[0];
+  }
+
+  const { error: updateError } = await admin
+    .from("wallets")
+    .update({ balance: wallet.balance + amount } as never)
+    .eq("id", wallet.id);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  const { error: ledgerError } = await admin
+    .from("point_ledger")
+    .insert({
+      wallet_id: wallet.id,
+      tenant_id: tenantId,
+      type: "accrual",
+      amount,
+      description,
+    } as never);
+  if (ledgerError) return { ok: false, error: ledgerError.message };
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Public: process all due accruals for a tenant
+// ---------------------------------------------------------------------------
+
+/**
+ * Walks every active budget_policy and individual_accrual whose
+ * `next_accrual_date` is on or before `asOf` and credits the corresponding
+ * employees. Each policy/accrual can be applied multiple times in one call
+ * if it is overdue by several periods.
+ *
+ * Replacement individual accruals exclude the target employee from policy
+ * accruals; addition accruals are applied on top of policies.
+ */
 export async function processAccruals(
   admin: SupabaseClient,
   tenantId: string,
+  asOf: Date = new Date(),
 ): Promise<AccrualResult> {
-  // Fetch policies
+  const asOfDate = asOf.toISOString().slice(0, 10);
+  const result: AccrualResult = { processed: 0, accrued: 0, skipped: 0, errors: [] };
+
+  // ---- Load employees and individual accruals up-front ----
+
+  const profilesResult = await admin
+    .from("employee_profiles")
+    .select("*")
+    .eq("tenant_id", tenantId);
+  if (profilesResult.error) throw dbError("Failed to fetch employee profiles");
+  const profiles = unwrapRowsSoft<EmployeeProfile>(profilesResult);
+
+  const indResult = await admin
+    .from("individual_accruals")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+  if (indResult.error) throw dbError("Failed to fetch individual accruals");
+  const individualAccruals = unwrapRowsSoft<IndividualAccrual>(indResult);
+
+  const replacementUserIds = new Set(
+    individualAccruals.filter((a) => a.mode === "replacement").map((a) => a.user_id),
+  );
+
+  // ---- Process budget policies ----
+
   const policiesResult = await admin
     .from("budget_policies")
     .select("*")
     .eq("tenant_id", tenantId)
-    .eq("is_active", true);
-
+    .eq("is_active", true)
+    .lte("next_accrual_date", asOfDate);
   if (policiesResult.error) throw dbError("Failed to fetch budget policies");
-
   const policies = unwrapRowsSoft<BudgetPolicy>(policiesResult);
-  if (policies.length === 0) {
-    return { processed: 0, accrued: 0, skipped: 0, errors: ["NO_POLICIES"] };
-  }
 
-  // Fetch employees
-  const profilesResult = await admin.from("employee_profiles").select("*").eq("tenant_id", tenantId);
-  if (profilesResult.error) throw dbError("Failed to fetch employee profiles");
+  for (const policy of policies) {
+    const targets = profiles.filter((p) => evaluateConditions(p, policy.target_filter));
+    let nextDate = policy.next_accrual_date;
 
-  const profiles = unwrapRowsSoft<EmployeeProfile>(profilesResult);
-  if (profiles.length === 0) {
-    return { processed: 0, accrued: 0, skipped: 0, errors: [] };
-  }
-
-  const result: AccrualResult = { processed: 0, accrued: 0, skipped: 0, errors: [] };
-
-  for (const profile of profiles) {
-    result.processed++;
-    const userId = profile.user_id;
-    const policy = findApplicablePolicy(profile, policies);
-
-    if (!policy) {
-      result.skipped++;
-      continue;
-    }
-
-    const { periodLabel, expiresAt } = computePeriodInfo(policy.period);
-
-    try {
-      const existingWallets = unwrapRowsSoft<Wallet>(
-        await admin.from("wallets").select("*").eq("user_id", userId).eq("tenant_id", tenantId).eq("period", periodLabel).limit(1),
-      );
-      const existingWallet = existingWallets.length > 0 ? existingWallets[0] : null;
-
-      if (existingWallet) {
-        const existingAccruals = unwrapRowsSoft<PointLedger>(
-          await admin.from("point_ledger").select("*").eq("wallet_id", existingWallet.id).eq("tenant_id", tenantId).eq("type", "accrual").limit(1),
-        );
-
-        if (existingAccruals.length > 0) {
+    while (nextDate <= asOfDate) {
+      const periodDate = nextDate; // capture for description
+      for (const profile of targets) {
+        result.processed++;
+        if (replacementUserIds.has(profile.user_id)) {
           result.skipped++;
           continue;
         }
 
-        const { error: updateError } = await admin
-          .from("wallets")
-          .update({ balance: existingWallet.balance + policy.points_amount } as never)
-          .eq("id", existingWallet.id);
-
-        if (updateError) {
-          result.errors.push(`Failed to update wallet for user ${userId}: ${updateError.message}`);
-          continue;
-        }
-
-        const { error: ledgerError } = await admin
-          .from("point_ledger")
-          .insert({
-            wallet_id: existingWallet.id,
-            tenant_id: tenantId,
-            type: "accrual",
-            amount: policy.points_amount,
-            description: `Начисление баллов по политике «${policy.name}» за ${periodLabel}`,
-          } as never);
-
-        if (ledgerError) {
-          result.errors.push(`Failed to insert ledger entry for user ${userId}: ${ledgerError.message}`);
-          continue;
-        }
-
-        result.accrued++;
-      } else {
-        const newWallets = unwrapRowsSoft<Wallet>(
-          await admin
-            .from("wallets")
-            .insert({
-              user_id: userId,
-              tenant_id: tenantId,
-              balance: policy.points_amount,
-              reserved: 0,
-              period: periodLabel,
-              expires_at: expiresAt,
-            } as never)
-            .select("*"),
-        );
-
-        const newWallet = newWallets.length > 0 ? newWallets[0] : null;
-        if (!newWallet) {
-          result.errors.push(`Failed to create wallet for user ${userId}: unknown error`);
-          continue;
-        }
-
-        const { error: ledgerError } = await admin
-          .from("point_ledger")
-          .insert({
-            wallet_id: newWallet.id,
-            tenant_id: tenantId,
-            type: "accrual",
-            amount: policy.points_amount,
-            description: `Начисление баллов по политике «${policy.name}» за ${periodLabel}`,
-          } as never);
-
-        if (ledgerError) {
-          result.errors.push(`Failed to insert ledger entry for user ${userId}: ${ledgerError.message}`);
-          continue;
-        }
-
-        result.accrued++;
+        const outcome = await accrueToWallet(admin, {
+          tenantId,
+          userId: profile.user_id,
+          amount: policy.points_amount,
+          description: `Начисление по политике «${policy.name}» (${periodDate})`,
+          period: policy.period,
+        });
+        if (outcome.ok) result.accrued++;
+        else result.errors.push(`policy ${policy.id} -> user ${profile.user_id}: ${outcome.error}`);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      result.errors.push(`Unexpected error for user ${userId}: ${message}`);
+      nextDate = computeNextAccrual(nextDate, policy.period);
+    }
+
+    if (nextDate !== policy.next_accrual_date) {
+      await admin
+        .from("budget_policies")
+        .update({
+          last_accrual_date: asOfDate,
+          next_accrual_date: nextDate,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", policy.id);
+    }
+  }
+
+  // ---- Process individual accruals ----
+
+  const indDue = individualAccruals.filter((a) => a.next_accrual_date <= asOfDate);
+  for (const acc of indDue) {
+    let nextDate = acc.next_accrual_date;
+    while (nextDate <= asOfDate) {
+      const periodDate = nextDate;
+      result.processed++;
+      const outcome = await accrueToWallet(admin, {
+        tenantId,
+        userId: acc.user_id,
+        amount: acc.points_amount,
+        description:
+          acc.mode === "replacement"
+            ? `Индивидуальное начисление (замена политики) ${periodDate}${acc.description ? ` — ${acc.description}` : ""}`
+            : `Индивидуальное начисление (дополнение) ${periodDate}${acc.description ? ` — ${acc.description}` : ""}`,
+        period: acc.period,
+      });
+      if (outcome.ok) result.accrued++;
+      else result.errors.push(`individual ${acc.id} -> user ${acc.user_id}: ${outcome.error}`);
+      nextDate = computeNextAccrual(nextDate, acc.period);
+    }
+    if (nextDate !== acc.next_accrual_date) {
+      await admin
+        .from("individual_accruals")
+        .update({
+          last_accrual_date: asOfDate,
+          next_accrual_date: nextDate,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("id", acc.id);
     }
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Public: apply a single just-created policy / individual accrual if first
+// accrual date is today (used right after creation).
+// ---------------------------------------------------------------------------
+
+export async function applyImmediateAccrualForPolicy(
+  admin: SupabaseClient,
+  tenantId: string,
+  policyId: string,
+): Promise<AccrualResult> {
+  // Lean wrapper that just triggers processAccruals; the loop will naturally
+  // pick up the new policy because we set next_accrual_date = first_accrual_date.
+  return processAccruals(admin, tenantId);
+}
+
+export async function applyImmediateAccrualForIndividual(
+  admin: SupabaseClient,
+  tenantId: string,
+  individualAccrualId: string,
+): Promise<AccrualResult> {
+  return processAccruals(admin, tenantId);
+}
+
+// ---------------------------------------------------------------------------
+// Public: per-employee accrued totals (Исходный лимит) for the current wallet
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a map of `userId -> total accrued points` for the current wallet
+ * period. Used by the HR employee list to show "Исходный лимит".
+ */
+export async function fetchInitialLimits(
+  admin: SupabaseClient,
+  tenantId: string,
+  userIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (userIds.length === 0) return map;
+
+  type WalletWithLedger = Wallet & {
+    point_ledger?: { amount: number; type: string }[];
+  };
+
+  const rows = unwrapRowsSoft<WalletWithLedger>(
+    await admin
+      .from("wallets")
+      .select("id, user_id, tenant_id, balance, reserved, period, expires_at, point_ledger(amount, type)")
+      .eq("tenant_id", tenantId)
+      .in("user_id", userIds)
+      .order("expires_at", { ascending: false }),
+  );
+
+  for (const w of rows) {
+    if (map.has(w.user_id)) continue; // first row (newest) only
+    const ledger = w.point_ledger ?? [];
+    const accrued = ledger
+      .filter((l) => l.type === "accrual")
+      .reduce((s, l) => s + l.amount, 0);
+    map.set(w.user_id, accrued);
+  }
+
+  return map;
 }

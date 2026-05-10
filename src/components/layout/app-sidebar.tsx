@@ -59,7 +59,7 @@ const hrNavItems: NavItem[] = [
   { title: "Аналитика", href: "/dashboard/hr", icon: BarChart },
   { title: "Сотрудники", href: "/dashboard/hr/employees", icon: Users },
   { title: "Импорт", href: "/dashboard/hr/import", icon: Upload },
-  { title: "Политики", href: "/dashboard/hr/policies", icon: Settings },
+  { title: "Начисления и политики", href: "/dashboard/hr/policies", icon: Settings },
 ];
 
 const adminNavItems: NavItem[] = [

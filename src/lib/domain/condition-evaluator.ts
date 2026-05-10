@@ -8,7 +8,7 @@ import type { EmployeeProfile } from "@/lib/types";
 /** Structured condition inside the match_all array */
 export interface MatchCondition {
   field: string;
-  operator: "in" | "gte" | "lte" | "eq";
+  operator: "in" | "gt" | "lt" | "gte" | "lte" | "eq";
   value: unknown;
 }
 
@@ -19,6 +19,7 @@ export interface ConditionSet {
 
   // Shorthand flat format (alternative convenience notation)
   grade?: string[];
+  grade_numeric?: number[];
   min_tenure?: number;
   location?: string[];
   legal_entity?: string[];
@@ -46,6 +47,14 @@ function evaluateMatchCondition(
     case "in":
       if (!Array.isArray(value)) return false;
       return value.includes(profileValue);
+    case "gt":
+      return (
+        typeof profileValue === "number" && profileValue > (value as number)
+      );
+    case "lt":
+      return (
+        typeof profileValue === "number" && profileValue < (value as number)
+      );
     case "gte":
       return (
         typeof profileValue === "number" && profileValue >= (value as number)
@@ -71,6 +80,15 @@ function evaluateFlatConditions(
 ): boolean {
   if (conditions.grade && conditions.grade.length > 0) {
     if (!conditions.grade.includes(profile.grade)) return false;
+  }
+  if (conditions.grade_numeric && conditions.grade_numeric.length > 0) {
+    if (
+      profile.grade_numeric === null ||
+      profile.grade_numeric === undefined ||
+      !conditions.grade_numeric.includes(profile.grade_numeric)
+    ) {
+      return false;
+    }
   }
   if (conditions.min_tenure !== undefined && conditions.min_tenure !== null) {
     if (profile.tenure_months < conditions.min_tenure) return false;
