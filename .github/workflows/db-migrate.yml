@@ -57,6 +57,19 @@ jobs:
             --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
             --password "$SUPABASE_DB_PASSWORD"
 
+      # One-time bootstrap: register migrations that were applied by hand
+      # (via Supabase SQL Editor) before this workflow existed. Idempotent —
+      # `migration repair` does nothing if the version is already recorded.
+      - name: Bootstrap migration history (00001..00008)
+        run: |
+          for v in 00001 00002 00003 00004 00005 00006 00007 00008; do
+            echo "→ Marking $v as applied (no-op if already recorded)"
+            supabase migration repair \
+              --status applied \
+              --password "$SUPABASE_DB_PASSWORD" \
+              "$v" || true
+          done
+
       - name: Mark migrations as applied
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mark_applied != '' }}
         run: |
