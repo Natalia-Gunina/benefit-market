@@ -25,6 +25,7 @@ import {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,6 +36,11 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!fullName.trim()) {
+      setError("Укажите ФИО");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Пароли не совпадают");
@@ -56,6 +62,7 @@ export default function RegisterPage() {
         options: {
           data: {
             role,
+            full_name: fullName.trim(),
           },
         },
       });
@@ -96,6 +103,18 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="fullName">ФИО</Label>
+            <Input
+              id="fullName"
+              type="text"
+              placeholder="Иванов Иван Иванович"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              autoComplete="name"
+            />
+          </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
