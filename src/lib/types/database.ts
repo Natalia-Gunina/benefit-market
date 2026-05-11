@@ -60,6 +60,7 @@ export type Database = {
           grade: string;
           grade_numeric: number | null;
           tenure_months: number;
+          hire_date: string | null;
           location: string;
           legal_entity: string;
           extra: Record<string, unknown>;
@@ -71,6 +72,7 @@ export type Database = {
           grade?: string;
           grade_numeric?: number | null;
           tenure_months?: number;
+          hire_date?: string | null;
           location?: string;
           legal_entity?: string;
           extra?: Record<string, unknown>;
@@ -82,6 +84,7 @@ export type Database = {
           grade?: string;
           grade_numeric?: number | null;
           tenure_months?: number;
+          hire_date?: string | null;
           location?: string;
           legal_entity?: string;
           extra?: Record<string, unknown>;

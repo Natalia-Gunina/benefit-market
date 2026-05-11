@@ -24,6 +24,7 @@ interface EmployeeProfile {
   grade: string;
   grade_numeric: number | null;
   tenure_months: number;
+  hire_date: string | null;
   location: string;
   legal_entity: string;
   extra: Record<string, unknown>;
@@ -57,6 +58,7 @@ type SortKey =
   | "email"
   | "grade"
   | "location"
+  | "hire_date"
   | "tenure"
   | "initial_limit"
   | "remaining"
@@ -67,12 +69,39 @@ type SortDir = "asc" | "desc";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatTenure(months: number): string {
-  const years = Math.floor(months / 12);
-  const remaining = months % 12;
-  if (years === 0) return `${remaining} мес.`;
-  if (remaining === 0) return `${years} г.`;
-  return `${years} г. ${remaining} мес.`;
+function pluralYears(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "лет";
+  if (mod10 === 1) return "год";
+  if (mod10 >= 2 && mod10 <= 4) return "года";
+  return "лет";
+}
+
+function fullYearsSince(hireDate: string | null): number | null {
+  if (!hireDate) return null;
+  const hire = new Date(hireDate);
+  if (Number.isNaN(hire.getTime())) return null;
+  const now = new Date();
+  let years = now.getFullYear() - hire.getFullYear();
+  const m = now.getMonth() - hire.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < hire.getDate())) {
+    years--;
+  }
+  return Math.max(0, years);
+}
+
+function formatTenureYears(hireDate: string | null): string {
+  const years = fullYearsSince(hireDate);
+  if (years === null) return "-";
+  return `${years} ${pluralYears(years)}`;
+}
+
+function formatHireDate(hireDate: string | null): string {
+  if (!hireDate) return "-";
+  const d = new Date(hireDate);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("ru-RU");
 }
 
 function formatGrade(profile: EmployeeProfile | null): string {
@@ -176,9 +205,13 @@ export default function EmployeesPage() {
           aVal = (a.profile?.location ?? "").toLowerCase();
           bVal = (b.profile?.location ?? "").toLowerCase();
           break;
+        case "hire_date":
+          aVal = a.profile?.hire_date ?? "";
+          bVal = b.profile?.hire_date ?? "";
+          break;
         case "tenure":
-          aVal = a.profile?.tenure_months ?? 0;
-          bVal = b.profile?.tenure_months ?? 0;
+          aVal = fullYearsSince(a.profile?.hire_date ?? null) ?? -1;
+          bVal = fullYearsSince(b.profile?.hire_date ?? null) ?? -1;
           break;
         case "initial_limit":
           aVal = a.initial_limit ?? 0;
@@ -284,6 +317,7 @@ export default function EmployeesPage() {
                     <SortableHead label="Email" sortKeyName="email" />
                     <SortableHead label="Грейд" sortKeyName="grade" />
                     <SortableHead label="Локация" sortKeyName="location" />
+                    <SortableHead label="Дата приема" sortKeyName="hire_date" />
                     <SortableHead label="Стаж" sortKeyName="tenure" />
                     <SortableHead
                       label="Исходный лимит"
@@ -316,10 +350,11 @@ export default function EmployeesPage() {
                         {formatGrade(emp.profile)}
                       </TableCell>
                       <TableCell>{emp.profile?.location ?? "-"}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatHireDate(emp.profile?.hire_date ?? null)}
+                      </TableCell>
                       <TableCell>
-                        {emp.profile
-                          ? formatTenure(emp.profile.tenure_months)
-                          : "-"}
+                        {formatTenureYears(emp.profile?.hire_date ?? null)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {emp.initial_limit.toLocaleString("ru-RU")}

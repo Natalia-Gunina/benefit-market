@@ -23,6 +23,7 @@ export interface EmployeeWithProfile {
     grade: string;
     grade_numeric: number | null;
     tenure_months: number;
+    hire_date: string | null;
     location: string;
     legal_entity: string;
     extra: Record<string, unknown>;
@@ -138,6 +139,7 @@ export function GET(request: NextRequest) {
               grade: profile.grade,
               grade_numeric: profile.grade_numeric,
               tenure_months: profile.tenure_months,
+              hire_date: profile.hire_date ?? null,
               location: profile.location,
               legal_entity: profile.legal_entity,
               extra: profile.extra,

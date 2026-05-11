@@ -322,6 +322,7 @@ export async function demoEmployeesList(): Promise<NextResponse> {
         grade: emp.profile.grade,
         grade_numeric: emp.profile.grade_numeric,
         tenure_months: emp.profile.tenure_months,
+        hire_date: (emp.profile as { hire_date?: string | null }).hire_date ?? null,
         location: emp.profile.location,
         legal_entity: emp.profile.legal_entity,
         extra: emp.profile.extra,
