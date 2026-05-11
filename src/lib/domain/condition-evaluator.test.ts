@@ -9,6 +9,7 @@ const profile: EmployeeProfile = {
   grade: "senior",
   grade_numeric: 15,
   tenure_months: 36,
+  hire_date: null,
   location: "Москва",
   legal_entity: "ООО Тест",
   extra: {},

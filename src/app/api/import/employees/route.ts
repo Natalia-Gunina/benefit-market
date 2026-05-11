@@ -104,6 +104,11 @@ export function POST(request: NextRequest) {
               grade: row.grade,
               grade_numeric: row.grade_numeric ?? null,
               tenure_months: row.tenure_months,
+              hire_date: (() => {
+                const d = new Date();
+                d.setMonth(d.getMonth() - row.tenure_months);
+                return d.toISOString().slice(0, 10);
+              })(),
               location: row.location,
               legal_entity: row.legal_entity,
               extra: {},

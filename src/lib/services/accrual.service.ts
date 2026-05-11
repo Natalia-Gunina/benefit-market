@@ -325,7 +325,7 @@ export async function processAccruals(
 export async function applyImmediateAccrualForPolicy(
   admin: SupabaseClient,
   tenantId: string,
-  policyId: string,
+  _policyId: string,
 ): Promise<AccrualResult> {
   // Lean wrapper that just triggers processAccruals; the loop will naturally
   // pick up the new policy because we set next_accrual_date = first_accrual_date.
@@ -335,7 +335,7 @@ export async function applyImmediateAccrualForPolicy(
 export async function applyImmediateAccrualForIndividual(
   admin: SupabaseClient,
   tenantId: string,
-  individualAccrualId: string,
+  _individualAccrualId: string,
 ): Promise<AccrualResult> {
   return processAccruals(admin, tenantId);
 }
