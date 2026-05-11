@@ -69,9 +69,16 @@ const matchConditionSchema = z.object({
   ]),
 });
 
+// Each rule group is a single condition with its own points_amount. An employee
+// matching multiple groups receives the sum of those groups' points.
+const ruleGroupSchema = matchConditionSchema.extend({
+  points_amount: z.number().int().min(0).optional().default(0),
+});
+
 const targetFilterSchema = z
   .object({
     match_all: z.array(matchConditionSchema).optional(),
+    rule_groups: z.array(ruleGroupSchema).optional(),
   })
   .passthrough();
 

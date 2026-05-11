@@ -159,6 +159,43 @@ async function accrueToWallet(
 // ---------------------------------------------------------------------------
 
 /**
+ * Compute how many points an employee receives from a single policy. With the
+ * new per-rule-points format (target_filter.rule_groups), the result is the
+ * sum of all rule_groups whose single condition matches the employee. Falls
+ * back to the legacy {match_all + policy.points_amount} format when the new
+ * shape is absent.
+ */
+export function computePolicyAccrualAmount(
+  profile: EmployeeProfile,
+  policy: BudgetPolicy,
+): number {
+  const filter = (policy.target_filter ?? {}) as {
+    rule_groups?: Array<{
+      field: string;
+      operator: string;
+      value: number | string;
+      points_amount?: number;
+    }>;
+    match_all?: Array<{ field: string; operator: string; value: number | string }>;
+  };
+
+  if (Array.isArray(filter.rule_groups) && filter.rule_groups.length > 0) {
+    let total = 0;
+    for (const rg of filter.rule_groups) {
+      if (evaluateConditions(profile, { match_all: [rg] })) {
+        total += rg.points_amount ?? 0;
+      }
+    }
+    return total;
+  }
+
+  if (evaluateConditions(profile, filter)) {
+    return policy.points_amount;
+  }
+  return 0;
+}
+
+/**
  * Walks every active budget_policy and individual_accrual whose
  * `next_accrual_date` is on or before `asOf` and credits the corresponding
  * employees. Each policy/accrual can be applied multiple times in one call
@@ -208,22 +245,20 @@ export async function processAccruals(
   const policies = unwrapRowsSoft<BudgetPolicy>(policiesResult);
 
   for (const policy of policies) {
-    const targets = profiles.filter((p) => evaluateConditions(p, policy.target_filter));
     let nextDate = policy.next_accrual_date;
 
     while (nextDate <= asOfDate) {
       const periodDate = nextDate; // capture for description
-      for (const profile of targets) {
-        result.processed++;
-        if (replacementUserIds.has(profile.user_id)) {
-          result.skipped++;
-          continue;
-        }
+      for (const profile of profiles) {
+        if (replacementUserIds.has(profile.user_id)) continue;
+        const amount = computePolicyAccrualAmount(profile, policy);
+        if (amount <= 0) continue;
 
+        result.processed++;
         const outcome = await accrueToWallet(admin, {
           tenantId,
           userId: profile.user_id,
-          amount: policy.points_amount,
+          amount,
           description: `Начисление по политике «${policy.name}» (${periodDate})`,
           period: policy.period,
         });

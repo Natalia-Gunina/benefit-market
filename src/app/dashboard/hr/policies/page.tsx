@@ -69,10 +69,13 @@ const PERIOD_NEXT_LABEL: Record<BudgetPeriod, string> = {
   yearly: "год",
 };
 
+// Tenure is stored in months in the DB but the rule builder talks about full
+// years to match how HR phrases policies. `multiplier` converts years → months
+// when serialising and the reverse when loading existing rules.
 const RULE_FIELDS = [
-  { value: "grade_numeric", label: "Грейд", type: "number" as const, min: 10, max: 18 },
-  { value: "tenure_months", label: "Стаж (мес.)", type: "number" as const, min: 0, max: 600 },
-  { value: "location", label: "Город", type: "text" as const },
+  { value: "grade_numeric", label: "Грейд", type: "number" as const, min: 10, max: 18, multiplier: 1 },
+  { value: "tenure_months", label: "Стаж (лет)", type: "number" as const, min: 0, max: 50, multiplier: 12 },
+  { value: "location", label: "Город", type: "text" as const, multiplier: 1 },
 ] as const;
 
 type RuleFieldValue = (typeof RULE_FIELDS)[number]["value"];
@@ -94,6 +97,7 @@ interface RuleRow {
   field: RuleFieldValue;
   operator: Operator;
   value: string;
+  points_amount: string;
 }
 
 function newRuleRow(): RuleRow {
@@ -102,6 +106,7 @@ function newRuleRow(): RuleRow {
     field: "grade_numeric",
     operator: "gte",
     value: "",
+    points_amount: "",
   };
 }
 
@@ -127,92 +132,92 @@ function formatDateRu(date: string | null | undefined): string {
 /* Rule helpers — convert RuleRow[] <-> target_filter JSON                    */
 /* -------------------------------------------------------------------------- */
 
+interface RuleGroup {
+  field: string;
+  operator: Operator;
+  value: number | string;
+  points_amount: number;
+}
+
 interface MatchCondition {
   field: string;
   operator: Operator;
   value: number | string;
 }
 
-function rulesToFilter(rules: RuleRow[]): { match_all: MatchCondition[] } {
-  const match_all: MatchCondition[] = [];
+function rulesToFilter(rules: RuleRow[]): { rule_groups: RuleGroup[] } {
+  const rule_groups: RuleGroup[] = [];
   for (const r of rules) {
     if (!r.value.trim()) continue;
     const fieldDef = RULE_FIELDS.find((f) => f.value === r.field);
     const isNumber = fieldDef?.type === "number";
-    const value = isNumber ? Number(r.value) : r.value.trim();
-    if (isNumber && Number.isNaN(value as number)) continue;
-    match_all.push({ field: r.field, operator: r.operator, value });
+    const multiplier = fieldDef?.multiplier ?? 1;
+    let value: number | string;
+    if (isNumber) {
+      const n = Number(r.value);
+      if (Number.isNaN(n)) continue;
+      value = n * multiplier;
+    } else {
+      value = r.value.trim();
+    }
+    const pts = Number(r.points_amount);
+    rule_groups.push({
+      field: r.field,
+      operator: r.operator,
+      value,
+      points_amount: Number.isNaN(pts) ? 0 : pts,
+    });
   }
-  return { match_all };
+  return { rule_groups };
+}
+
+function ruleRowFromCondition(
+  c: { field: string; operator: Operator; value: number | string },
+  idx: number,
+  points: string,
+): RuleRow | null {
+  const fieldDef = RULE_FIELDS.find((rf) => rf.value === c.field);
+  if (!fieldDef) return null;
+  const multiplier = fieldDef.multiplier ?? 1;
+  let displayValue: string;
+  if (fieldDef.type === "number" && typeof c.value === "number") {
+    displayValue = String(c.value / multiplier);
+  } else {
+    displayValue = String(c.value ?? "");
+  }
+  return {
+    id: `rule-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    field: c.field as RuleFieldValue,
+    operator: c.operator,
+    value: displayValue,
+    points_amount: points,
+  };
 }
 
 function filterToRules(filter: unknown): RuleRow[] {
-  const f = (filter ?? {}) as { match_all?: MatchCondition[] };
-  if (!Array.isArray(f.match_all) || f.match_all.length === 0) return [];
-  return f.match_all
-    .filter((c) => RULE_FIELDS.some((rf) => rf.value === c.field))
-    .map((c, idx) => ({
-      id: `rule-${idx}-${Date.now()}`,
-      field: c.field as RuleFieldValue,
-      operator: c.operator,
-      value: String(c.value ?? ""),
-    }));
-}
+  const f = (filter ?? {}) as {
+    rule_groups?: Array<RuleGroup>;
+    match_all?: Array<MatchCondition>;
+  };
 
-/** Detect contradictions in numeric rules (e.g. grade>15 AND grade<14). */
-function findRuleContradictions(rules: RuleRow[]): string | null {
-  // Group numeric rules by field
-  const byField = new Map<RuleFieldValue, RuleRow[]>();
-  for (const r of rules) {
-    const f = RULE_FIELDS.find((rf) => rf.value === r.field);
-    if (!f || f.type !== "number") continue;
-    if (!r.value.trim()) continue;
-    const list = byField.get(r.field) ?? [];
-    list.push(r);
-    byField.set(r.field, list);
+  if (Array.isArray(f.rule_groups) && f.rule_groups.length > 0) {
+    const rows: RuleRow[] = [];
+    f.rule_groups.forEach((c, idx) => {
+      const row = ruleRowFromCondition(c, idx, String(c.points_amount ?? ""));
+      if (row) rows.push(row);
+    });
+    return rows;
   }
 
-  for (const [field, list] of byField) {
-    const label = RULE_FIELDS.find((f) => f.value === field)!.label;
-    let lower = -Infinity; // best lower bound
-    let upper = +Infinity; // best upper bound
-    const eqs: number[] = [];
-
-    for (const r of list) {
-      const v = Number(r.value);
-      if (Number.isNaN(v)) continue;
-      switch (r.operator) {
-        case "gt":
-          lower = Math.max(lower, v + 0.0001);
-          break;
-        case "gte":
-          lower = Math.max(lower, v);
-          break;
-        case "lt":
-          upper = Math.min(upper, v - 0.0001);
-          break;
-        case "lte":
-          upper = Math.min(upper, v);
-          break;
-        case "eq":
-          eqs.push(v);
-          break;
-      }
-    }
-
-    if (lower > upper) {
-      return `Противоречие в правилах для поля «${label}»: нижняя и верхняя границы не пересекаются`;
-    }
-    if (eqs.length > 1 && new Set(eqs).size > 1) {
-      return `Противоречие: для поля «${label}» указаны разные точные значения (=)`;
-    }
-    for (const eq of eqs) {
-      if (eq < lower || eq > upper) {
-        return `Противоречие: для поля «${label}» точное значение не входит в диапазон`;
-      }
-    }
+  if (Array.isArray(f.match_all) && f.match_all.length > 0) {
+    const rows: RuleRow[] = [];
+    f.match_all.forEach((c, idx) => {
+      const row = ruleRowFromCondition(c, idx, "");
+      if (row) rows.push(row);
+    });
+    return rows;
   }
-  return null;
+  return [];
 }
 
 function formatFilterHuman(filter: unknown): string {
@@ -224,9 +229,12 @@ function formatFilterHuman(filter: unknown): string {
       const op = [...NUMERIC_OPERATORS, ...TEXT_OPERATORS].find(
         (o) => o.value === r.operator,
       )?.label ?? r.operator;
-      return `${label} ${op} ${r.value}`;
+      const pts = r.points_amount
+        ? ` → ${Number(r.points_amount).toLocaleString("ru-RU")} б.`
+        : "";
+      return `${label} ${op} ${r.value}${pts}`;
     })
-    .join(" и ");
+    .join("; ");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -259,7 +267,6 @@ interface EmployeeOption {
 
 interface PolicyForm {
   name: string;
-  points_amount: number;
   period: BudgetPeriod;
   first_accrual_date: string;
   is_active: boolean;
@@ -269,7 +276,7 @@ interface PolicyForm {
 interface IndividualForm {
   user_id: string;
   mode: "addition" | "replacement";
-  points_amount: number;
+  points_amount: string;
   period: BudgetPeriod;
   first_accrual_date: string;
   description: string;
@@ -279,7 +286,6 @@ interface IndividualForm {
 function policyToForm(p: BudgetPolicy): PolicyForm {
   return {
     name: p.name,
-    points_amount: p.points_amount,
     period: p.period,
     first_accrual_date:
       p.first_accrual_date ?? p.next_accrual_date ?? todayIso(),
@@ -291,7 +297,6 @@ function policyToForm(p: BudgetPolicy): PolicyForm {
 function emptyPolicyForm(): PolicyForm {
   return {
     name: "",
-    points_amount: 0,
     period: "monthly",
     first_accrual_date: todayIso(),
     is_active: true,
@@ -303,7 +308,7 @@ function individualToForm(a: IndividualAccrual): IndividualForm {
   return {
     user_id: a.user_id,
     mode: a.mode,
-    points_amount: a.points_amount,
+    points_amount: String(a.points_amount ?? ""),
     period: a.period,
     first_accrual_date:
       a.first_accrual_date ?? a.next_accrual_date ?? todayIso(),
@@ -316,7 +321,7 @@ function emptyIndividualForm(): IndividualForm {
   return {
     user_id: "",
     mode: "addition",
-    points_amount: 0,
+    points_amount: "",
     period: "monthly",
     first_accrual_date: todayIso(),
     description: "",
@@ -450,9 +455,20 @@ export default function HrPoliciesPage() {
       toast.error("Название не может быть пустым");
       return;
     }
-    if (policyForm.points_amount <= 0) {
-      toast.error("Сумма баллов должна быть больше нуля");
+    if (policyForm.rules.length === 0) {
+      toast.error("Добавьте хотя бы одно правило начисления");
       return;
+    }
+    for (const r of policyForm.rules) {
+      if (!r.value.trim()) {
+        toast.error("Заполните значение для каждого правила");
+        return;
+      }
+      const pts = Number(r.points_amount);
+      if (!r.points_amount.trim() || Number.isNaN(pts) || pts <= 0) {
+        toast.error("Укажите количество баллов > 0 для каждого правила");
+        return;
+      }
     }
     if (!policyForm.first_accrual_date) {
       toast.error("Укажите дату первого начисления");
@@ -463,17 +479,15 @@ export default function HrPoliciesPage() {
       return;
     }
 
-    const contradiction = findRuleContradictions(policyForm.rules);
-    if (contradiction) {
-      toast.error(contradiction);
-      return;
-    }
-
     setSavingPolicy(true);
     try {
+      const totalPoints = policyForm.rules.reduce(
+        (s, r) => s + (Number(r.points_amount) || 0),
+        0,
+      );
       const payload = {
         name: policyForm.name,
-        points_amount: policyForm.points_amount,
+        points_amount: totalPoints,
         period: policyForm.period,
         first_accrual_date: policyForm.first_accrual_date,
         target_filter: rulesToFilter(policyForm.rules),
@@ -545,7 +559,12 @@ export default function HrPoliciesPage() {
       toast.error("Выберите сотрудника");
       return;
     }
-    if (individualForm.points_amount <= 0) {
+    const pts = Number(individualForm.points_amount);
+    if (
+      !individualForm.points_amount.trim() ||
+      Number.isNaN(pts) ||
+      pts <= 0
+    ) {
       toast.error("Сумма баллов должна быть больше нуля");
       return;
     }
@@ -563,7 +582,7 @@ export default function HrPoliciesPage() {
       const payload = {
         user_id: individualForm.user_id,
         mode: individualForm.mode,
-        points_amount: individualForm.points_amount,
+        points_amount: pts,
         period: individualForm.period,
         first_accrual_date: individualForm.first_accrual_date,
         description: individualForm.description,
@@ -1000,7 +1019,7 @@ export default function HrPoliciesPage() {
         open={policyDialogOpen}
         onOpenChange={(open) => !open && closePolicyDialog()}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {editingPolicy
@@ -1024,13 +1043,18 @@ export default function HrPoliciesPage() {
                 />
               </div>
 
-              {/* Rules builder */}
+              {/* Rules builder — each rule has its own points amount */}
               <div className="space-y-2">
-                <Label>Правила (применяется ко всем, кто им соответствует)</Label>
+                <Label>Правила начисления</Label>
+                <p className="text-xs text-muted-foreground">
+                  Каждое правило задаёт свою сумму баллов. Сотрудник, удовлетворяющий
+                  правилу, получит указанные за него баллы; при попадании в несколько
+                  правил — суммируются.
+                </p>
                 <div className="space-y-2">
                   {policyForm.rules.length === 0 && (
                     <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-                      Без правил — политика будет применяться ко всем сотрудникам
+                      Добавьте хотя бы одно правило
                     </p>
                   )}
                   {policyForm.rules.map((rule, idx) => {
@@ -1044,7 +1068,7 @@ export default function HrPoliciesPage() {
                     return (
                       <div
                         key={rule.id}
-                        className="flex items-center gap-2 rounded-md border bg-muted/30 p-2"
+                        className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2"
                       >
                         <Select
                           value={rule.field}
@@ -1059,11 +1083,12 @@ export default function HrPoliciesPage() {
                               ...rule,
                               field: v as RuleFieldValue,
                               operator: nextOp,
+                              value: "",
                             };
                             setPolicyForm({ ...policyForm, rules: next });
                           }}
                         >
-                          <SelectTrigger className="w-[160px]">
+                          <SelectTrigger className="w-[150px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1083,7 +1108,7 @@ export default function HrPoliciesPage() {
                             setPolicyForm({ ...policyForm, rules: next });
                           }}
                         >
-                          <SelectTrigger className="w-[90px]">
+                          <SelectTrigger className="w-[80px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1096,7 +1121,7 @@ export default function HrPoliciesPage() {
                         </Select>
 
                         <Input
-                          className="flex-1"
+                          className="min-w-[100px] flex-1"
                           type={fieldDef?.type === "number" ? "number" : "text"}
                           min={fieldDef?.type === "number" ? fieldDef.min : undefined}
                           max={fieldDef?.type === "number" ? fieldDef.max : undefined}
@@ -1112,6 +1137,25 @@ export default function HrPoliciesPage() {
                             setPolicyForm({ ...policyForm, rules: next });
                           }}
                         />
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm text-muted-foreground">→</span>
+                          <Input
+                            className="w-[120px]"
+                            type="number"
+                            min={0}
+                            placeholder="Баллы"
+                            value={rule.points_amount}
+                            onChange={(e) => {
+                              const next = [...policyForm.rules];
+                              next[idx] = {
+                                ...rule,
+                                points_amount: e.target.value,
+                              };
+                              setPolicyForm({ ...policyForm, rules: next });
+                            }}
+                          />
+                        </div>
 
                         <Button
                           variant="ghost"
@@ -1143,23 +1187,6 @@ export default function HrPoliciesPage() {
                   <Plus className="size-4" />
                   Добавить правило
                 </Button>
-              </div>
-
-              {/* Points amount */}
-              <div className="space-y-2">
-                <Label htmlFor="policy-points">Количество баллов за период</Label>
-                <Input
-                  id="policy-points"
-                  type="number"
-                  min={0}
-                  value={policyForm.points_amount}
-                  onChange={(e) =>
-                    setPolicyForm({
-                      ...policyForm,
-                      points_amount: Number(e.target.value) || 0,
-                    })
-                  }
-                />
               </div>
 
               {/* Period */}
@@ -1337,11 +1364,12 @@ export default function HrPoliciesPage() {
                   id="ind-points"
                   type="number"
                   min={0}
+                  placeholder="Например: 10000"
                   value={individualForm.points_amount}
                   onChange={(e) =>
                     setIndividualForm({
                       ...individualForm,
-                      points_amount: Number(e.target.value) || 0,
+                      points_amount: e.target.value,
                     })
                   }
                 />

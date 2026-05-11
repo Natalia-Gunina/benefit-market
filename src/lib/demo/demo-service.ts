@@ -289,7 +289,21 @@ export async function demoEmployeesList(): Promise<NextResponse> {
       for (const p of DEMO_POLICIES) {
         if (!p.is_active) continue;
         if (p.tenant_id !== emp.user.tenant_id) continue;
-        if (evaluateConditions(emp.profile, p.target_filter)) {
+        const filter = (p.target_filter ?? {}) as {
+          rule_groups?: Array<{
+            field: string;
+            operator: string;
+            value: number | string;
+            points_amount?: number;
+          }>;
+        };
+        if (Array.isArray(filter.rule_groups) && filter.rule_groups.length > 0) {
+          for (const rg of filter.rule_groups) {
+            if (evaluateConditions(emp.profile, { match_all: [rg] })) {
+              policyTotal += rg.points_amount ?? 0;
+            }
+          }
+        } else if (evaluateConditions(emp.profile, p.target_filter)) {
           policyTotal += p.points_amount;
         }
       }

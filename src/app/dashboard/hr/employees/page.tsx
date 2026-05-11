@@ -221,10 +221,17 @@ export default function EmployeesPage() {
     sortKeyName: SortKey;
     className?: string;
   }) {
+    const isRight = className?.includes("text-right");
+    const isCenter = className?.includes("text-center");
+    const justify = isRight
+      ? "justify-end"
+      : isCenter
+        ? "justify-center"
+        : "justify-start";
     return (
       <TableHead className={className}>
         <button
-          className="flex items-center gap-1 hover:text-foreground"
+          className={`flex w-full items-center gap-1 hover:text-foreground ${justify}`}
           onClick={() => toggleSort(sortKeyName)}
         >
           {label}

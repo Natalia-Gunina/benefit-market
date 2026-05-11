@@ -971,9 +971,8 @@ export const DEMO_POLICIES: BudgetPolicy[] = [
     points_amount: 50000,
     period: 'quarterly',
     target_filter: {
-      match_all: [
-        { field: 'grade_numeric', operator: 'gte', value: 10 },
-        { field: 'grade_numeric', operator: 'lte', value: 14 },
+      rule_groups: [
+        { field: 'grade_numeric', operator: 'lte', value: 14, points_amount: 50000 },
       ],
     },
     is_active: true,
@@ -990,7 +989,9 @@ export const DEMO_POLICIES: BudgetPolicy[] = [
     points_amount: 75000,
     period: 'quarterly',
     target_filter: {
-      match_all: [{ field: 'grade_numeric', operator: 'gte', value: 15 }],
+      rule_groups: [
+        { field: 'grade_numeric', operator: 'gte', value: 15, points_amount: 75000 },
+      ],
     },
     is_active: true,
     first_accrual_date: '2026-01-01',
