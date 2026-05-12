@@ -58,15 +58,36 @@ export function PATCH(
 
     const row = unwrapSingle<IndividualAccrual>(result, "Failed to update individual accrual");
 
+    let accrualSummary: {
+      processed: number;
+      accrued: number;
+      errors: string[];
+    } | null = null;
     if (row.is_active) {
       try {
-        await processAccruals(admin, appUser.tenant_id);
+        const r = await processAccruals(admin, appUser.tenant_id);
+        accrualSummary = {
+          processed: r.processed,
+          accrued: r.accrued,
+          errors: r.errors,
+        };
+        if (r.errors.length > 0) {
+          console.error(
+            "[individual-accruals] processAccruals reported errors",
+            r.errors,
+          );
+        }
       } catch (err) {
         console.error("[individual-accruals] processAccruals after update failed", err);
+        accrualSummary = {
+          processed: 0,
+          accrued: 0,
+          errors: [err instanceof Error ? err.message : String(err)],
+        };
       }
     }
 
-    return success(row);
+    return success({ ...row, accrual_summary: accrualSummary });
   }, "PATCH /api/hr/individual-accruals/[id]");
 }
 

@@ -511,7 +511,23 @@ export default function HrPoliciesPage() {
         return;
       }
 
-      toast.success(editingPolicy ? "Политика обновлена" : "Политика создана");
+      const json = await res.json().catch(() => ({}));
+      const summary = (json.data ?? json)?.accrual_summary as
+        | { accrued: number; errors: string[] }
+        | null
+        | undefined;
+
+      if (summary?.errors && summary.errors.length > 0) {
+        toast.error(
+          `Политика сохранена, но начисление не прошло: ${summary.errors[0]}`,
+        );
+      } else if (summary && summary.accrued > 0) {
+        toast.success(
+          `${editingPolicy ? "Политика обновлена" : "Политика создана"}. Начислено ${summary.accrued} сотрудникам.`,
+        );
+      } else {
+        toast.success(editingPolicy ? "Политика обновлена" : "Политика создана");
+      }
       closePolicyDialog();
       await fetchPolicies();
     } catch {
@@ -615,11 +631,27 @@ export default function HrPoliciesPage() {
         return;
       }
 
-      toast.success(
-        editingIndividual
-          ? "Начисление обновлено"
-          : "Индивидуальное начисление создано",
-      );
+      const json = await res.json().catch(() => ({}));
+      const summary = (json.data ?? json)?.accrual_summary as
+        | { accrued: number; errors: string[] }
+        | null
+        | undefined;
+
+      if (summary?.errors && summary.errors.length > 0) {
+        toast.error(
+          `Начисление сохранено, но баллы не зачислены: ${summary.errors[0]}`,
+        );
+      } else if (summary && summary.accrued > 0) {
+        toast.success(
+          `${editingIndividual ? "Начисление обновлено" : "Индивидуальное начисление создано"}. Баллы зачислены сотруднику.`,
+        );
+      } else {
+        toast.success(
+          editingIndividual
+            ? "Начисление обновлено"
+            : "Индивидуальное начисление создано",
+        );
+      }
       closeIndividualDialog();
       await fetchIndividuals();
     } catch {

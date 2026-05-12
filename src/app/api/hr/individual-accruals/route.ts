@@ -89,14 +89,35 @@ export function POST(request: NextRequest) {
 
     const row = unwrapSingle<IndividualAccrual>(result, "Failed to create individual accrual");
 
+    let accrualSummary: {
+      processed: number;
+      accrued: number;
+      errors: string[];
+    } | null = null;
     if (row.is_active) {
       try {
-        await processAccruals(admin, appUser.tenant_id);
+        const r = await processAccruals(admin, appUser.tenant_id);
+        accrualSummary = {
+          processed: r.processed,
+          accrued: r.accrued,
+          errors: r.errors,
+        };
+        if (r.errors.length > 0) {
+          console.error(
+            "[individual-accruals] processAccruals reported errors",
+            r.errors,
+          );
+        }
       } catch (err) {
         console.error("[individual-accruals] processAccruals after create failed", err);
+        accrualSummary = {
+          processed: 0,
+          accrued: 0,
+          errors: [err instanceof Error ? err.message : String(err)],
+        };
       }
     }
 
-    return created(row);
+    return created({ ...row, accrual_summary: accrualSummary });
   }, "POST /api/hr/individual-accruals");
 }

@@ -2383,6 +2383,8 @@ export const DEMO_HR_ANALYTICS: AnalyticsData = {
       { grade: 'Middle', total: 3, active: 1, participation_pct: 33,  avg_spend: 27000 },
       { grade: 'Junior', total: 1, active: 0, participation_pct: 0,   avg_spend: 0 },
     ],
+    by_location: [],
+    inactive_list: [],
   },
   categories: {
     distribution: [

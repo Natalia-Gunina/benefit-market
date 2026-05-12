@@ -103,42 +103,58 @@ async function accrueToWallet(
   const { tenantId, userId, amount, description, period } = params;
   const { periodLabel, expiresAt } = computePeriodInfo(period);
 
-  const wallets = unwrapRowsSoft<Wallet>(
-    await admin
-      .from("wallets")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("tenant_id", tenantId)
-      .eq("period", periodLabel)
-      .limit(1),
-  );
+  const selectRes = await admin
+    .from("wallets")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("tenant_id", tenantId)
+    .eq("period", periodLabel)
+    .limit(1);
+  if (selectRes.error) {
+    console.error("[accrueToWallet] wallet select failed", {
+      userId,
+      periodLabel,
+      error: selectRes.error.message,
+    });
+    return { ok: false, error: `wallet select: ${selectRes.error.message}` };
+  }
 
-  let wallet = wallets[0];
+  let wallet = (selectRes.data as Wallet[] | null)?.[0];
   if (!wallet) {
-    const inserted = unwrapRowsSoft<Wallet>(
-      await admin
-        .from("wallets")
-        .insert({
-          user_id: userId,
-          tenant_id: tenantId,
-          balance: 0,
-          reserved: 0,
-          period: periodLabel,
-          expires_at: expiresAt,
-        } as never)
-        .select("*"),
-    );
-    if (inserted.length === 0) {
-      return { ok: false, error: `wallet create failed for user ${userId}` };
+    const insertRes = await admin
+      .from("wallets")
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        balance: 0,
+        reserved: 0,
+        period: periodLabel,
+        expires_at: expiresAt,
+      } as never)
+      .select("*")
+      .single();
+    if (insertRes.error) {
+      console.error("[accrueToWallet] wallet insert failed", {
+        userId,
+        periodLabel,
+        error: insertRes.error.message,
+      });
+      return { ok: false, error: `wallet create: ${insertRes.error.message}` };
     }
-    wallet = inserted[0];
+    wallet = insertRes.data as Wallet;
   }
 
   const { error: updateError } = await admin
     .from("wallets")
     .update({ balance: wallet.balance + amount } as never)
     .eq("id", wallet.id);
-  if (updateError) return { ok: false, error: updateError.message };
+  if (updateError) {
+    console.error("[accrueToWallet] wallet update failed", {
+      walletId: wallet.id,
+      error: updateError.message,
+    });
+    return { ok: false, error: `wallet update: ${updateError.message}` };
+  }
 
   const { error: ledgerError } = await admin
     .from("point_ledger")
@@ -149,7 +165,13 @@ async function accrueToWallet(
       amount,
       description,
     } as never);
-  if (ledgerError) return { ok: false, error: ledgerError.message };
+  if (ledgerError) {
+    console.error("[accrueToWallet] ledger insert failed", {
+      walletId: wallet.id,
+      error: ledgerError.message,
+    });
+    return { ok: false, error: `ledger insert: ${ledgerError.message}` };
+  }
 
   return { ok: true };
 }

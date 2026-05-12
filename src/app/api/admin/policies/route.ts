@@ -101,14 +101,35 @@ export function POST(request: NextRequest) {
 
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to create policy");
 
+    let accrualSummary: {
+      processed: number;
+      accrued: number;
+      errors: string[];
+    } | null = null;
     if (policy.is_active) {
       try {
-        await processAccruals(admin, targetTenantId);
+        const r = await processAccruals(admin, targetTenantId);
+        accrualSummary = {
+          processed: r.processed,
+          accrued: r.accrued,
+          errors: r.errors,
+        };
+        if (r.errors.length > 0) {
+          console.error(
+            "[policies] processAccruals reported errors",
+            r.errors,
+          );
+        }
       } catch (err) {
         console.error("[policies] processAccruals after create failed", err);
+        accrualSummary = {
+          processed: 0,
+          accrued: 0,
+          errors: [err instanceof Error ? err.message : String(err)],
+        };
       }
     }
 
-    return created(policy);
+    return created({ ...policy, accrual_summary: accrualSummary });
   }, "POST /api/admin/policies");
 }

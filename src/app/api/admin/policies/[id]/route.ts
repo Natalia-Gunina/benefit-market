@@ -60,15 +60,36 @@ export function PATCH(
     const result = await query.select("*").single();
     const policy = unwrapSingle<BudgetPolicy>(result, "Failed to update policy");
 
+    let accrualSummary: {
+      processed: number;
+      accrued: number;
+      errors: string[];
+    } | null = null;
     if (policy.is_active) {
       try {
-        await processAccruals(admin, policy.tenant_id);
+        const r = await processAccruals(admin, policy.tenant_id);
+        accrualSummary = {
+          processed: r.processed,
+          accrued: r.accrued,
+          errors: r.errors,
+        };
+        if (r.errors.length > 0) {
+          console.error(
+            "[policies] processAccruals reported errors",
+            r.errors,
+          );
+        }
       } catch (err) {
         console.error("[policies] processAccruals after update failed", err);
+        accrualSummary = {
+          processed: 0,
+          accrued: 0,
+          errors: [err instanceof Error ? err.message : String(err)],
+        };
       }
     }
 
-    return success(policy);
+    return success({ ...policy, accrual_summary: accrualSummary });
   }, "PATCH /api/admin/policies/[id]");
 }
 
