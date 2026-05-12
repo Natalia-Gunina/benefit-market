@@ -42,7 +42,7 @@ export function OrderItemReview({
             onClick={() => setOpen(true)}
           >
             <Pencil className="size-3 mr-1" />
-            Изменить
+            Изменить оценку
           </Button>
         </>
       ) : (

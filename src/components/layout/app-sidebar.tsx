@@ -21,6 +21,7 @@ import {
   Star,
   ShieldAlert,
   History,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -51,6 +52,7 @@ const employeeNavItems: NavItem[] = [
   { title: "Каталог льгот", href: "/dashboard/employee/catalog", icon: ShoppingBag },
   { title: "Корзина", href: "/dashboard/employee/cart", icon: ShoppingCart },
   { title: "Мои заказы", href: "/dashboard/employee/orders", icon: ClipboardList },
+  { title: "Мои льготы", href: "/dashboard/employee/benefits", icon: Sparkles },
   { title: "Кошелёк", href: "/dashboard/employee/wallet", icon: Wallet },
   { title: "Мой профиль", href: "/dashboard/employee/profile", icon: UserRound },
 ];

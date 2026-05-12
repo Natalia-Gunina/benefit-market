@@ -11,7 +11,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { StarRating } from "./star-rating";
@@ -38,7 +37,6 @@ export function ReviewForm({
 }: ReviewFormProps) {
   const isEditing = !!existingReview;
   const [rating, setRating] = useState(existingReview?.rating ?? 0);
-  const [title, setTitle] = useState(existingReview?.title ?? "");
   const [body, setBody] = useState(existingReview?.body ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,11 +55,10 @@ export function ReviewForm({
       const method = isEditing ? "PATCH" : "POST";
 
       const payload = isEditing
-        ? { rating, title: title || undefined, body: body || undefined }
+        ? { rating, body: body || undefined }
         : {
             provider_offering_id: providerOfferingId,
             rating,
-            title: title || undefined,
             body: body || undefined,
           };
 
@@ -106,17 +103,6 @@ export function ReviewForm({
               size="md"
               interactive
               onRate={setRating}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="review-title">Заголовок</Label>
-            <Input
-              id="review-title"
-              placeholder="Кратко о вашем опыте"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
             />
           </div>
 
