@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  Archive,
   CalendarClock,
   Info,
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   ShieldOff,
   Trash2,
@@ -538,14 +540,29 @@ export default function HrPoliciesPage() {
   }
 
   async function deletePolicy(p: BudgetPolicy) {
-    if (!confirm(`Деактивировать политику «${p.name}»?`)) return;
+    if (!confirm(`Отправить политику «${p.name}» в архив?`)) return;
     try {
       const res = await fetch(`/api/admin/policies/${p.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("Политика деактивирована");
+      toast.success("Политика отправлена в архив");
       await fetchPolicies();
     } catch {
-      toast.error("Не удалось деактивировать политику");
+      toast.error("Не удалось архивировать политику");
+    }
+  }
+
+  async function restorePolicy(p: BudgetPolicy) {
+    try {
+      const res = await fetch(`/api/admin/policies/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: true }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Политика «${p.name}» восстановлена`);
+      await fetchPolicies();
+    } catch {
+      toast.error("Не удалось восстановить политику");
     }
   }
 
@@ -720,8 +737,17 @@ export default function HrPoliciesPage() {
 
   /* -------------------- Render -------------------- */
 
-  const total = policies.length;
-  const paged = policies.slice((page - 1) * perPage, page * perPage);
+  const activePolicies = useMemo(
+    () => policies.filter((p) => p.is_active),
+    [policies],
+  );
+  const archivedPolicies = useMemo(
+    () => policies.filter((p) => !p.is_active),
+    [policies],
+  );
+
+  const total = activePolicies.length;
+  const paged = activePolicies.slice((page - 1) * perPage, page * perPage);
 
   return (
     <div className="page-transition space-y-6 p-6">
@@ -736,6 +762,15 @@ export default function HrPoliciesPage() {
           <TabsTrigger value="restrictions">
             <ShieldOff className="mr-1.5 size-4" />
             Ограничение льгот
+          </TabsTrigger>
+          <TabsTrigger value="archive">
+            <Archive className="mr-1.5 size-4" />
+            Архив политик
+            {archivedPolicies.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                {archivedPolicies.length}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1041,6 +1076,65 @@ export default function HrPoliciesPage() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* ============================================================ */}
+        {/* Tab 4: Archive                                                 */}
+        {/* ============================================================ */}
+        <TabsContent value="archive" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Архивные политики не применяются — баллы по ним не начисляются. Их
+            можно вернуть в работу кнопкой «Восстановить».
+          </p>
+
+          {archivedPolicies.length === 0 ? (
+            <div className="rounded-lg border bg-card p-12 text-center text-muted-foreground">
+              <Archive className="mx-auto mb-3 size-8 opacity-50" />
+              Архив пуст
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Название</TableHead>
+                    <TableHead className="text-right">Баллов</TableHead>
+                    <TableHead>Частота</TableHead>
+                    <TableHead>Правила</TableHead>
+                    <TableHead className="w-[160px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {archivedPolicies.map((p) => (
+                    <TableRow key={p.id} className="opacity-70">
+                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.points_amount.toLocaleString("ru-RU")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {PERIOD_LABELS[p.period] ?? p.period}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
+                        {formatFilterHuman(p.target_filter)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => restorePolicy(p)}
+                        >
+                          <RotateCcw className="mr-1 size-4" />
+                          Восстановить
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
