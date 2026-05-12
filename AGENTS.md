@@ -38,6 +38,38 @@ bd sync               # Sync with git
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+## CI/CD: monitor and fix runs yourself (`gh`)
+
+The repo is on GitHub (`Natalia-Gunina/benefit-market`) and `gh` is authenticated
+in this environment. After every `git push` you are responsible for the CI/CD
+result — do not wait for the user to bring you a red build.
+
+**Workflows that run on every push to `main`:**
+- `CI` — typecheck/lint/tests
+- `Deploy` — builds the Docker image and `appleboy/ssh-action` deploys to the
+  duckdns stand
+- `DB migrate` — applies new `supabase/migrations/*.sql` to cloud Supabase
+
+**Workflow after every push:**
+
+```bash
+gh run list --limit 5                # see status of recent runs
+gh run watch <id> --exit-status      # block until a specific run finishes
+gh run view <id> --log-failed        # logs of the failed step
+gh pr checks                         # statuses on a PR
+```
+
+Rules:
+- After `git push`, immediately `gh run list` and watch the relevant runs
+  (CI + Deploy + DB migrate). Don't end the turn until they're green or you've
+  reported the failure.
+- If a run fails, fetch `--log-failed`, fix the root cause in code, commit,
+  push, watch again. Iterate until green.
+- The stand at `https://benefit-market.duckdns.org:8443` only reflects code
+  changes AFTER `Deploy` succeeds. Migrations only apply AFTER `DB migrate`
+  succeeds. Don't tell the user to refresh until both are green.
+- If `gh auth status` ever shows "not logged in", ask the user to run
+  `gh auth login` — don't try to scrape Actions UI as a fallback.
 
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
