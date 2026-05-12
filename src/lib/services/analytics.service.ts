@@ -141,7 +141,7 @@ function gradeLabel(profile: EmployeeProfile): string {
   if (profile.grade_numeric !== null && profile.grade_numeric !== undefined) {
     return String(profile.grade_numeric);
   }
-  return profile.grade || "—";
+  return "Без грейда";
 }
 
 function getLocation(profile: EmployeeProfile): string {
@@ -156,7 +156,11 @@ export async function generateAnalytics(
   supabase: SupabaseClient,
   tenantId: string,
 ): Promise<AnalyticsData> {
-  // Fetch all base data in parallel
+  // Fetch all base data in parallel. Users are fetched without a role filter:
+  // every employee_profile in the tenant counts as a workforce data point for
+  // analytics, including profiles attached to admin/HR users that exist to
+  // populate the dashboards. Name resolution falls back to the profile's
+  // `extra.full_name` so we never leak raw UUIDs into the UI.
   const [profiles, orders, ledger, wallets, items, benefits, categories, users] = await Promise.all([
     unwrapRowsSoft<EmployeeProfile>(
       await supabase.from("employee_profiles").select("*").eq("tenant_id", tenantId),
@@ -183,11 +187,7 @@ export async function generateAnalytics(
       await supabase.from("benefit_categories").select("*").eq("tenant_id", tenantId),
     ),
     unwrapRowsSoft<User & { full_name: string | null }>(
-      await supabase
-        .from("users")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("role", "employee"),
+      await supabase.from("users").select("*").eq("tenant_id", tenantId),
     ),
   ]);
 
@@ -381,9 +381,14 @@ export async function generateAnalytics(
 
     if (!isActive) {
       const u = userMap.get(profile.user_id);
+      const extraName =
+        ((profile.extra as Record<string, unknown> | null)?.full_name as
+          | string
+          | undefined)?.trim() || "";
       const name =
         u?.full_name?.trim() ||
-        (u?.email ? u.email.split("@")[0] : profile.user_id);
+        extraName ||
+        (u?.email ? u.email.split("@")[0] : "Без имени");
       inactiveList.push({
         user_id: profile.user_id,
         name,
