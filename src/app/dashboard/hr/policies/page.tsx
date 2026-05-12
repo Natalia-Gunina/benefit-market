@@ -766,11 +766,6 @@ export default function HrPoliciesPage() {
           <TabsTrigger value="archive">
             <Archive className="mr-1.5 size-4" />
             Архив политик
-            {archivedPolicies.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
-                {archivedPolicies.length}
-              </Badge>
-            )}
           </TabsTrigger>
         </TabsList>
 
