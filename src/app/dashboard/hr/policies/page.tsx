@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Archive,
+  ArrowUpDown,
   CalendarClock,
+  ChevronDown,
+  ChevronUp,
   Info,
   Loader2,
   Pencil,
@@ -679,16 +682,31 @@ export default function HrPoliciesPage() {
   }
 
   async function deleteIndividual(a: IndividualAccrual) {
-    if (!confirm("Деактивировать это индивидуальное начисление?")) return;
+    if (!confirm("Отправить это индивидуальное начисление в архив?")) return;
     try {
       const res = await fetch(`/api/hr/individual-accruals/${a.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error();
-      toast.success("Начисление деактивировано");
+      toast.success("Начисление отправлено в архив");
       await fetchIndividuals();
     } catch {
-      toast.error("Не удалось деактивировать");
+      toast.error("Не удалось архивировать");
+    }
+  }
+
+  async function restoreIndividual(a: IndividualAccrual) {
+    try {
+      const res = await fetch(`/api/hr/individual-accruals/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: true }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Начисление восстановлено");
+      await fetchIndividuals();
+    } catch {
+      toast.error("Не удалось восстановить");
     }
   }
 
@@ -745,6 +763,105 @@ export default function HrPoliciesPage() {
     () => policies.filter((p) => !p.is_active),
     [policies],
   );
+  const activeIndividuals = useMemo(
+    () => individuals.filter((a) => a.is_active),
+    [individuals],
+  );
+  const archivedIndividuals = useMemo(
+    () => individuals.filter((a) => !a.is_active),
+    [individuals],
+  );
+
+  type ArchiveSortKey = "kind" | "name" | "points" | "period" | "archivedAt";
+  const [archiveSort, setArchiveSort] = useState<{
+    key: ArchiveSortKey;
+    dir: "asc" | "desc";
+  }>({ key: "archivedAt", dir: "desc" });
+
+  function toggleArchiveSort(key: ArchiveSortKey) {
+    setArchiveSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "archivedAt" ? "desc" : "asc" },
+    );
+  }
+
+  interface ArchiveRow {
+    kind: "policy" | "individual";
+    rowKey: string;
+    name: string;
+    points: number;
+    period: BudgetPeriod;
+    description: string;
+    archivedAt: string;
+    policy?: BudgetPolicy;
+    individual?: IndividualAccrual;
+  }
+
+  const archiveRows = useMemo<ArchiveRow[]>(() => {
+    const rows: ArchiveRow[] = [];
+    for (const p of archivedPolicies) {
+      rows.push({
+        kind: "policy",
+        rowKey: `p-${p.id}`,
+        name: p.name,
+        points: p.points_amount,
+        period: p.period,
+        description: formatFilterHuman(p.target_filter),
+        archivedAt: p.updated_at ?? "",
+        policy: p,
+      });
+    }
+    for (const a of archivedIndividuals) {
+      const emp = employeeNameById.get(a.user_id);
+      const modeLabel =
+        a.mode === "replacement" ? "Замена" : "Дополнение";
+      rows.push({
+        kind: "individual",
+        rowKey: `i-${a.id}`,
+        name: emp?.name ?? a.user_id,
+        points: a.points_amount,
+        period: a.period,
+        description: a.description ? `${modeLabel}: ${a.description}` : modeLabel,
+        archivedAt: a.updated_at ?? "",
+        individual: a,
+      });
+    }
+    const dir = archiveSort.dir === "asc" ? 1 : -1;
+    rows.sort((x, y) => {
+      let cmp = 0;
+      switch (archiveSort.key) {
+        case "kind":
+          cmp = x.kind.localeCompare(y.kind);
+          break;
+        case "name":
+          cmp = x.name.localeCompare(y.name, "ru");
+          break;
+        case "points":
+          cmp = x.points - y.points;
+          break;
+        case "period":
+          cmp = x.period.localeCompare(y.period);
+          break;
+        case "archivedAt":
+          cmp = (x.archivedAt || "").localeCompare(y.archivedAt || "");
+          break;
+      }
+      return cmp * dir;
+    });
+    return rows;
+  }, [archivedPolicies, archivedIndividuals, employeeNameById, archiveSort]);
+
+  function renderSortIcon(key: ArchiveSortKey) {
+    if (archiveSort.key !== key) {
+      return <ArrowUpDown className="size-3.5 opacity-40" />;
+    }
+    return archiveSort.dir === "asc" ? (
+      <ChevronUp className="size-3.5" />
+    ) : (
+      <ChevronDown className="size-3.5" />
+    );
+  }
 
   const total = activePolicies.length;
   const paged = activePolicies.slice((page - 1) * perPage, page * perPage);
@@ -917,7 +1034,7 @@ export default function HrPoliciesPage() {
                       <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
-                ) : individuals.length === 0 ? (
+                ) : activeIndividuals.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
@@ -927,7 +1044,7 @@ export default function HrPoliciesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  individuals.map((a) => {
+                  activeIndividuals.map((a) => {
                     const emp = employeeNameById.get(a.user_id);
                     return (
                       <TableRow key={a.id}>
@@ -1078,11 +1195,12 @@ export default function HrPoliciesPage() {
         {/* ============================================================ */}
         <TabsContent value="archive" className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Архивные политики не применяются — баллы по ним не начисляются. Их
-            можно вернуть в работу кнопкой «Восстановить».
+            Архивные политики и индивидуальные начисления не применяются —
+            баллы по ним не начисляются. Их можно вернуть в работу кнопкой
+            «Восстановить».
           </p>
 
-          {archivedPolicies.length === 0 ? (
+          {archiveRows.length === 0 ? (
             <div className="rounded-lg border bg-card p-12 text-center text-muted-foreground">
               <Archive className="mx-auto mb-3 size-8 opacity-50" />
               Архив пуст
@@ -1092,33 +1210,111 @@ export default function HrPoliciesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Название</TableHead>
-                    <TableHead className="text-right">Баллов</TableHead>
-                    <TableHead>Частота</TableHead>
-                    <TableHead>Правила</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => toggleArchiveSort("kind")}
+                      >
+                        Тип
+                        {renderSortIcon("kind")}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => toggleArchiveSort("name")}
+                      >
+                        Название / Сотрудник
+                        {renderSortIcon("name")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => toggleArchiveSort("points")}
+                      >
+                        Баллов
+                        {renderSortIcon("points")}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => toggleArchiveSort("period")}
+                      >
+                        Частота
+                        {renderSortIcon("period")}
+                      </button>
+                    </TableHead>
+                    <TableHead>Описание</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => toggleArchiveSort("archivedAt")}
+                      >
+                        Дата архивации
+                        {renderSortIcon("archivedAt")}
+                      </button>
+                    </TableHead>
                     <TableHead className="w-[160px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {archivedPolicies.map((p) => (
-                    <TableRow key={p.id} className="opacity-70">
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                  {archiveRows.map((row) => (
+                    <TableRow key={row.rowKey} className="opacity-70">
+                      <TableCell>
+                        <Badge
+                          variant={
+                            row.kind === "policy" ? "outline" : "secondary"
+                          }
+                        >
+                          {row.kind === "policy"
+                            ? "Общая политика"
+                            : "Индивидуальная"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {row.name}
+                        {row.kind === "individual" &&
+                          row.individual &&
+                          employeeNameById.get(row.individual.user_id)
+                            ?.email && (
+                            <p className="text-xs text-muted-foreground">
+                              {
+                                employeeNameById.get(row.individual.user_id)
+                                  ?.email
+                              }
+                            </p>
+                          )}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {p.points_amount.toLocaleString("ru-RU")}
+                        {row.points.toLocaleString("ru-RU")}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {PERIOD_LABELS[p.period] ?? p.period}
+                          {PERIOD_LABELS[row.period] ?? row.period}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
-                        {formatFilterHuman(p.target_filter)}
+                      <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
+                        {row.description || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDateRu(row.archivedAt)}
                       </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => restorePolicy(p)}
+                          onClick={() =>
+                            row.kind === "policy"
+                              ? restorePolicy(row.policy!)
+                              : restoreIndividual(row.individual!)
+                          }
                         >
                           <RotateCcw className="mr-1 size-4" />
                           Восстановить
