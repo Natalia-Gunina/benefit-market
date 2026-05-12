@@ -7,7 +7,7 @@ import { isDemo } from "@/lib/env";
 import { unwrapRowsSoft, unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { notFound, forbidden, invalidStatus, walletNotFound, AppError } from "@/lib/errors";
 import { demoOrderAction } from "@/lib/demo/demo-service";
-import type { Order, Wallet } from "@/lib/types";
+import type { Order, PointLedger, Wallet } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // POST /api/orders/[id]/confirm — Confirm a reserved order
@@ -59,28 +59,29 @@ export function POST(
       );
     }
 
-    // --- Get wallet ---
-    const now = new Date().toISOString();
-    const wallets = unwrapRowsSoft<Wallet>(
+    // --- Locate the wallets that hold this order's reservation ---
+    // The reservation may span multiple wallets when an employee has
+    // funds from several accrual periods.
+    const reserves = unwrapRowsSoft<PointLedger>(
       await supabase
-        .from("wallets")
-        .select("*")
-        .eq("user_id", appUser.id)
-        .eq("tenant_id", appUser.tenant_id)
-        .gte("expires_at", now)
-        .order("expires_at", { ascending: false })
-        .limit(1),
+        .from("point_ledger")
+        .select("wallet_id, amount")
+        .eq("order_id", orderId)
+        .eq("type", "reserve"),
     );
 
-    const wallet = wallets.length > 0 ? wallets[0] : null;
-
-    if (!wallet) {
-      throw walletNotFound("Кошелёк не найден");
+    if (reserves.length === 0) {
+      throw walletNotFound("Резервирование не найдено");
     }
+
+    const walletIds = Array.from(new Set(reserves.map((r) => r.wallet_id)));
+    const wallets = unwrapRowsSoft<Wallet>(
+      await supabase.from("wallets").select("*").in("id", walletIds),
+    );
+    const walletById = new Map(wallets.map((w) => [w.id, w]));
 
     // --- Confirm using admin client ---
     const admin = createAdminClient();
-    const totalPoints = order.total_points;
 
     // 1. Update order status to 'paid'
     const updatedOrder = unwrapSingle<Order>(
@@ -93,24 +94,34 @@ export function POST(
       "Update order to paid",
     );
 
-    // 2. Create point_ledger entry (type='spend')
-    await admin.from("point_ledger").insert({
-      wallet_id: wallet.id,
+    // 2. Aggregate reserved amount per wallet, then write one spend
+    // ledger entry and apply balance/reserved updates per wallet.
+    const perWallet = new Map<string, number>();
+    for (const r of reserves) {
+      perWallet.set(r.wallet_id, (perWallet.get(r.wallet_id) ?? 0) + r.amount);
+    }
+
+    const spendEntries = Array.from(perWallet.entries()).map(([walletId, amount]) => ({
+      wallet_id: walletId,
       tenant_id: appUser.tenant_id,
       order_id: orderId,
-      type: "spend",
-      amount: totalPoints,
+      type: "spend" as const,
+      amount,
       description: `Оплата заказа #${orderId.slice(0, 8)}`,
-    } as never);
+    }));
+    await admin.from("point_ledger").insert(spendEntries as never);
 
-    // 3. Update wallet: balance -= total_points, reserved -= total_points
-    await admin
-      .from("wallets")
-      .update({
-        balance: wallet.balance - totalPoints,
-        reserved: wallet.reserved - totalPoints,
-      } as never)
-      .eq("id", wallet.id);
+    for (const [walletId, amount] of perWallet) {
+      const w = walletById.get(walletId);
+      if (!w) continue;
+      await admin
+        .from("wallets")
+        .update({
+          balance: w.balance - amount,
+          reserved: Math.max(0, w.reserved - amount),
+        } as never)
+        .eq("id", walletId);
+    }
 
     return success(updatedOrder);
   }, "POST /api/orders/[id]/confirm");

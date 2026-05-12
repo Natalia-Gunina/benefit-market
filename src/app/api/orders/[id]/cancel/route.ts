@@ -7,7 +7,7 @@ import { isDemo } from "@/lib/env";
 import { unwrapRowsSoft, unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { notFound, forbidden, invalidStatus, walletNotFound } from "@/lib/errors";
 import { demoOrderAction } from "@/lib/demo/demo-service";
-import type { Order, Wallet } from "@/lib/types";
+import type { Order, PointLedger, Wallet } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // POST /api/orders/[id]/cancel — Cancel a reserved order
@@ -50,28 +50,27 @@ export function POST(
       );
     }
 
-    // --- Get wallet ---
-    const now = new Date().toISOString();
-    const wallets = unwrapRowsSoft<Wallet>(
+    // --- Locate the wallets that hold this order's reservation ---
+    const reserves = unwrapRowsSoft<PointLedger>(
       await supabase
-        .from("wallets")
-        .select("*")
-        .eq("user_id", appUser.id)
-        .eq("tenant_id", appUser.tenant_id)
-        .gte("expires_at", now)
-        .order("expires_at", { ascending: false })
-        .limit(1),
+        .from("point_ledger")
+        .select("wallet_id, amount")
+        .eq("order_id", orderId)
+        .eq("type", "reserve"),
     );
 
-    const wallet = wallets.length > 0 ? wallets[0] : null;
-
-    if (!wallet) {
-      throw walletNotFound("Кошелёк не найден");
+    if (reserves.length === 0) {
+      throw walletNotFound("Резервирование не найдено");
     }
+
+    const walletIds = Array.from(new Set(reserves.map((r) => r.wallet_id)));
+    const wallets = unwrapRowsSoft<Wallet>(
+      await supabase.from("wallets").select("*").in("id", walletIds),
+    );
+    const walletById = new Map(wallets.map((w) => [w.id, w]));
 
     // --- Cancel using admin client ---
     const admin = createAdminClient();
-    const totalPoints = order.total_points;
 
     // 1. Update order status to 'cancelled'
     const updatedOrder = unwrapSingle<Order>(
@@ -84,23 +83,31 @@ export function POST(
       "Update order to cancelled",
     );
 
-    // 2. Create point_ledger entry (type='release')
-    await admin.from("point_ledger").insert({
-      wallet_id: wallet.id,
+    // 2. Aggregate per-wallet, write one release ledger entry per wallet,
+    // and unblock the reservation on each wallet.
+    const perWallet = new Map<string, number>();
+    for (const r of reserves) {
+      perWallet.set(r.wallet_id, (perWallet.get(r.wallet_id) ?? 0) + r.amount);
+    }
+
+    const releaseEntries = Array.from(perWallet.entries()).map(([walletId, amount]) => ({
+      wallet_id: walletId,
       tenant_id: appUser.tenant_id,
       order_id: orderId,
-      type: "release",
-      amount: totalPoints,
+      type: "release" as const,
+      amount,
       description: `Отмена заказа #${orderId.slice(0, 8)}`,
-    } as never);
+    }));
+    await admin.from("point_ledger").insert(releaseEntries as never);
 
-    // 3. Update wallet: reserved -= total_points
-    await admin
-      .from("wallets")
-      .update({
-        reserved: Math.max(0, wallet.reserved - totalPoints),
-      } as never)
-      .eq("id", wallet.id);
+    for (const [walletId, amount] of perWallet) {
+      const w = walletById.get(walletId);
+      if (!w) continue;
+      await admin
+        .from("wallets")
+        .update({ reserved: Math.max(0, w.reserved - amount) } as never)
+        .eq("id", walletId);
+    }
 
     return success(updatedOrder);
   }, "POST /api/orders/[id]/cancel");

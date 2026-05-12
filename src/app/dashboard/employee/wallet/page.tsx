@@ -39,8 +39,26 @@ export default function WalletPage() {
       if (res.ok) {
         const json = await res.json();
         const payload = json.data ?? json;
-        setWallet(payload.wallet ?? null);
-        setLedger(payload.ledger ?? []);
+        // Demo returns { wallet, ledger }; real API returns flat
+        // { balance, reserved, period, expires_at, history }.
+        if (payload.wallet) {
+          setWallet(payload.wallet);
+          setLedger(payload.ledger ?? []);
+        } else if (payload.period) {
+          setWallet({
+            id: "",
+            user_id: "",
+            tenant_id: "",
+            balance: payload.balance ?? 0,
+            reserved: payload.reserved ?? 0,
+            period: payload.period,
+            expires_at: payload.expires_at,
+          } as Wallet);
+          setLedger(payload.history ?? []);
+        } else {
+          setWallet(null);
+          setLedger([]);
+        }
       } else {
         toast.error("Не удалось загрузить данные кошелька");
       }

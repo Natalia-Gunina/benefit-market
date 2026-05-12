@@ -19,6 +19,12 @@ import type {
 
 export interface OrderItemWithBenefit extends OrderItem {
   benefit?: Pick<Benefit, "id" | "name" | "price_points" | "description">;
+  offering?: {
+    id: string;
+    name: string;
+    description: string | null;
+    providers?: { name: string } | null;
+  };
 }
 
 export interface OrderWithItems extends Order {
@@ -186,7 +192,10 @@ export async function createOrder(
 
   const totalPoints = legacyTotal + marketplaceTotal;
 
-  // --- Check wallet balance ---
+  // --- Check wallet balance across all active wallets ---
+  // An employee can have multiple wallets simultaneously (e.g. different
+  // accrual periods). Sum their available points for eligibility, then
+  // reserve from the soonest-expiring wallets first so funds expire usefully.
   const now = new Date().toISOString();
 
   const wallets = unwrapRowsSoft<Wallet>(
@@ -196,19 +205,31 @@ export async function createOrder(
       .eq("user_id", appUser.id)
       .eq("tenant_id", tenantId)
       .gte("expires_at", now)
-      .order("expires_at", { ascending: false })
-      .limit(1),
+      .order("expires_at", { ascending: true }),
   );
 
-  const wallet = wallets.length > 0 ? wallets[0] : null;
-
-  if (!wallet) {
+  if (wallets.length === 0) {
     return { error: { code: "insufficient_points", message: "Кошелёк не найден или срок действия истёк", status: 400 } };
   }
 
-  const available = wallet.balance - wallet.reserved;
-  if (available < totalPoints) {
-    return { error: { code: "insufficient_points", message: `Недостаточно баллов. Доступно: ${available}, требуется: ${totalPoints}`, status: 400 } };
+  const totalAvailable = wallets.reduce(
+    (sum, w) => sum + Math.max(0, w.balance - w.reserved),
+    0,
+  );
+  if (totalAvailable < totalPoints) {
+    return { error: { code: "insufficient_points", message: `Недостаточно баллов. Доступно: ${totalAvailable}, требуется: ${totalPoints}`, status: 400 } };
+  }
+
+  // Distribute the reservation across wallets in expiry order.
+  const reservePlan: { wallet: Wallet; amount: number }[] = [];
+  let remaining = totalPoints;
+  for (const w of wallets) {
+    if (remaining <= 0) break;
+    const walletAvailable = Math.max(0, w.balance - w.reserved);
+    if (walletAvailable <= 0) continue;
+    const take = Math.min(walletAvailable, remaining);
+    reservePlan.push({ wallet: w, amount: take });
+    remaining -= take;
   }
 
   // --- Create order using admin client ---
@@ -265,42 +286,32 @@ export async function createOrder(
     throw dbError("Ошибка создания элементов заказа");
   }
 
-  // 3. Create point_ledger entries
-  const ledgerEntries = [
-    ...legacyItems.map((item) => {
-      const benefit = benefitMap.get(item.benefit_id!)!;
-      return {
-        wallet_id: wallet.id,
-        tenant_id: tenantId,
-        order_id: order.id,
-        type: "reserve" as const,
-        amount: benefit.price_points * item.quantity,
-        description: `Резервирование: ${benefit.name} x${item.quantity}`,
-      };
-    }),
-    ...marketplaceResolved.map((item) => ({
-      wallet_id: wallet.id,
-      tenant_id: tenantId,
-      order_id: order.id,
-      type: "reserve" as const,
-      amount: item.price_points * item.quantity,
-      description: `Резервирование: ${item.name} x${item.quantity}`,
-    })),
-  ];
+  // 3. Create point_ledger entries — one per wallet used in the reservation.
+  // We aggregate per wallet so the history reads as a single reserve event
+  // per source, rather than splitting by line item.
+  const ledgerEntries = reservePlan.map(({ wallet: w, amount }) => ({
+    wallet_id: w.id,
+    tenant_id: tenantId,
+    order_id: order.id,
+    type: "reserve" as const,
+    amount,
+    description: `Резервирование заказа #${order.id.slice(0, 8)}`,
+  }));
 
   const { error: ledgerError } = await adminWriter.from("point_ledger").insert(ledgerEntries as never);
   if (ledgerError) {
     logger.error("Ledger entries creation failed", "order.service", { error: String(ledgerError) });
   }
 
-  // 4. Update wallet.reserved
-  const { error: walletUpdateError } = await adminWriter
-    .from("wallets")
-    .update({ reserved: wallet.reserved + totalPoints } as never)
-    .eq("id", wallet.id);
-
-  if (walletUpdateError) {
-    logger.error("Wallet update failed", "order.service", { error: String(walletUpdateError) });
+  // 4. Update each wallet's reserved column
+  for (const { wallet: w, amount } of reservePlan) {
+    const { error: walletUpdateError } = await adminWriter
+      .from("wallets")
+      .update({ reserved: w.reserved + amount } as never)
+      .eq("id", w.id);
+    if (walletUpdateError) {
+      logger.error("Wallet update failed", "order.service", { walletId: w.id, error: String(walletUpdateError) });
+    }
   }
 
   // Build response
