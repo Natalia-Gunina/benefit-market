@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Loader2, X } from "lucide-react";
+import { Package, Loader2, X, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import type { OrderStatus } from "@/lib/types";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -33,12 +34,17 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+interface OrderItemSummary {
+  id: string;
+  provider_offering_id?: string | null;
+}
+
 interface OrderSummary {
   id: string;
   status: OrderStatus;
   total_points: number;
   created_at: string;
-  order_items: { id: string }[];
+  order_items: OrderItemSummary[];
 }
 
 type FilterTab = "all" | "active" | "completed";
@@ -85,6 +91,9 @@ function filterOrders(
 export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [reviewedOfferingIds, setReviewedOfferingIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -95,7 +104,41 @@ export default function OrdersPage() {
       const res = await fetch("/api/orders");
       if (res.ok) {
         const json = await res.json();
-        setOrders(json.data ?? []);
+        const list: OrderSummary[] = json.data ?? [];
+        setOrders(list);
+
+        // Fetch user's reviews for offerings in paid orders, so we can
+        // surface a "rate me" hint where applicable.
+        const offeringIds = Array.from(
+          new Set(
+            list
+              .filter((o) => o.status === "paid")
+              .flatMap((o) => o.order_items)
+              .map((it) => it.provider_offering_id)
+              .filter((v): v is string => !!v),
+          ),
+        );
+        if (offeringIds.length > 0) {
+          try {
+            const r = await fetch(
+              `/api/reviews/mine?provider_offering_ids=${offeringIds.join(",")}`,
+            );
+            if (r.ok) {
+              const j = await r.json();
+              const data = j.data ?? j;
+              const reviewed: { provider_offering_id: string }[] = Array.isArray(
+                data,
+              )
+                ? data
+                : (data?.data ?? []);
+              setReviewedOfferingIds(
+                new Set(reviewed.map((rv) => rv.provider_offering_id)),
+              );
+            }
+          } catch {
+            /* soft-fail */
+          }
+        }
       } else {
         toast.error("Не удалось загрузить заказы");
       }
@@ -109,6 +152,18 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  const hasUnratedItems = useCallback(
+    (order: OrderSummary): boolean => {
+      if (order.status !== "paid") return false;
+      return order.order_items.some(
+        (it) =>
+          !!it.provider_offering_id &&
+          !reviewedOfferingIds.has(it.provider_offering_id),
+      );
+    },
+    [reviewedOfferingIds],
+  );
 
   const filtered = filterOrders(orders, activeTab);
 
@@ -203,7 +258,18 @@ export default function OrdersPage() {
                           {formatDate(order.created_at)}
                         </TableCell>
                         <TableCell>
-                          <OrderStatusBadge status={order.status} />
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <OrderStatusBadge status={order.status} />
+                            {hasUnratedItems(order) && (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
+                              >
+                                <Star className="size-3 fill-amber-400 text-amber-400" />
+                                Можно оценить
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
                           {order.total_points.toLocaleString("ru-RU")} б.

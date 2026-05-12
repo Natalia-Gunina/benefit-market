@@ -34,6 +34,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  OrderItemReview,
+  type MyReview,
+} from "@/components/reviews/order-item-review";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,7 +45,9 @@ import {
 
 interface OrderItemData {
   id: string;
-  benefit_id: string;
+  benefit_id: string | null;
+  provider_offering_id: string | null;
+  tenant_offering_id: string | null;
   quantity: number;
   price_points: number;
   benefit?: {
@@ -49,6 +55,12 @@ interface OrderItemData {
     name: string;
     price_points: number;
     description?: string;
+  };
+  offering?: {
+    id: string;
+    name: string;
+    description: string | null;
+    providers?: { name: string } | null;
   };
 }
 
@@ -118,14 +130,20 @@ export default function OrderDetailPage() {
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<OrderData | null>(null);
+  const [myReviews, setMyReviews] = useState<MyReview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
   const isReserved = order?.status === "reserved";
+  const isPaid = order?.status === "paid";
   const timeLeft = useCountdown(
     order?.expires_at ?? null,
     isReserved,
+  );
+
+  const reviewByOfferingId = new Map<string, MyReview>(
+    myReviews.map((r) => [r.provider_offering_id, r]),
   );
 
   // --- Fetch order ---
@@ -160,9 +178,42 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
+  // --- Fetch user's reviews for offerings in this order ---
+  const fetchMyReviews = useCallback(async (currentOrder: OrderData) => {
+    const offeringIds = Array.from(
+      new Set(
+        currentOrder.order_items
+          .map((it) => it.provider_offering_id)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    if (offeringIds.length === 0) {
+      setMyReviews([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/reviews/mine?provider_offering_ids=${offeringIds.join(",")}`,
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data ?? json;
+        setMyReviews(Array.isArray(data) ? data : (data?.data ?? []));
+      }
+    } catch {
+      // Soft-fail — review section just won't reflect existing reviews
+    }
+  }, []);
+
   useEffect(() => {
     fetchOrder();
   }, [fetchOrder]);
+
+  useEffect(() => {
+    if (order) {
+      fetchMyReviews(order);
+    }
+  }, [order, fetchMyReviews]);
 
   // --- Confirm order ---
   const handleConfirm = useCallback(async () => {
@@ -277,28 +328,64 @@ export default function OrderDetailPage() {
                     <TableHead className="text-right">Цена</TableHead>
                     <TableHead className="text-right">Кол-во</TableHead>
                     <TableHead className="text-right">Сумма</TableHead>
+                    {isPaid && <TableHead>Оценка</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.order_items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        {item.benefit?.name ?? item.benefit_id.slice(0, 8)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {item.price_points.toLocaleString("ru-RU")} б.
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {item.quantity}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">
-                        {(item.price_points * item.quantity).toLocaleString(
-                          "ru-RU",
-                        )}{" "}
-                        б.
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {order.order_items.map((item) => {
+                    const itemName =
+                      item.benefit?.name ??
+                      item.offering?.name ??
+                      (item.benefit_id
+                        ? item.benefit_id.slice(0, 8)
+                        : item.provider_offering_id?.slice(0, 8) ?? "—");
+                    const existingReview = item.provider_offering_id
+                      ? reviewByOfferingId.get(item.provider_offering_id)
+                      : undefined;
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="space-y-0.5">
+                            <div>{itemName}</div>
+                            {item.offering?.providers?.name && (
+                              <div className="text-xs text-muted-foreground">
+                                {item.offering.providers.name}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {item.price_points.toLocaleString("ru-RU")} б.
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {item.quantity}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {(item.price_points * item.quantity).toLocaleString(
+                            "ru-RU",
+                          )}{" "}
+                          б.
+                        </TableCell>
+                        {isPaid && (
+                          <TableCell>
+                            {item.provider_offering_id ? (
+                              <OrderItemReview
+                                providerOfferingId={item.provider_offering_id}
+                                existingReview={existingReview ?? null}
+                                onChanged={() => {
+                                  if (order) fetchMyReviews(order);
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

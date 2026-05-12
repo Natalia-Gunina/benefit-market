@@ -43,7 +43,8 @@ export function GET(_request: NextRequest, context: RouteContext) {
 
     const poId = tenantOffering.provider_offering_id;
 
-    // Check if user has a paid order with this offering
+    // Check if user has a paid order with this offering (either direct
+    // tenant_offering_id reference, or provider_offering_id for marketplace items)
     const orderItems = unwrapRows<OrderItemCheck>(
       await admin
         .from("order_items")
@@ -55,7 +56,6 @@ export function GET(_request: NextRequest, context: RouteContext) {
       "Failed to check order items",
     );
 
-    // Also check via tenant_offering_id
     const orderItems2 = unwrapRows<OrderItemCheck>(
       await admin
         .from("order_items")

@@ -56,9 +56,10 @@ export function GET(request: NextRequest) {
     // Build query based on role
     let query = supabase
       .from("orders")
-      .select("*, order_items(*, benefits(id, name, price_points, description))", {
-        count: "exact",
-      });
+      .select(
+        "*, order_items(*, benefits(id, name, price_points, description), provider_offerings(id, name, description, providers(name)))",
+        { count: "exact" },
+      );
 
     if (appUser.role === "employee") {
       query = query.eq("user_id", appUser.id);
@@ -81,19 +82,29 @@ export function GET(request: NextRequest) {
       throw dbError("Ошибка загрузки заказов");
     }
 
-    // Shape the response: rename nested `benefits` to `benefit`
+    // Shape the response: rename nested `benefits` to `benefit` and lift offering name
     const orders: OrderWithItems[] = ((rawOrders ?? []) as unknown[]).map(
       (raw: unknown) => {
         const order = raw as Order & {
           order_items: (OrderItem & {
             benefits?: Pick<Benefit, "id" | "name" | "price_points" | "description">;
+            provider_offerings?: {
+              id: string;
+              name: string;
+              description: string | null;
+              providers?: { name: string } | null;
+            } | null;
           })[];
         };
         return {
           ...order,
           order_items: order.order_items.map((oi) => {
-            const { benefits, ...rest } = oi;
-            return { ...rest, benefit: benefits ?? undefined };
+            const { benefits, provider_offerings, ...rest } = oi;
+            return {
+              ...rest,
+              benefit: benefits ?? undefined,
+              offering: provider_offerings ?? undefined,
+            };
           }),
         };
       },

@@ -28,7 +28,9 @@ export function POST(request: NextRequest) {
     const body = await request.json();
     const data = parseBody(createReviewSchema, body);
 
-    // Check: user has a paid order with this offering
+    // Check: user has a paid order with this specific offering.
+    // Order items reference provider_offering_id directly for marketplace items,
+    // so a single check is sufficient and prevents cross-offering review abuse.
     const orderItems = unwrapRows<OrderItemCheck>(
       await admin
         .from("order_items")
@@ -40,20 +42,7 @@ export function POST(request: NextRequest) {
       "Failed to check order items",
     );
 
-    // Also check via tenant_offering_id
-    const orderItems2 = unwrapRows<OrderItemCheck>(
-      await admin
-        .from("order_items")
-        .select("id, orders!inner(status, user_id)")
-        .not("tenant_offering_id", "is", null)
-        .eq("orders.status", "paid")
-        .eq("orders.user_id", appUser.id)
-        .limit(1),
-      "Failed to check order items",
-    );
-
-    const hasPaidOrder = orderItems.length > 0 || orderItems2.length > 0;
-    if (!hasPaidOrder) {
+    if (orderItems.length === 0) {
       throw reviewNotAllowed();
     }
 
