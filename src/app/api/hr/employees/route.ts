@@ -111,7 +111,7 @@ export function GET(request: NextRequest) {
         id: profile.user_id,
         email: user?.email ?? "",
         role: user?.role ?? "employee",
-        created_at: user?.created_at ?? profile.created_at ?? new Date().toISOString(),
+        created_at: user?.created_at ?? new Date().toISOString(),
         full_name: nameFor(user, profile),
       };
     });
