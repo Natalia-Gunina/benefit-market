@@ -36,7 +36,10 @@ export function GET() {
     const tenantId = appUser.tenant_id;
     const supabase = await createClient();
 
-    // --- Get active wallet (not expired) ---
+    // --- Get all active wallets (not expired) and sum them up ---
+    // An employee can have multiple wallets at once if accruals use different
+    // periods (e.g., monthly policy + quarterly individual accrual). The user
+    // should see a single combined balance.
     const now = new Date().toISOString();
 
     const wallets = unwrapRowsSoft<Wallet>(
@@ -46,14 +49,10 @@ export function GET() {
         .eq("user_id", appUser.id)
         .eq("tenant_id", tenantId)
         .gte("expires_at", now)
-        .order("expires_at", { ascending: false })
-        .limit(1),
+        .order("expires_at", { ascending: false }),
     );
 
-    const wallet = wallets.length > 0 ? wallets[0] : null;
-
-    if (!wallet) {
-      // No active wallet — return zeros
+    if (wallets.length === 0) {
       return success({
         balance: 0,
         reserved: 0,
@@ -64,26 +63,34 @@ export function GET() {
       } satisfies WalletBalanceResponse);
     }
 
-    // --- Get point_ledger history for this wallet (last 50 entries) ---
+    const totalBalance = wallets.reduce((s, w) => s + w.balance, 0);
+    const totalReserved = wallets.reduce((s, w) => s + w.reserved, 0);
+    const available = Math.max(0, totalBalance - totalReserved);
+
+    // Period/expires_at: take from the wallet that expires soonest — that's the
+    // next deadline the user should care about.
+    const earliest = [...wallets].sort((a, b) =>
+      a.expires_at.localeCompare(b.expires_at),
+    )[0];
+
+    // --- Get point_ledger history across all active wallets ---
+    const walletIds = wallets.map((w) => w.id);
     const history = unwrapRowsSoft<PointLedger>(
       await supabase
         .from("point_ledger")
         .select("*")
-        .eq("wallet_id", wallet.id)
+        .in("wallet_id", walletIds)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(50),
     );
 
-    // --- Build response ---
-    const available = wallet.balance - wallet.reserved;
-
     const data: WalletBalanceResponse = {
-      balance: wallet.balance,
-      reserved: wallet.reserved,
-      available: Math.max(0, available),
-      period: wallet.period,
-      expires_at: wallet.expires_at,
+      balance: totalBalance,
+      reserved: totalReserved,
+      available,
+      period: earliest.period,
+      expires_at: earliest.expires_at,
       history,
     };
 

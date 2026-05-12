@@ -6,9 +6,9 @@ import { withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { unwrapRows, unwrapRowsSoft } from "@/lib/supabase/typed-queries";
 import { demoEmployeesList } from "@/lib/demo/demo-service";
-import { fetchInitialLimits } from "@/lib/services/accrual.service";
+import { fetchInitialLimits, fetchActiveWalletBalances } from "@/lib/services/accrual.service";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { User, EmployeeProfile, Wallet } from "@/lib/types";
+import type { User, EmployeeProfile } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,23 +97,11 @@ export function GET(request: NextRequest) {
 
     const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
 
-    // --- Fetch wallets (latest period per user) ---
-    const wallets = unwrapRowsSoft<Wallet>(
-      await supabase
-        .from("wallets")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .in("user_id", userIds)
-        .order("period", { ascending: false }),
-    );
-
-    const walletMap = new Map<string, Wallet>();
-    for (const w of wallets) {
-      if (!walletMap.has(w.user_id)) walletMap.set(w.user_id, w);
-    }
+    // --- Sum active wallets (balance/reserved across all non-expired) ---
+    const admin = createAdminClient();
+    const walletMap = await fetchActiveWalletBalances(admin, tenantId, userIds);
 
     // --- Compute initial limits via point_ledger (sum of type='accrual') ---
-    const admin = createAdminClient();
     const initialLimitMap = await fetchInitialLimits(admin, tenantId, userIds);
 
     // --- Pagination ---
@@ -124,9 +112,9 @@ export function GET(request: NextRequest) {
     // --- Shape response ---
     const data: EmployeeWithProfile[] = paginated.map((u) => {
       const profile = profileMap.get(u.id);
-      const wallet = walletMap.get(u.id);
+      const walletSums = walletMap.get(u.id);
       const initialLimit = initialLimitMap.get(u.id) ?? 0;
-      const remaining = wallet ? wallet.balance : 0;
+      const remaining = walletSums ? walletSums.balance : 0;
 
       return {
         id: u.id,
@@ -145,8 +133,8 @@ export function GET(request: NextRequest) {
               extra: profile.extra,
             }
           : null,
-        wallet: wallet
-          ? { balance: wallet.balance, reserved: wallet.reserved }
+        wallet: walletSums
+          ? { balance: walletSums.balance, reserved: walletSums.reserved }
           : null,
         initial_limit: initialLimit,
         remaining_balance: remaining,

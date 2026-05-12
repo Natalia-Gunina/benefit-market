@@ -8,6 +8,7 @@ import type {
   Benefit,
   BenefitCategory,
   Wallet,
+  User,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +29,22 @@ export interface GradeUtilization {
   total_accrued: number;
   total_spent: number;
   utilization_pct: number;
+}
+
+export interface LocationUsage {
+  location: string;
+  employee_count: number;
+  active_count: number;
+  inactive_count: number;
+  active_pct: number;
+  inactive_pct: number;
+}
+
+export interface InactiveEmployee {
+  user_id: string;
+  name: string;
+  email: string;
+  location: string;
 }
 
 export interface UtilizationData {
@@ -73,6 +90,8 @@ export interface EngagementData {
     participation_pct: number;
     avg_spend: number;
   }>;
+  by_location: LocationUsage[];
+  inactive_list: InactiveEmployee[];
 }
 
 export interface CategoryTrendItem {
@@ -118,14 +137,15 @@ function getDepartment(profile: EmployeeProfile): string {
   return (extra?.department as string) || "Не указан";
 }
 
-function gradeLabel(grade: string): string {
-  const labels: Record<string, string> = {
-    junior: "Junior",
-    middle: "Middle",
-    senior: "Senior",
-    lead: "Lead",
-  };
-  return labels[grade] || grade;
+function gradeLabel(profile: EmployeeProfile): string {
+  if (profile.grade_numeric !== null && profile.grade_numeric !== undefined) {
+    return String(profile.grade_numeric);
+  }
+  return profile.grade || "—";
+}
+
+function getLocation(profile: EmployeeProfile): string {
+  return (profile.location && profile.location.trim()) || "Не указан";
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +157,7 @@ export async function generateAnalytics(
   tenantId: string,
 ): Promise<AnalyticsData> {
   // Fetch all base data in parallel
-  const [profiles, orders, ledger, wallets, items, benefits, categories] = await Promise.all([
+  const [profiles, orders, ledger, wallets, items, benefits, categories, users] = await Promise.all([
     unwrapRowsSoft<EmployeeProfile>(
       await supabase.from("employee_profiles").select("*").eq("tenant_id", tenantId),
     ),
@@ -162,7 +182,16 @@ export async function generateAnalytics(
     unwrapRowsSoft<BenefitCategory>(
       await supabase.from("benefit_categories").select("*").eq("tenant_id", tenantId),
     ),
+    unwrapRowsSoft<User & { full_name: string | null }>(
+      await supabase
+        .from("users")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("role", "employee"),
+    ),
   ]);
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
 
   const benefitMap = new Map(benefits.map((b) => [b.id, b]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
@@ -197,7 +226,7 @@ export async function generateAnalytics(
 
   for (const profile of profiles) {
     const dept = getDepartment(profile);
-    const grade = gradeLabel(profile.grade);
+    const grade = gradeLabel(profile);
     const userAccrued = accrualByUser.get(profile.user_id) || 0;
     const userSpent = spendByUser.get(profile.user_id) || 0;
 
@@ -232,7 +261,12 @@ export async function generateAnalytics(
       total_spent: s.spent,
       utilization_pct: s.accrued > 0 ? Math.round((s.spent / s.accrued) * 100) : 0,
     }))
-    .sort((a, b) => b.utilization_pct - a.utilization_pct);
+    .sort((a, b) => {
+      const na = Number(a.grade);
+      const nb = Number(b.grade);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return a.grade.localeCompare(b.grade);
+    });
 
   // Monthly utilization trend (12 months)
   const last12Months = getLastNMonths(12);
@@ -318,10 +352,13 @@ export async function generateAnalytics(
 
   const engByDept = new Map<string, { total: number; active: number; totalSpend: number }>();
   const engByGrade = new Map<string, { total: number; active: number; totalSpend: number }>();
+  const engByLocation = new Map<string, { total: number; active: number }>();
+  const inactiveList: InactiveEmployee[] = [];
 
   for (const profile of profiles) {
     const dept = getDepartment(profile);
-    const grade = gradeLabel(profile.grade);
+    const grade = gradeLabel(profile);
+    const location = getLocation(profile);
     const isActive = activeUserIds.has(profile.user_id);
     const userSpent = spendByUser.get(profile.user_id) || 0;
 
@@ -336,7 +373,41 @@ export async function generateAnalytics(
     if (isActive) gradeEntry.active++;
     gradeEntry.totalSpend += userSpent;
     engByGrade.set(grade, gradeEntry);
+
+    const locEntry = engByLocation.get(location) || { total: 0, active: 0 };
+    locEntry.total++;
+    if (isActive) locEntry.active++;
+    engByLocation.set(location, locEntry);
+
+    if (!isActive) {
+      const u = userMap.get(profile.user_id);
+      const name =
+        u?.full_name?.trim() ||
+        (u?.email ? u.email.split("@")[0] : profile.user_id);
+      inactiveList.push({
+        user_id: profile.user_id,
+        name,
+        email: u?.email ?? "",
+        location,
+      });
+    }
   }
+
+  inactiveList.sort((a, b) => a.name.localeCompare(b.name));
+
+  const byLocation: LocationUsage[] = Array.from(engByLocation.entries())
+    .map(([location, s]) => {
+      const inactive = s.total - s.active;
+      return {
+        location,
+        employee_count: s.total,
+        active_count: s.active,
+        inactive_count: inactive,
+        active_pct: s.total > 0 ? Math.round((s.active / s.total) * 100) : 0,
+        inactive_pct: s.total > 0 ? Math.round((inactive / s.total) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.employee_count - a.employee_count);
 
   const totalOrders = orders.filter((o) => o.status === "paid").length;
   const engagement: EngagementData = {
@@ -365,7 +436,14 @@ export async function generateAnalytics(
         participation_pct: s.total > 0 ? Math.round((s.active / s.total) * 100) : 0,
         avg_spend: s.active > 0 ? Math.round(s.totalSpend / s.active) : 0,
       }))
-      .sort((a, b) => b.participation_pct - a.participation_pct),
+      .sort((a, b) => {
+        const na = Number(a.grade);
+        const nb = Number(b.grade);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.grade.localeCompare(b.grade);
+      }),
+    by_location: byLocation,
+    inactive_list: inactiveList,
   };
 
   // ----- Categories -----

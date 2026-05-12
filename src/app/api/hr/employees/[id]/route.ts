@@ -153,15 +153,29 @@ export function GET(_request: NextRequest, context: RouteContext) {
       period: string;
       expires_at: string;
     };
-    const wallets = unwrapRowsSoft<WalletRow>(
+    const nowIso = new Date().toISOString();
+    const activeWallets = unwrapRowsSoft<WalletRow>(
       await admin
         .from("wallets")
         .select("id, balance, reserved, period, expires_at")
         .eq("user_id", id)
-        .order("expires_at", { ascending: false })
-        .limit(1),
+        .gte("expires_at", nowIso)
+        .order("expires_at", { ascending: false }),
     );
-    const wallet = wallets[0] ?? null;
+
+    let wallet: WalletRow | null = null;
+    if (activeWallets.length > 0) {
+      const earliest = [...activeWallets].sort((a, b) =>
+        a.expires_at.localeCompare(b.expires_at),
+      )[0];
+      wallet = {
+        id: earliest.id,
+        balance: activeWallets.reduce((s, w) => s + w.balance, 0),
+        reserved: activeWallets.reduce((s, w) => s + w.reserved, 0),
+        period: earliest.period,
+        expires_at: earliest.expires_at,
+      };
+    }
 
     const orderRows = unwrapRowsSoft<
       Order & {
@@ -184,16 +198,17 @@ export function GET(_request: NextRequest, context: RouteContext) {
       })),
     }));
 
-    const ledger = wallet
-      ? unwrapRowsSoft<PointLedger>(
-          await admin
-            .from("point_ledger")
-            .select("*")
-            .eq("wallet_id", wallet.id)
-            .order("created_at", { ascending: false })
-            .limit(50),
-        )
-      : [];
+    const ledger =
+      activeWallets.length > 0
+        ? unwrapRowsSoft<PointLedger>(
+            await admin
+              .from("point_ledger")
+              .select("*")
+              .in("wallet_id", activeWallets.map((w) => w.id))
+              .order("created_at", { ascending: false })
+              .limit(50),
+          )
+        : [];
 
     const response: EmployeeDetailResponse = {
       id: user.id,

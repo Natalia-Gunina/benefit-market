@@ -10,12 +10,22 @@ import {
   Percent,
   ShoppingCart,
   Download,
+  MapPin,
 } from "lucide-react";
 import Papa from "papaparse";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { AnalyticsData } from "@/lib/services/analytics.service";
 
 // ---------------------------------------------------------------------------
@@ -375,6 +385,124 @@ export default function HrAnalyticsPage() {
                 data={data.categories.trend}
                 categories={data.categories.distribution.map((c) => c.name)}
               />
+            </>
+          ) : null}
+        </div>
+      </section>
+
+      {/* ============ Locations Section ============ */}
+      <section className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-heading font-semibold">
+          <MapPin className="size-5 text-primary" />
+          Использование по городам
+        </h2>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {loading ? (
+            <>
+              <ChartSkeleton />
+              <ChartSkeleton />
+            </>
+          ) : data ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Сводка по городам
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.engagement.by_location.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Нет данных по городам
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Город</TableHead>
+                            <TableHead className="text-right">
+                              Численность
+                            </TableHead>
+                            <TableHead className="text-right">
+                              Используют
+                            </TableHead>
+                            <TableHead className="text-right">
+                              Не используют
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {data.engagement.by_location.map((row) => (
+                            <TableRow key={row.location}>
+                              <TableCell className="font-medium">
+                                {row.location}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.employee_count.toLocaleString("ru-RU")}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.active_pct}%
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({row.active_count})
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.inactive_pct}%
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({row.inactive_count})
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Сотрудники, не использующие платформу
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.engagement.inactive_list.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Все сотрудники используют платформу
+                    </p>
+                  ) : (
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ФИО</TableHead>
+                            <TableHead>Город</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {data.engagement.inactive_list.map((emp) => (
+                            <TableRow key={emp.user_id}>
+                              <TableCell className="font-medium">
+                                {emp.name}
+                                {emp.email && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {emp.email}
+                                  </p>
+                                )}
+                              </TableCell>
+                              <TableCell>{emp.location}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </>
           ) : null}
         </div>

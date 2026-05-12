@@ -45,9 +45,13 @@ async function buildDemoAnalytics() {
   const departmentOf = (emp: (typeof employees)[number]) =>
     (emp.profile.extra as { department?: string } | null)?.department ?? "Не указан";
   const gradeOf = (emp: (typeof employees)[number]) => {
+    const gn = emp.profile.grade_numeric;
+    if (gn !== null && gn !== undefined) return String(gn);
     const g = emp.profile.grade;
     return g ? g[0].toUpperCase() + g.slice(1) : "—";
   };
+  const locationOf = (emp: (typeof employees)[number]) =>
+    (emp.profile.location && emp.profile.location.trim()) || "Не указан";
 
   // ---- Utilization ----
   const accrualsByUser = new Map<string, number>();
@@ -89,13 +93,20 @@ async function buildDemoAnalytics() {
     total_spent: v.spent,
     utilization_pct: v.accrued > 0 ? Math.round((v.spent / v.accrued) * 100) : 0,
   }));
-  const byGradeList = Array.from(byGrade.entries()).map(([grade, v]) => ({
-    grade,
-    employee_count: v.count,
-    total_accrued: v.accrued,
-    total_spent: v.spent,
-    utilization_pct: v.accrued > 0 ? Math.round((v.spent / v.accrued) * 100) : 0,
-  }));
+  const byGradeList = Array.from(byGrade.entries())
+    .map(([grade, v]) => ({
+      grade,
+      employee_count: v.count,
+      total_accrued: v.accrued,
+      total_spent: v.spent,
+      utilization_pct: v.accrued > 0 ? Math.round((v.spent / v.accrued) * 100) : 0,
+    }))
+    .sort((a, b) => {
+      const na = Number(a.grade);
+      const nb = Number(b.grade);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return a.grade.localeCompare(b.grade);
+    });
 
   // ---- Popular offerings ----
   type PopAgg = { name: string; category: string; order_count: number; total_points: number; users: Set<string> };
@@ -228,13 +239,52 @@ async function buildDemoAnalytics() {
         participation_pct: r.participation_pct,
         avg_spend: r.avg_spend,
       })),
-      by_grade: engagementByGroup(gradeOf).map((r) => ({
-        grade: r.key,
-        total: r.total,
-        active: r.active,
-        participation_pct: r.participation_pct,
-        avg_spend: r.avg_spend,
-      })),
+      by_grade: engagementByGroup(gradeOf)
+        .map((r) => ({
+          grade: r.key,
+          total: r.total,
+          active: r.active,
+          participation_pct: r.participation_pct,
+          avg_spend: r.avg_spend,
+        }))
+        .sort((a, b) => {
+          const na = Number(a.grade);
+          const nb = Number(b.grade);
+          if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+          return a.grade.localeCompare(b.grade);
+        }),
+      by_location: (() => {
+        const acc = new Map<string, { total: number; active: number }>();
+        employees.forEach((emp) => {
+          const k = locationOf(emp);
+          const cur = acc.get(k) ?? { total: 0, active: 0 };
+          cur.total++;
+          if (activeUsers.has(emp.user.id)) cur.active++;
+          acc.set(k, cur);
+        });
+        return Array.from(acc.entries())
+          .map(([location, v]) => {
+            const inactive = v.total - v.active;
+            return {
+              location,
+              employee_count: v.total,
+              active_count: v.active,
+              inactive_count: inactive,
+              active_pct: v.total > 0 ? Math.round((v.active / v.total) * 100) : 0,
+              inactive_pct: v.total > 0 ? Math.round((inactive / v.total) * 100) : 0,
+            };
+          })
+          .sort((a, b) => b.employee_count - a.employee_count);
+      })(),
+      inactive_list: employees
+        .filter((emp) => !activeUsers.has(emp.user.id))
+        .map((emp) => ({
+          user_id: emp.user.id,
+          name: emp.full_name,
+          email: emp.user.email,
+          location: locationOf(emp),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     },
     categories: {
       distribution,

@@ -345,8 +345,11 @@ export async function applyImmediateAccrualForIndividual(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns a map of `userId -> total accrued points` for the current wallet
- * period. Used by the HR employee list to show "Исходный лимит".
+ * Returns a map of `userId -> total accrued points` summed across all active
+ * (non-expired) wallets the user has. An employee can hold multiple wallets at
+ * once when policies and individual accruals use different periods — the HR
+ * "Исходный лимит" column should reflect everything that was accrued for the
+ * current period(s).
  */
 export async function fetchInitialLimits(
   admin: SupabaseClient,
@@ -360,22 +363,58 @@ export async function fetchInitialLimits(
     point_ledger?: { amount: number; type: string }[];
   };
 
+  const nowIso = new Date().toISOString();
+
   const rows = unwrapRowsSoft<WalletWithLedger>(
     await admin
       .from("wallets")
       .select("id, user_id, tenant_id, balance, reserved, period, expires_at, point_ledger(amount, type)")
       .eq("tenant_id", tenantId)
       .in("user_id", userIds)
-      .order("expires_at", { ascending: false }),
+      .gte("expires_at", nowIso),
   );
 
   for (const w of rows) {
-    if (map.has(w.user_id)) continue; // first row (newest) only
     const ledger = w.point_ledger ?? [];
     const accrued = ledger
       .filter((l) => l.type === "accrual")
       .reduce((s, l) => s + l.amount, 0);
-    map.set(w.user_id, accrued);
+    map.set(w.user_id, (map.get(w.user_id) ?? 0) + accrued);
+  }
+
+  return map;
+}
+
+/**
+ * Returns a map of `userId -> { balance, reserved }` summed across all active
+ * (non-expired) wallets. Mirrors the logic of fetchInitialLimits so that the
+ * HR list shows the same combined balance the employee sees in their own
+ * wallet view.
+ */
+export async function fetchActiveWalletBalances(
+  admin: SupabaseClient,
+  tenantId: string,
+  userIds: string[],
+): Promise<Map<string, { balance: number; reserved: number }>> {
+  const map = new Map<string, { balance: number; reserved: number }>();
+  if (userIds.length === 0) return map;
+
+  const nowIso = new Date().toISOString();
+
+  const wallets = unwrapRowsSoft<Wallet>(
+    await admin
+      .from("wallets")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .in("user_id", userIds)
+      .gte("expires_at", nowIso),
+  );
+
+  for (const w of wallets) {
+    const prev = map.get(w.user_id) ?? { balance: 0, reserved: 0 };
+    prev.balance += w.balance;
+    prev.reserved += w.reserved;
+    map.set(w.user_id, prev);
   }
 
   return map;
