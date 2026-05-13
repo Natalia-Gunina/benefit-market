@@ -160,27 +160,6 @@ export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;
 
 // ---------------------------------------------------------------------------
-// Import: Employees (CSV row)
-// ---------------------------------------------------------------------------
-
-export const importRowSchema = z.object({
-  email: z.string().email("Некорректный email"),
-  name: z.string().min(1, "Имя обязательно"),
-  grade: z.string().optional().default(""),
-  grade_numeric: z.coerce
-    .number()
-    .int()
-    .min(10, "Грейд должен быть от 10 до 18")
-    .max(18, "Грейд должен быть от 10 до 18")
-    .optional(),
-  tenure_months: z.coerce.number().int().min(0, "Стаж должен быть >= 0"),
-  location: z.string().optional().default(""),
-  legal_entity: z.string().optional().default(""),
-});
-
-export type ImportRowInput = z.infer<typeof importRowSchema>;
-
-// ---------------------------------------------------------------------------
 // Provider Registration
 // ---------------------------------------------------------------------------
 

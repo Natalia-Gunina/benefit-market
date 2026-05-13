@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Wallet,
   Users,
-  Upload,
   Settings,
   Building2,
   Package,
@@ -60,7 +59,6 @@ const employeeNavItems: NavItem[] = [
 const hrNavItems: NavItem[] = [
   { title: "Аналитика", href: "/dashboard/hr", icon: BarChart },
   { title: "Сотрудники", href: "/dashboard/hr/employees", icon: Users },
-  { title: "Импорт", href: "/dashboard/hr/import", icon: Upload },
   { title: "Начисления и политики", href: "/dashboard/hr/policies", icon: Settings },
 ];
 
