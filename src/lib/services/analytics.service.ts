@@ -9,6 +9,9 @@ import type {
   BenefitCategory,
   Wallet,
   User,
+  TenantOffering,
+  ProviderOffering,
+  GlobalCategory,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -161,7 +164,19 @@ export async function generateAnalytics(
   // analytics, including profiles attached to admin/HR users that exist to
   // populate the dashboards. Name resolution falls back to the profile's
   // `extra.full_name` so we never leak raw UUIDs into the UI.
-  const [profiles, orders, ledger, wallets, items, benefits, categories, users] = await Promise.all([
+  const [
+    profiles,
+    orders,
+    ledger,
+    wallets,
+    items,
+    benefits,
+    categories,
+    users,
+    tenantOfferings,
+    providerOfferings,
+    globalCategories,
+  ] = await Promise.all([
     unwrapRowsSoft<EmployeeProfile>(
       await supabase.from("employee_profiles").select("*").eq("tenant_id", tenantId),
     ),
@@ -189,12 +204,61 @@ export async function generateAnalytics(
     unwrapRowsSoft<User & { full_name: string | null }>(
       await supabase.from("users").select("*").eq("tenant_id", tenantId),
     ),
+    unwrapRowsSoft<TenantOffering>(
+      await supabase.from("tenant_offerings").select("*").eq("tenant_id", tenantId),
+    ),
+    unwrapRowsSoft<ProviderOffering>(
+      await supabase.from("provider_offerings").select("*"),
+    ),
+    unwrapRowsSoft<GlobalCategory>(
+      await supabase.from("global_categories").select("*"),
+    ),
   ]);
 
   const userMap = new Map(users.map((u) => [u.id, u]));
 
   const benefitMap = new Map(benefits.map((b) => [b.id, b]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
+  const providerOfferingMap = new Map(providerOfferings.map((p) => [p.id, p]));
+  const globalCategoryMap = new Map(globalCategories.map((g) => [g.id, g]));
+
+  // Unified resolver: для каждой позиции заказа возвращает имя льготы и категорию,
+  // независимо от того, привязана она к benefit_id (internal-каталог) или
+  // tenant_offering_id (marketplace).
+  type ItemInfo = { key: string; name: string; category: string };
+  const offeringInfoMap = new Map<string, ItemInfo>();
+  for (const to of tenantOfferings) {
+    const po = providerOfferingMap.get(to.provider_offering_id);
+    if (!po) continue;
+    let category = "Прочее";
+    // Сначала пытаемся резолвить категорию через тенант-категорию
+    if (to.tenant_category_id) {
+      const cat = categoryMap.get(to.tenant_category_id);
+      if (cat) category = cat.name;
+    }
+    if (category === "Прочее" && po.global_category_id) {
+      const gc = globalCategoryMap.get(po.global_category_id);
+      if (gc) category = gc.name;
+    }
+    offeringInfoMap.set(to.id, { key: to.id, name: po.name, category });
+  }
+
+  function resolveItemInfo(item: OrderItem): ItemInfo | null {
+    if (item.benefit_id) {
+      const benefit = benefitMap.get(item.benefit_id);
+      if (!benefit) return null;
+      const cat = categoryMap.get(benefit.category_id);
+      return {
+        key: item.benefit_id,
+        name: benefit.name,
+        category: cat?.name || "Прочее",
+      };
+    }
+    if (item.tenant_offering_id) {
+      return offeringInfoMap.get(item.tenant_offering_id) ?? null;
+    }
+    return null;
+  }
 
   // ----- Ledger aggregates -----
   let totalAccrued = 0;
@@ -304,18 +368,16 @@ export async function generateAnalytics(
   // ----- Popular benefits -----
   type ItemWithOrder = OrderItem & { orders: { tenant_id: string; user_id: string; status: string } };
   const paidItems = (items as ItemWithOrder[]).filter(
-    (i) => i.orders.status === "paid" && i.benefit_id,
+    (i) => i.orders.status === "paid" && (i.benefit_id || i.tenant_offering_id),
   );
 
   const benefitAgg = new Map<string, { name: string; category: string; count: number; total: number; users: Set<string> }>();
   for (const item of paidItems) {
-    const benefit = benefitMap.get(item.benefit_id!);
-    if (!benefit) continue;
-    const cat = categoryMap.get(benefit.category_id);
-    const key = item.benefit_id!;
-    const existing = benefitAgg.get(key) || {
-      name: benefit.name,
-      category: cat?.name || "Прочее",
+    const info = resolveItemInfo(item);
+    if (!info) continue;
+    const existing = benefitAgg.get(info.key) || {
+      name: info.name,
+      category: info.category,
       count: 0,
       total: 0,
       users: new Set<string>(),
@@ -323,7 +385,7 @@ export async function generateAnalytics(
     existing.count += item.quantity;
     existing.total += item.price_points * item.quantity;
     existing.users.add(item.orders.user_id);
-    benefitAgg.set(key, existing);
+    benefitAgg.set(info.key, existing);
   }
   const popular: PopularBenefitExtended[] = Array.from(benefitAgg.values())
     .sort((a, b) => b.count - a.count)
@@ -454,14 +516,12 @@ export async function generateAnalytics(
   // ----- Categories -----
   const catAgg = new Map<string, { name: string; total: number; count: number }>();
   for (const item of paidItems) {
-    const benefit = benefitMap.get(item.benefit_id!);
-    if (!benefit) continue;
-    const cat = categoryMap.get(benefit.category_id);
-    const name = cat?.name || "Прочее";
-    const existing = catAgg.get(name) || { name, total: 0, count: 0 };
+    const info = resolveItemInfo(item);
+    if (!info) continue;
+    const existing = catAgg.get(info.category) || { name: info.category, total: 0, count: 0 };
     existing.total += item.price_points * item.quantity;
     existing.count += item.quantity;
-    catAgg.set(name, existing);
+    catAgg.set(info.category, existing);
   }
   const grandTotal = Array.from(catAgg.values()).reduce((s, c) => s + c.total, 0);
   const distribution = Array.from(catAgg.values())
@@ -480,17 +540,14 @@ export async function generateAnalytics(
     catMonthMap.set(month, new Map());
   }
   for (const item of paidItems) {
-    const benefit = benefitMap.get(item.benefit_id!);
-    if (!benefit) continue;
-    const cat = categoryMap.get(benefit.category_id);
-    const name = cat?.name || "Прочее";
-    // Find order to get date
+    const info = resolveItemInfo(item);
+    if (!info) continue;
     const order = orders.find((o) => o.id === item.order_id);
     if (!order) continue;
     const monthKey = order.created_at.slice(0, 7);
     const monthData = catMonthMap.get(monthKey);
     if (monthData) {
-      monthData.set(name, (monthData.get(name) || 0) + item.price_points * item.quantity);
+      monthData.set(info.category, (monthData.get(info.category) || 0) + item.price_points * item.quantity);
     }
   }
   const categoryNames = Array.from(new Set(distribution.map((d) => d.name)));
