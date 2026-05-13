@@ -130,7 +130,7 @@ INSERT INTO employee_profiles (id, user_id, tenant_id, grade, tenure_months, loc
 
     -- anna — junior, 4 мес. стажа
     (gen_random_uuid(), '00000000-0000-4000-8000-000000000031', '00000000-0000-4000-8000-000000000001',
-     'junior', 4, 'Санкт-Петербург', 'ООО ТБ Северо-Запад',
+     'junior', 4, 'Санкт-Петербург', 'ООО ТБ',
      '{"full_name": "Анна Игоревна Петрова", "department": "Дизайн", "position": "Младший дизайнер"}'::jsonb),
 
     -- dmitry — middle, 24 мес. стажа
@@ -145,7 +145,7 @@ INSERT INTO employee_profiles (id, user_id, tenant_id, grade, tenure_months, loc
 
     -- sergey — lead, 42 мес. стажа
     (gen_random_uuid(), '00000000-0000-4000-8000-000000000034', '00000000-0000-4000-8000-000000000001',
-     'lead', 42, 'Санкт-Петербург', 'ООО ТБ Северо-Запад',
+     'lead', 42, 'Санкт-Петербург', 'ООО ТБ',
      '{"full_name": "Сергей Александрович Волков", "department": "Разработка", "position": "Тимлид бэкенд-команды"}'::jsonb),
 
     -- maria — director, 48 мес. стажа
