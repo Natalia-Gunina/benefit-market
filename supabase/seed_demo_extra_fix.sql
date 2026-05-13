@@ -12,10 +12,11 @@
 
 DO $extra_fix$
 DECLARE
-  _tenant_main uuid := '00000000-0000-4000-8000-000000000001';
   _updated     int;
 BEGIN
-  -- Подсветим именно «новые» офферы — те, чьи провайдеры из доп-блока.
+  -- Поднимаем enabled_at для всех tenant_offerings, ссылающихся
+  -- на новые provider_offerings (от 8 новых провайдеров), независимо
+  -- от tenant_id — так фикс работает на любом наборе tenants.
   WITH new_provider_ids AS (
     SELECT id
     FROM providers
@@ -31,9 +32,36 @@ BEGIN
   )
   UPDATE tenant_offerings
   SET enabled_at = NOW() - (random() * INTERVAL '12 hours')
-  WHERE tenant_id = _tenant_main
-    AND provider_offering_id IN (SELECT id FROM new_offering_ids);
+  WHERE provider_offering_id IN (SELECT id FROM new_offering_ids);
 
   GET DIAGNOSTICS _updated = ROW_COUNT;
   RAISE NOTICE 'Fix: updated enabled_at for % новых tenant_offerings', _updated;
+
+  -- Линкуем новые офферы во ВСЕ существующие tenants (кроме default),
+  -- чтобы они появились в каталоге у любого юзера независимо от того,
+  -- в каком tenant он зарегистрирован.
+  INSERT INTO tenant_offerings (tenant_id, provider_offering_id, custom_price_points, is_active, enabled_by, enabled_at)
+  SELECT
+    t.id,
+    po.id,
+    NULL,
+    true,
+    (SELECT id FROM users WHERE tenant_id = t.id ORDER BY created_at ASC LIMIT 1),
+    NOW() - (random() * INTERVAL '12 hours')
+  FROM tenants t
+  CROSS JOIN provider_offerings po
+  WHERE t.id != '00000000-0000-0000-0000-000000000000'
+    AND po.status = 'published'
+    AND po.provider_id IN (
+      SELECT id FROM providers
+      WHERE slug IN (
+        'sberhealth', 'fitmost', 'coursera-business', 'samokat',
+        'aviasales-business', 'lenta-fun', 'hello-pets', 'uyutniy-dom'
+      )
+    )
+    AND EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id)
+  ON CONFLICT (tenant_id, provider_offering_id) DO NOTHING;
+
+  GET DIAGNOSTICS _updated = ROW_COUNT;
+  RAISE NOTICE 'Fix: linked % новых tenant_offerings в дополнительные тенанты', _updated;
 END $extra_fix$;
