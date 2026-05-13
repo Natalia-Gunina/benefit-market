@@ -5,6 +5,7 @@ import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { unwrapSingle, unwrapSingleOrNull } from "@/lib/supabase/typed-queries";
 import { notFound } from "@/lib/errors";
+import { invalidateRecommendationsForUser } from "@/lib/services/recommendations.service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,6 +159,12 @@ export function PATCH(request: NextRequest) {
     const userRow = unwrapSingleOrNull<UserNameRow>(
       await admin.from("users").select("full_name").eq("id", appUser.id).single(),
     );
+
+    // Profile changed → drop the cached recommendations so the next catalog
+    // visit regenerates them with fresh data.
+    if (Object.keys(patch).length > 0) {
+      await invalidateRecommendationsForUser(appUser.id);
+    }
 
     return success(buildResponse(updated, userRow?.full_name ?? ""));
   }, "PATCH /api/employee/profile");

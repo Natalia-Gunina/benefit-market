@@ -17,6 +17,10 @@ import {
 } from "@/components/ui/select";
 import { CategoryFilter } from "@/components/benefits/category-filter";
 import { BenefitGrid } from "@/components/benefits/benefit-grid";
+import {
+  RecommendedCarousel,
+  type RecommendedItem,
+} from "@/components/benefits/recommended-carousel";
 
 interface OfferingItem {
   id: string;
@@ -89,6 +93,9 @@ export default function CatalogPage() {
   );
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
+  const [recommended, setRecommended] = useState<RecommendedItem[]>([]);
+  const [recSource, setRecSource] = useState<"llm" | "popular">("popular");
+  const [recLoading, setRecLoading] = useState(true);
 
   // Restore last selected city after mount (localStorage is a browser API).
   useEffect(() => {
@@ -110,12 +117,14 @@ export default function CatalogPage() {
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
+    setRecLoading(true);
     setFetchError(false);
     try {
-      const [globalCatsRes, offeringsRes, walletRes] = await Promise.all([
+      const [globalCatsRes, offeringsRes, walletRes, recsRes] = await Promise.all([
         fetch("/api/admin/global-categories"),
         fetch("/api/offerings?per_page=100"),
         fetch("/api/wallets/me"),
+        fetch("/api/employee/recommendations"),
       ]);
 
       // Build a lookup map: global_category name -> id
@@ -135,12 +144,11 @@ export default function CatalogPage() {
           })),
         );
       }
+      const nameToId = new Map(globalCats.map((gc) => [gc.name, gc.id]));
 
       if (offeringsRes.ok) {
         const json = await offeringsRes.json();
         const items: OfferingItem[] = json.data?.data ?? json.data ?? [];
-        // Build name->id map for matching
-        const nameToId = new Map(globalCats.map((gc) => [gc.name, gc.id]));
         setOfferings(
           items.map((o) => {
             const catName = o.provider_offerings?.global_categories?.name ?? "";
@@ -157,11 +165,31 @@ export default function CatalogPage() {
           setAvailableBalance((w.balance ?? 0) - (w.reserved ?? 0));
         }
       }
+
+      if (recsRes.ok) {
+        const json = await recsRes.json();
+        const payload = json.data ?? json;
+        const rawItems: (OfferingItem & { reason: string })[] = payload?.items ?? [];
+        setRecSource(payload?.source === "llm" ? "llm" : "popular");
+        setRecommended(
+          rawItems.map((o) => {
+            const catName = o.provider_offerings?.global_categories?.name ?? "";
+            const catId = nameToId.get(catName) ?? "";
+            return {
+              benefit: offeringToBenefit(o, catId),
+              reason: o.reason,
+            };
+          }),
+        );
+      } else {
+        setRecommended([]);
+      }
     } catch {
       setFetchError(true);
       toast.error("Не удалось загрузить каталог");
     } finally {
       setIsLoading(false);
+      setRecLoading(false);
     }
   }, []);
 
@@ -271,6 +299,16 @@ export default function CatalogPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Recommendations carousel */}
+      {(recLoading || recommended.length > 0) && (
+        <RecommendedCarousel
+          items={recommended}
+          source={recSource}
+          isLoading={recLoading}
+          onAddToCart={handleAddToCart}
+        />
+      )}
 
       {/* Filters row */}
       <div className="space-y-4">
