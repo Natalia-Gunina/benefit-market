@@ -114,7 +114,7 @@ export default function CatalogPage() {
     try {
       const [globalCatsRes, offeringsRes, walletRes] = await Promise.all([
         fetch("/api/admin/global-categories"),
-        fetch("/api/offerings"),
+        fetch("/api/offerings?per_page=100"),
         fetch("/api/wallets/me"),
       ]);
 
