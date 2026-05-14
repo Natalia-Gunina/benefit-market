@@ -51,47 +51,70 @@ export async function getRecommendationsForUser(
 ): Promise<RecommendationsResult> {
   const admin = createAdminClient();
 
-  const [profile, offerings] = await Promise.all([
-    loadProfileSnapshot(admin, userId),
-    getActiveOfferingsForTenant(admin, tenantId),
-  ]);
+  try {
+    const [profile, offerings] = await Promise.all([
+      loadProfileSnapshot(admin, userId),
+      getActiveOfferingsForTenant(admin, tenantId),
+    ]);
 
-  if (offerings.length === 0) {
-    return { items: [], source: "popular" };
+    if (offerings.length === 0) {
+      return { items: [], source: "popular" };
+    }
+
+    const profileHash = hashProfile(profile);
+    const catalogHash = hashCatalog(offerings);
+
+    const cached = await readCache(admin, userId);
+    if (
+      cached &&
+      cached.profile_hash === profileHash &&
+      cached.catalog_hash === catalogHash
+    ) {
+      return rehydrate(cached, offerings);
+    }
+
+    const generated = isProfileMeaningfullyFilled(profile)
+      ? await generateLLMRecommendations(profile, offerings)
+      : getPopularFallback(offerings);
+
+    // Don't cache empty results — let the next request retry.
+    if (generated.items.length > 0) {
+      await writeCache(admin, {
+        userId,
+        tenantId,
+        items: generated.items.map((it) => ({
+          tenant_offering_id: it.id,
+          reason: it.reason,
+        })),
+        source: generated.source,
+        profileHash,
+        catalogHash,
+      });
+    }
+
+    return generated;
+  } catch (err) {
+    // The recommendations carousel is non-critical UX. If anything blows up
+    // (malformed profile JSONB, DB hiccup, LLM crash that escaped the inner
+    // try/catch), log it and fall back to a popularity ranking so the page
+    // still renders. NEVER throw out of this function — the API contract
+    // guarantees a valid response shape.
+    logger.error(
+      "getRecommendationsForUser failed; falling back to popular",
+      "recommendations",
+      {
+        userId,
+        tenantId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+    );
+    try {
+      const offerings = await getActiveOfferingsForTenant(admin, tenantId);
+      return getPopularFallback(offerings);
+    } catch {
+      return { items: [], source: "popular" };
+    }
   }
-
-  const profileHash = hashProfile(profile);
-  const catalogHash = hashCatalog(offerings);
-
-  const cached = await readCache(admin, userId);
-  if (
-    cached &&
-    cached.profile_hash === profileHash &&
-    cached.catalog_hash === catalogHash
-  ) {
-    return rehydrate(cached, offerings);
-  }
-
-  const generated = isProfileMeaningfullyFilled(profile)
-    ? await generateLLMRecommendations(profile, offerings)
-    : getPopularFallback(offerings);
-
-  // Don't cache empty results — let the next request retry.
-  if (generated.items.length > 0) {
-    await writeCache(admin, {
-      userId,
-      tenantId,
-      items: generated.items.map((it) => ({
-        tenant_offering_id: it.id,
-        reason: it.reason,
-      })),
-      source: generated.source,
-      profileHash,
-      catalogHash,
-    });
-  }
-
-  return generated;
 }
 
 // Called from PATCH /api/employee/profile to eagerly invalidate the cache
@@ -132,17 +155,38 @@ async function loadProfileSnapshot(
     birthday: string | null;
     extra: Record<string, unknown> | null;
   };
-  const extra = (row.extra ?? {}) as Record<string, unknown>;
+  // `extra` is a JSONB blob. We can't trust its shape: legacy imports, broken
+  // PATCHes, or hand-edited rows may store nulls, booleans, or even arrays
+  // where the new schema expects something else. Coerce defensively — every
+  // call site downstream assumes the shape returned by ProfileSnapshot.
+  const extra =
+    row.extra && typeof row.extra === "object" && !Array.isArray(row.extra)
+      ? (row.extra as Record<string, unknown>)
+      : {};
+
+  const childrenRaw = extra.children;
+  const children: { birthday: string }[] = Array.isArray(childrenRaw)
+    ? childrenRaw
+        .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+        .map((c) => ({
+          birthday: typeof c.birthday === "string" ? c.birthday : "",
+        }))
+    : [];
+
+  const prioritiesRaw = extra.priorities;
+  const priorities: string[] = Array.isArray(prioritiesRaw)
+    ? prioritiesRaw.filter((p): p is string => typeof p === "string")
+    : [];
 
   return {
-    marital_status: (extra.marital_status as string) ?? "",
-    has_children: (extra.has_children as boolean) ?? false,
-    children: (extra.children as { birthday: string }[]) ?? [],
-    work_format: (extra.work_format as string) ?? "",
-    has_pets: (extra.has_pets as string) ?? "",
-    priorities: (extra.priorities as string[]) ?? [],
-    gender: row.gender ?? "",
-    birthday: row.birthday ?? "",
+    marital_status: typeof extra.marital_status === "string" ? extra.marital_status : "",
+    has_children: extra.has_children === true,
+    children,
+    work_format: typeof extra.work_format === "string" ? extra.work_format : "",
+    has_pets: typeof extra.has_pets === "string" ? extra.has_pets : "",
+    priorities,
+    gender: typeof row.gender === "string" ? row.gender : "",
+    birthday: typeof row.birthday === "string" ? row.birthday : "",
   };
 }
 
