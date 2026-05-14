@@ -6,6 +6,7 @@ const serverEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "NEXT_PUBLIC_SUPABASE_ANON_KEY is required"),
   NEXT_PUBLIC_DEMO_MODE: z.string().optional().default("false"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  OPENAI_API_KEY: z.string().min(1).optional(),
 });
 
 const clientEnvSchema = z.object({
