@@ -64,12 +64,23 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 2299
-          envs: GHCR_TOKEN
+          envs: GHCR_TOKEN, OPENAI_API_KEY
           script: |
             echo "$GHCR_TOKEN" | docker login ghcr.io -u natalia-gunina --password-stdin
             cd /root/benefit-market
+            # Sync runtime secrets from GitHub Secrets into .env on the VPS.
+            # Only updates keys we explicitly manage here; other lines are
+            # preserved as-is. Empty/unset secrets are skipped so we never
+            # blank out a value that was set manually.
+            if [ -n "$OPENAI_API_KEY" ]; then
+              grep -v '^OPENAI_API_KEY=' .env > .env.tmp 2>/dev/null || touch .env.tmp
+              echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> .env.tmp
+              mv .env.tmp .env
+              chmod 600 .env
+            fi
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
             docker image prune -f
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
