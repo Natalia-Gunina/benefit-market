@@ -64,12 +64,22 @@ export async function getRecommendationsForUser(
     const profileHash = hashProfile(profile);
     const catalogHash = hashCatalog(offerings);
 
+    // We only consider a cache hit when it was produced by the LLM.
+    // Popular fallbacks are recomputed in-memory (cheap) so a transient
+    // problem (missing key, LLM error, half-filled profile) never gets
+    // pinned in the cache and survives across config changes.
     const cached = await readCache(admin, userId);
     if (
       cached &&
+      cached.source === "llm" &&
       cached.profile_hash === profileHash &&
       cached.catalog_hash === catalogHash
     ) {
+      logger.info("Recommendations cache hit", "recommendations", {
+        userId,
+        source: "llm",
+        items: cached.items.length,
+      });
       return rehydrate(cached, offerings);
     }
 
@@ -77,8 +87,16 @@ export async function getRecommendationsForUser(
       ? await generateLLMRecommendations(profile, offerings)
       : getPopularFallback(offerings);
 
-    // Don't cache empty results — let the next request retry.
-    if (generated.items.length > 0) {
+    logger.info("Recommendations generated", "recommendations", {
+      userId,
+      source: generated.source,
+      items: generated.items.length,
+      profileFilled: isProfileMeaningfullyFilled(profile),
+    });
+
+    // Only cache LLM results — they're the expensive part. Popular results
+    // are deterministic from the offerings list and cheap to recompute.
+    if (generated.source === "llm" && generated.items.length > 0) {
       await writeCache(admin, {
         userId,
         tenantId,
