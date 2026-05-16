@@ -11,6 +11,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCategoryColor } from "@/lib/category-colors";
 import { useChartColors } from "./use-chart-colors";
 
 const MONTH_LABELS: Record<string, string> = {
@@ -52,7 +53,6 @@ function CustomTooltip({
 
 export function CategoryTrendChart({ data, categories, title = "Динамика по категориям" }: CategoryTrendChartProps) {
   const c = useChartColors();
-  const colors = [c.chart1, c.chart2, c.chart3, c.chart4, c.chart5, c.chart6];
 
   return (
     <Card>
@@ -78,17 +78,20 @@ export function CategoryTrendChart({ data, categories, title = "Динамика
                 wrapperStyle={{ fontSize: 12 }}
                 formatter={(value: string) => <span className="text-xs">{value}</span>}
               />
-              {categories.map((cat, i) => (
-                <Area
-                  key={cat}
-                  type="monotone"
-                  dataKey={cat}
-                  stackId="1"
-                  stroke={colors[i % colors.length]}
-                  fill={colors[i % colors.length]}
-                  fillOpacity={0.4}
-                />
-              ))}
+              {categories.map((cat, i) => {
+                const color = getCategoryColor(cat, i);
+                return (
+                  <Area
+                    key={cat}
+                    type="monotone"
+                    dataKey={cat}
+                    stackId="1"
+                    stroke={color}
+                    fill={color}
+                    fillOpacity={0.4}
+                  />
+                );
+              })}
             </AreaChart>
           </ResponsiveContainer>
         </div>

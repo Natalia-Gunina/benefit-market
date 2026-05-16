@@ -10,6 +10,7 @@ import {
   type PieLabelRenderProps,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCategoryColor } from "@/lib/category-colors";
 import { useChartColors } from "./use-chart-colors";
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,6 @@ function renderLabel(props: PieLabelRenderProps) {
 
 export function CategoryChart({ data }: CategoryChartProps) {
   const c = useChartColors();
-  const palette = [c.chart1, c.chart2, c.chart3, c.chart4, c.chart5];
 
   return (
     <Card>
@@ -110,7 +110,7 @@ export function CategoryChart({ data }: CategoryChartProps) {
                 {data.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.fill || palette[index % palette.length]}
+                    fill={entry.fill || getCategoryColor(entry.name, index)}
                   />
                 ))}
               </Pie>
