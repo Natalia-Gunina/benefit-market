@@ -11,6 +11,15 @@ import {
 const MAX_RECOMMENDATIONS = 5;
 const LLM_MODEL = "gpt-4o-mini";
 const LLM_TIMEOUT_MS = 15_000;
+// Max length of a "reason" string shown under each carousel card. Sized so
+// that two lines of text-xs italic fit comfortably inside a 280-300px card.
+const REASON_MAX_LEN = 55;
+// No more than this many recommendations from the same global_category —
+// prevents the carousel from collapsing into "5 health benefits".
+const MAX_PER_CATEGORY = 2;
+// Bump when the prompt or output format changes meaningfully. Mixed into the
+// profile_hash so old cached rows stop matching and get regenerated lazily.
+const PROMPT_VERSION = "v2";
 
 export type RecommendationSource = "llm" | "popular";
 
@@ -236,7 +245,9 @@ function hashProfile(profile: ProfileSnapshot): string {
     gender: profile.gender,
     birthday: profile.birthday,
   });
-  return createHash("md5").update(stable).digest("hex");
+  // PROMPT_VERSION prefix invalidates the cache when the prompt or reason
+  // format changes — old rows will never match a new-version hash.
+  return PROMPT_VERSION + ":" + createHash("md5").update(stable).digest("hex");
 }
 
 function hashCatalog(offerings: OfferingRow[]): string {
@@ -311,7 +322,9 @@ function rehydrate(
   for (const it of cached.items) {
     const offering = byId.get(it.tenant_offering_id);
     if (offering) {
-      items.push({ ...offering, reason: it.reason });
+      // Truncate on read too — protects against pre-v2 cache rows that
+      // still have long reasons until they get organically regenerated.
+      items.push({ ...offering, reason: truncateReason(it.reason) });
     }
   }
   return { items, source: cached.source };
@@ -402,8 +415,14 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
     const po = o.provider_offerings;
     const cat = po?.global_categories?.name ?? "—";
     const name = po?.name ?? "Без названия";
-    const description = truncate(po?.description ?? "", 180);
-    return `- id=${o.id} | ${name} | категория: ${cat} | ${description}`;
+    const description = truncate(po?.description ?? "", 160);
+    const rating = po?.avg_rating ?? 0;
+    const reviewCount = po?.review_count ?? 0;
+    const ratingLabel =
+      rating > 0
+        ? ` | рейтинг: ${rating.toFixed(1)} (${reviewCount} отзывов)`
+        : " | рейтинг: —";
+    return `- id=${o.id} | ${name} | категория: ${cat}${ratingLabel} | ${description}`;
   });
 
   return [
@@ -413,12 +432,22 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
     `Доступные льготы (${offerings.length}):`,
     ...offeringLines,
     "",
-    `Выбери ${MAX_RECOMMENDATIONS} наиболее подходящих льгот для этого сотрудника. ` +
-      `Учитывай возраст, семейное положение, наличие детей и питомцев, формат работы и приоритеты. ` +
-      `Для каждой укажи короткую (1 предложение, на русском) причину, почему она подходит именно этому человеку. ` +
-      `Используй ТОЛЬКО id из списка выше.`,
+    `ЗАДАЧА: выбери ${MAX_RECOMMENDATIONS} наиболее подходящих льгот.`,
     "",
-    'Ответь строго в формате JSON: {"recommendations":[{"id":"<uuid>","reason":"<причина>"}]}',
+    "ПРАВИЛА ВЫБОРА:",
+    `- Не больше ${MAX_PER_CATEGORY} льгот из одной категории. Разнообразь подборку.`,
+    "- При выборе между похожими по тематике льготами предпочитай ту, у которой выше рейтинг.",
+    "- Учитывай возраст, семейное положение, детей, питомцев, формат работы и приоритеты.",
+    "- Используй ТОЛЬКО id из списка выше.",
+    "",
+    "ПРАВИЛА ДЛЯ ПРИЧИНЫ (reason):",
+    `- Максимум ${REASON_MAX_LEN} символов или 7 слов. Это очень важно — длинный текст будет обрезан в UI.`,
+    "- Объясни ПОЧЕМУ льгота подходит ИМЕННО этому человеку (а не что она делает).",
+    "- НЕ повторяй название льготы — оно видно на карточке.",
+    "- Хорошие примеры: «Важно при работе из дома», «Подходит семьям с детьми», «Снимает стресс от удалёнки».",
+    "- Плохие примеры (НЕ ДЕЛАЙ): «ДМС обеспечит медицинские услуги», «Программа поможет здоровью».",
+    "",
+    'Ответь строго в JSON: {"recommendations":[{"id":"<uuid>","reason":"<короткая причина>"}]}',
   ].join("\n");
 }
 
@@ -438,7 +467,10 @@ function parseLLMResponse(
 
   const byId = new Map(offerings.map((o) => [o.id, o]));
   const seen = new Set<string>();
-  const items: RecommendationItem[] = [];
+  // Collect everything the LLM returned (in its preferred order) without
+  // capping length yet — enforceDiversity below applies the per-category
+  // limit and then we slice to MAX_RECOMMENDATIONS.
+  const raw_items: RecommendationItem[] = [];
 
   for (const r of recs) {
     if (typeof r !== "object" || r === null) continue;
@@ -448,12 +480,11 @@ function parseLLMResponse(
     if (seen.has(id)) continue;
     const offering = byId.get(id);
     if (!offering) continue;
-    items.push({ ...offering, reason: reason.trim() });
+    raw_items.push({ ...offering, reason: truncateReason(reason) });
     seen.add(id);
-    if (items.length >= MAX_RECOMMENDATIONS) break;
   }
 
-  return items;
+  return enforceDiversity(raw_items, offerings, "LLM");
 }
 
 // ---------------------------------------------------------------------------
@@ -461,7 +492,18 @@ function parseLLMResponse(
 // ---------------------------------------------------------------------------
 
 function getPopularFallback(offerings: OfferingRow[]): RecommendationsResult {
-  const sorted = [...offerings].sort((a, b) => {
+  const sorted = sortByRating(offerings);
+  const seeded: RecommendationItem[] = sorted.map((o) => ({
+    ...o,
+    reason: "Популярно у коллег",
+  }));
+  // Apply diversity so popular doesn't collapse into "5 health items" either.
+  const items = enforceDiversity(seeded, offerings, "popular");
+  return { items, source: "popular" };
+}
+
+function sortByRating(offerings: OfferingRow[]): OfferingRow[] {
+  return [...offerings].sort((a, b) => {
     const aRating = a.provider_offerings?.avg_rating ?? 0;
     const bRating = b.provider_offerings?.avg_rating ?? 0;
     if (bRating !== aRating) return bRating - aRating;
@@ -469,10 +511,6 @@ function getPopularFallback(offerings: OfferingRow[]): RecommendationsResult {
     const bReviews = b.provider_offerings?.review_count ?? 0;
     return bReviews - aReviews;
   });
-  const items: RecommendationItem[] = sorted
-    .slice(0, MAX_RECOMMENDATIONS)
-    .map((o) => ({ ...o, reason: "Популярно у коллег" }));
-  return { items, source: "popular" };
 }
 
 // ---------------------------------------------------------------------------
@@ -492,6 +530,93 @@ function computeAge(birthday: string): number {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max - 1).trimEnd() + "…";
+}
+
+// Trim a reason string to REASON_MAX_LEN, breaking on a word boundary when
+// possible so we don't slice mid-word. Single source of truth for "what fits
+// in the carousel card" — used by both fresh generation and cache rehydrate.
+function truncateReason(reason: string): string {
+  const cleaned = reason.trim().replace(/\s+/g, " ");
+  if (cleaned.length <= REASON_MAX_LEN) return cleaned;
+  const cut = cleaned.slice(0, REASON_MAX_LEN);
+  const lastSpace = cut.lastIndexOf(" ");
+  // Only break at a word boundary if it's reasonably close to the end —
+  // otherwise we'd lose too much content.
+  const breakPoint = lastSpace > REASON_MAX_LEN * 0.6 ? lastSpace : REASON_MAX_LEN - 1;
+  return cleaned.slice(0, breakPoint).trimEnd() + "…";
+}
+
+function categoryKeyOf(o: OfferingRow): string {
+  return o.provider_offerings?.global_categories?.name ?? "—";
+}
+
+// Take an ordered list of recommendation items and produce a final list of up
+// to MAX_RECOMMENDATIONS, applying these rules in order:
+//
+//   1. Respect MAX_PER_CATEGORY: keep seeded items in order, dropping any
+//      whose category is already at its cap. Dropped items go into `overflow`.
+//   2. If short of MAX_RECOMMENDATIONS, fill from the full catalog by rating,
+//      still respecting the per-category cap. These get a generic reason.
+//   3. If STILL short (catalog has too few categories to satisfy the cap):
+//      first reinsert overflow LLM items (they have nicer reasons), then
+//      drop the cap and fill remaining slots by rating.
+function enforceDiversity(
+  seeded: RecommendationItem[],
+  allOfferings: OfferingRow[],
+  context: "LLM" | "popular",
+): RecommendationItem[] {
+  const result: RecommendationItem[] = [];
+  const perCategory = new Map<string, number>();
+  const usedIds = new Set<string>();
+  const overflow: RecommendationItem[] = [];
+  const fillerReason =
+    context === "LLM" ? "Высокий рейтинг и хорошие отзывы" : "Популярно у коллег";
+
+  const take = (item: RecommendationItem): void => {
+    result.push(item);
+    perCategory.set(categoryKeyOf(item), (perCategory.get(categoryKeyOf(item)) ?? 0) + 1);
+    usedIds.add(item.id);
+  };
+
+  // Pass 1: seeded items, respecting cap.
+  for (const item of seeded) {
+    if (result.length >= MAX_RECOMMENDATIONS) break;
+    const count = perCategory.get(categoryKeyOf(item)) ?? 0;
+    if (count >= MAX_PER_CATEGORY) {
+      overflow.push(item);
+      continue;
+    }
+    take(item);
+  }
+
+  // Pass 2: fill by rating, respecting cap.
+  if (result.length < MAX_RECOMMENDATIONS) {
+    for (const candidate of sortByRating(allOfferings)) {
+      if (result.length >= MAX_RECOMMENDATIONS) break;
+      if (usedIds.has(candidate.id)) continue;
+      const count = perCategory.get(categoryKeyOf(candidate)) ?? 0;
+      if (count >= MAX_PER_CATEGORY) continue;
+      take({ ...candidate, reason: fillerReason });
+    }
+  }
+
+  // Pass 3: drop the cap. Prefer reinserting overflow (nicer reasons) over
+  // generic rating-based fillers.
+  if (result.length < MAX_RECOMMENDATIONS) {
+    for (const item of overflow) {
+      if (result.length >= MAX_RECOMMENDATIONS) break;
+      take(item);
+    }
+  }
+  if (result.length < MAX_RECOMMENDATIONS) {
+    for (const candidate of sortByRating(allOfferings)) {
+      if (result.length >= MAX_RECOMMENDATIONS) break;
+      if (usedIds.has(candidate.id)) continue;
+      take({ ...candidate, reason: fillerReason });
+    }
+  }
+
+  return result;
 }
 
 function renderGender(g: string): string {
