@@ -19,7 +19,7 @@ const REASON_MAX_LEN = 55;
 const MAX_PER_CATEGORY = 2;
 // Bump when the prompt or output format changes meaningfully. Mixed into the
 // profile_hash so old cached rows stop matching and get regenerated lazily.
-const PROMPT_VERSION = "v2";
+const PROMPT_VERSION = "v3";
 
 export type RecommendationSource = "llm" | "popular";
 
@@ -61,10 +61,16 @@ export async function getRecommendationsForUser(
   const admin = createAdminClient();
 
   try {
-    const [profile, offerings] = await Promise.all([
+    const [profile, rawOfferings] = await Promise.all([
       loadProfileSnapshot(admin, userId),
       getActiveOfferingsForTenant(admin, tenantId),
     ]);
+
+    // Hard filter: remote workers should never see office-only benefits in
+    // any path (LLM input, popular fallback, diversity filler). This is the
+    // belt to the prompt's suspenders — even if the LLM ignores instructions,
+    // an "обеды в офис" type benefit physically cannot reach the carousel.
+    const offerings = filterOfferingsForProfile(rawOfferings, profile);
 
     if (offerings.length === 0) {
       return { items: [], source: "popular" };
@@ -415,15 +421,21 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
     const po = o.provider_offerings;
     const cat = po?.global_categories?.name ?? "—";
     const name = po?.name ?? "Без названия";
-    const description = truncate(po?.description ?? "", 160);
+    // Bumped from 160 → 280 chars: gives the LLM enough context to spot
+    // location/format mismatches (e.g. "обеды в офис на 22 рабочих дня").
+    const description = truncate(po?.description ?? "", 280);
     const rating = po?.avg_rating ?? 0;
     const reviewCount = po?.review_count ?? 0;
     const ratingLabel =
       rating > 0
         ? ` | рейтинг: ${rating.toFixed(1)} (${reviewCount} отзывов)`
         : " | рейтинг: —";
-    return `- id=${o.id} | ${name} | категория: ${cat}${ratingLabel} | ${description}`;
+    const format = po?.format === "offline" ? "офлайн" : "онлайн";
+    return `- id=${o.id} | ${name} | категория: ${cat} | формат: ${format}${ratingLabel} | ${description}`;
   });
+
+  const remoteWorker = profile.work_format === "remote";
+  const officeWorker = profile.work_format === "on_site";
 
   return [
     "Профиль сотрудника:",
@@ -438,14 +450,33 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
     `- Не больше ${MAX_PER_CATEGORY} льгот из одной категории. Разнообразь подборку.`,
     "- При выборе между похожими по тематике льготами предпочитай ту, у которой выше рейтинг.",
     "- Учитывай возраст, семейное положение, детей, питомцев, формат работы и приоритеты.",
+    "- ВНИМАТЕЛЬНО ЧИТАЙ ОПИСАНИЕ: если льгота явно привязана к офису (корпоративные обеды, доставка еды в офис, корпоративный транспорт, парковка у БЦ, ДМС с прикреплением к одной клинике рядом с работой и т.п.) — НЕ предлагай её удалённому или гибридному сотруднику.",
+    remoteWorker
+      ? "- ЭТОТ СОТРУДНИК РАБОТАЕТ УДАЛЁННО. Он НЕ ходит в офис. Любые «офисные» льготы (обеды в офис, доставка к офису, корпоративный транспорт) для него БЕСПОЛЕЗНЫ — пропускай их."
+      : officeWorker
+        ? "- Этот сотрудник работает в офисе. Льготы с доставкой к рабочему месту ему подходят."
+        : "- Этот сотрудник работает в гибридном режиме. Чисто офисные льготы стоит избегать или предлагать с оговоркой.",
     "- Используй ТОЛЬКО id из списка выше.",
     "",
     "ПРАВИЛА ДЛЯ ПРИЧИНЫ (reason):",
     `- Максимум ${REASON_MAX_LEN} символов или 7 слов. Это очень важно — длинный текст будет обрезан в UI.`,
-    "- Объясни ПОЧЕМУ льгота подходит ИМЕННО этому человеку (а не что она делает).",
+    "- Опирайся на КОНКРЕТНЫЙ факт из профиля (возраст, семья, дети, питомцы, формат работы или приоритет). Для каждой льготы — РАЗНЫЙ факт, не повторяй один и тот же по 5 раз.",
+    "- Причина должна быть осмысленной и СОВПАДАТЬ с содержанием льготы. Если ты обосновываешь льготу удалённой работой — убедись что льгота РЕАЛЬНО подходит удалёнщику.",
     "- НЕ повторяй название льготы — оно видно на карточке.",
-    "- Хорошие примеры: «Важно при работе из дома», «Подходит семьям с детьми», «Снимает стресс от удалёнки».",
-    "- Плохие примеры (НЕ ДЕЛАЙ): «ДМС обеспечит медицинские услуги», «Программа поможет здоровью».",
+    "- НЕ используй слова «дома» или «в доме» без явной необходимости. Они часто звучат неестественно («полезные товары для питомца в доме» — питомец и так живёт дома, это лишнее).",
+    "- НЕ используй шаблонные глаголы типа «поможет», «обеспечит», «предоставляет» — это бессмысленный канцелярит.",
+    "",
+    "✅ ХОРОШИЕ примеры:",
+    "  • «Подходит для семьи с маленьким ребёнком»",
+    "  • «Полезно при ваших приоритетах: здоровье»",
+    "  • «Удобно при удалённой работе» (только если льгота РЕАЛЬНО для удалёнки)",
+    "  • «Учитывая возраст и работу за компьютером»",
+    "",
+    "❌ ПЛОХИЕ примеры (НЕ ДЕЛАЙ ТАК):",
+    "  • «ДМС обеспечит медицинские услуги» — пустой канцелярит",
+    "  • «Полезные товары для питомца в доме» — где же ещё питомец",
+    "  • «Поддержка психического здоровья важна дома» — «дома» тут не к месту",
+    "  • Указывать «при удалённой работе» для офисных льгот — противоречие",
     "",
     'Ответь строго в JSON: {"recommendations":[{"id":"<uuid>","reason":"<короткая причина>"}]}',
   ].join("\n");
@@ -548,6 +579,33 @@ function truncateReason(reason: string): string {
 
 function categoryKeyOf(o: OfferingRow): string {
   return o.provider_offerings?.global_categories?.name ?? "—";
+}
+
+// Heuristic patterns for benefits that physically require being in an office.
+// Conservative: only matches the literal "в офис[е]" phrase, not bare "офис"
+// (which could appear in unrelated contexts like "офис-менеджер").
+const OFFICE_ONLY_PATTERNS: RegExp[] = [
+  /\bв\s+офис(е|ах|у)?\b/i, // "доставка в офис", "обеды в офис", "получение в офисе"
+  /\bдо\s+офис[аеу]\b/i, // "доставка до офиса"
+  /\bв\s+бизнес[\s-]?центр[ае]?\b/i, // "парковка в бизнес-центре"
+];
+
+function requiresOfficePresence(o: OfferingRow): boolean {
+  const po = o.provider_offerings;
+  if (!po) return false;
+  const haystack = `${po.name ?? ""} ${po.description ?? ""}`;
+  return OFFICE_ONLY_PATTERNS.some((re) => re.test(haystack));
+}
+
+// Drops offerings that are physically incompatible with the user's profile.
+// Currently only handles work_format=remote — those users get no "в офис"
+// benefits. Hybrid users still see them (they go to office sometimes).
+function filterOfferingsForProfile(
+  offerings: OfferingRow[],
+  profile: ProfileSnapshot,
+): OfferingRow[] {
+  if (profile.work_format !== "remote") return offerings;
+  return offerings.filter((o) => !requiresOfficePresence(o));
 }
 
 // Take an ordered list of recommendation items and produce a final list of up
