@@ -19,7 +19,7 @@ const REASON_MAX_LEN = 55;
 const MAX_PER_CATEGORY = 2;
 // Bump when the prompt or output format changes meaningfully. Mixed into the
 // profile_hash so old cached rows stop matching and get regenerated lazily.
-const PROMPT_VERSION = "v4";
+const PROMPT_VERSION = "v5";
 
 export type RecommendationSource = "llm" | "popular";
 
@@ -417,10 +417,16 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
     profileLines.push(`Формат работы: ${renderWorkFormat(profile.work_format)}`);
   if (profile.has_pets)
     profileLines.push(`Домашние животные: ${profile.has_pets === "yes" ? "есть" : "нет"}`);
-  if (profile.priorities.length > 0)
-    profileLines.push(
-      `Приоритеты (по убыванию важности): ${profile.priorities.map(renderPriority).join(" → ")}`,
-    );
+
+  // Priorities are rendered as a separate, prominent block (see below) — not
+  // squashed into profileLines — so the LLM treats them as a primary signal.
+
+  const priorityLines: string[] = profile.priorities.map((p, i) => {
+    const label = renderPriority(p);
+    const hint = PRIORITY_HINTS[p];
+    const hintSuffix = hint ? ` — может включать: ${hint}` : "";
+    return `${i + 1}. ${label}${hintSuffix}`;
+  });
 
   const offeringLines = offerings.map((o) => {
     const po = o.provider_offerings;
@@ -442,19 +448,36 @@ function buildPrompt(profile: ProfileSnapshot, offerings: OfferingRow[]): string
   const remoteWorker = profile.work_format === "remote";
   const officeWorker = profile.work_format === "on_site";
 
+  const topPriorityLabel =
+    profile.priorities.length > 0 ? renderPriority(profile.priorities[0]!) : null;
+
   return [
     "Профиль сотрудника:",
     ...profileLines,
     "",
+    ...(priorityLines.length > 0
+      ? [
+          "⭐ ПРИОРИТЕТЫ ПОЛЬЗОВАТЕЛЯ (это ГЛАВНЫЙ сигнал — учитывай в первую очередь!):",
+          ...priorityLines,
+          "",
+        ]
+      : []),
     `Доступные льготы (${offerings.length}):`,
     ...offeringLines,
     "",
     `ЗАДАЧА: выбери ${MAX_RECOMMENDATIONS} наиболее подходящих льгот.`,
     "",
     "ПРАВИЛА ВЫБОРА:",
-    `- Не больше ${MAX_PER_CATEGORY} льгот из одной категории. Разнообразь подборку.`,
+    ...(topPriorityLabel
+      ? [
+          `- ПРИОРИТЕТ №1 («${topPriorityLabel}») — обязательно представлен в подборке. Минимум 1 льгота, в идеале 2, должны соответствовать этому приоритету (по содержанию, не обязательно по категории каталога).`,
+          "- Распредели подборку по приоритетам: больше льгот из топ-2 приоритетов, меньше — из нижних.",
+          "- Если в каталоге нет очевидной категории под приоритет — ищи косвенные соответствия (см. подсказки рядом с приоритетом).",
+        ]
+      : []),
+    `- Не больше ${MAX_PER_CATEGORY} льгот из одной категории каталога. Разнообразь подборку.`,
     "- При выборе между похожими по тематике льготами предпочитай ту, у которой выше рейтинг.",
-    "- Учитывай возраст, семейное положение, детей, питомцев, формат работы и приоритеты.",
+    "- Учитывай возраст, семейное положение, детей, питомцев, формат работы.",
     "- ВНИМАТЕЛЬНО ЧИТАЙ ОПИСАНИЕ: если льгота явно привязана к офису (корпоративные обеды, доставка еды в офис, корпоративный транспорт, парковка у БЦ, ДМС с прикреплением к одной клинике рядом с работой и т.п.) — НЕ предлагай её удалённому или гибридному сотруднику.",
     remoteWorker
       ? "- ЭТОТ СОТРУДНИК РАБОТАЕТ УДАЛЁННО. Он НЕ ходит в офис. Любые «офисные» льготы (обеды в офис, доставка к офису, корпоративный транспорт) для него БЕСПОЛЕЗНЫ — пропускай их."
@@ -716,12 +739,31 @@ function renderWorkFormat(w: string): string {
 }
 
 function renderPriority(p: string): string {
+  // Full UI-aligned labels — these are exactly what the user sees on the
+  // profile page, which gives the LLM the strongest grounding.
   const map: Record<string, string> = {
-    health: "здоровье",
-    family: "семья",
-    comfort: "комфорт",
-    career: "карьера",
-    leisure: "досуг",
+    health: "здоровье и самочувствие",
+    family: "семья и дети",
+    comfort: "комфорт и бытовые удобства",
+    career: "развитие и карьера",
+    leisure: "впечатления и досуг",
   };
   return map[p] ?? p;
 }
+
+// Hints to help the LLM interpret abstract priority labels — which kinds of
+// offerings naturally serve each priority. Used in the prompt so the LLM
+// doesn't skip a priority just because there's no category that literally
+// matches its name.
+const PRIORITY_HINTS: Record<string, string> = {
+  comfort:
+    "готовая еда, доставка продуктов, такси, клининг, химчистка, услуги по дому, подписки на удобные сервисы, корпоративные обеды",
+  family:
+    "детские лагеря и секции, развивающие занятия, товары для семьи, страхование жизни, помощь родителям",
+  health:
+    "ДМС, чек-апы, спорт, психотерапия, программы wellness, питание, спа и массаж",
+  leisure:
+    "путешествия, концерты, кино и театр, музеи, развлечения, хобби-курсы, абонементы в парки",
+  career:
+    "обучение, курсы, конференции, сертификации, языковые школы, коучинг",
+};
