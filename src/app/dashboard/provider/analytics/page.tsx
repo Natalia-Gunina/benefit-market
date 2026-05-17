@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Package, ClipboardList, Star, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Analytics {
   total_orders: number;
@@ -14,17 +21,50 @@ interface Analytics {
   ratings_distribution?: Record<number, number>;
 }
 
+interface OfferingOption {
+  id: string;
+  name: string;
+}
+
+const ALL_OFFERINGS = "all";
+
 export default function ProviderAnalyticsPage() {
   const [data, setData] = useState<Analytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [offerings, setOfferings] = useState<OfferingOption[]>([]);
+  const [selectedOfferingId, setSelectedOfferingId] = useState<string>(ALL_OFFERINGS);
+
+  // Load the provider's offerings once for the filter dropdown. We fetch a
+  // large page to avoid pagination complexity — typical providers have far
+  // fewer than 500 offerings.
+  useEffect(() => {
+    fetch("/api/provider/offerings?per_page=500")
+      .then((r) => r.json())
+      .then((json) => {
+        const list = (json.data ?? []) as Array<{ id: string; name: string }>;
+        setOfferings(list.map((o) => ({ id: o.id, name: o.name })));
+      })
+      .catch(() => {
+        // Filter is non-critical — keep the page working without it.
+      });
+  }, []);
 
   useEffect(() => {
-    fetch("/api/provider/analytics")
+    const url =
+      selectedOfferingId && selectedOfferingId !== ALL_OFFERINGS
+        ? `/api/provider/analytics?offering_id=${encodeURIComponent(selectedOfferingId)}`
+        : "/api/provider/analytics";
+    fetch(url)
       .then((r) => r.json())
       .then((json) => setData(json.data))
       .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [selectedOfferingId]);
+
+  const handleOfferingChange = (next: string) => {
+    setIsLoading(true);
+    setSelectedOfferingId(next);
+  };
 
   const metrics = [
     { label: "Активные предложения", value: data?.active_offerings ?? 0, icon: Package },
@@ -38,7 +78,22 @@ export default function ProviderAnalyticsPage() {
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Аналитика</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-heading font-bold">Аналитика</h1>
+        <Select value={selectedOfferingId} onValueChange={handleOfferingChange}>
+          <SelectTrigger className="w-full sm:w-72">
+            <SelectValue placeholder="Все льготы" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_OFFERINGS}>Все льготы</SelectItem>
+            {offerings.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Metric cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
