@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Check, Ban, Trash2, Loader2, Plus } from "lucide-react";
+import { Ban, Check, Loader2, Plus, Store, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -25,8 +24,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 
 interface Provider {
   id: string;
@@ -37,16 +38,19 @@ interface Provider {
   created_at: string;
 }
 
-const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Ожидает", variant: "outline" },
   verified: { label: "Верифицирован", variant: "default" },
   suspended: { label: "Заблокирован", variant: "destructive" },
   rejected: { label: "Отклонён", variant: "destructive" },
 };
 
+const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, { label }]) => ({ value, label }));
+
 export default function AdminProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const table = useLocalTableState();
 
   const loadProviders = useCallback(() => {
     setIsLoading(true);
@@ -58,6 +62,8 @@ export default function AdminProvidersPage() {
   }, []);
 
   useEffect(() => { loadProviders(); }, [loadProviders]);
+
+  /* ----- Actions ----- */
 
   const handleVerify = async (id: string) => {
     try {
@@ -73,64 +79,26 @@ export default function AdminProvidersPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Удалить провайдера и все его предложения? Это действие нельзя отменить.")) return;
+    try {
+      const res = await fetch(`/api/admin/providers/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Провайдер и его предложения удалены");
+        loadProviders();
+      } else {
+        toast.error("Не удалось удалить провайдера");
+      }
+    } catch {
+      toast.error("Ошибка сети");
+    }
+  };
+
+  /* ----- Suspend ----- */
+
   const [suspendId, setSuspendId] = useState<string | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
   const [isSuspending, setIsSuspending] = useState(false);
-
-  // Create provider dialog
-  const [createOpen, setCreateOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [formName, setFormName] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formEmail, setFormEmail] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formWebsite, setFormWebsite] = useState("");
-  const [formAddress, setFormAddress] = useState("");
-
-  function resetCreateForm() {
-    setFormName("");
-    setFormDescription("");
-    setFormEmail("");
-    setFormPhone("");
-    setFormWebsite("");
-    setFormAddress("");
-  }
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim()) {
-      toast.error("Укажите название провайдера");
-      return;
-    }
-    setIsCreating(true);
-    try {
-      const res = await fetch("/api/admin/providers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName.trim(),
-          description: formDescription.trim(),
-          contact_email: formEmail.trim(),
-          contact_phone: formPhone.trim(),
-          website: formWebsite.trim(),
-          address: formAddress.trim(),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error?.message ?? "Не удалось создать провайдера");
-        return;
-      }
-      toast.success("Провайдер создан");
-      setCreateOpen(false);
-      resetCreateForm();
-      loadProviders();
-    } catch {
-      toast.error("Ошибка сети");
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   const handleSuspend = async () => {
     if (!suspendId) return;
@@ -156,103 +124,140 @@ export default function AdminProvidersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  /* ----- Create dialog ----- */
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formWebsite, setFormWebsite] = useState("");
+  const [formAddress, setFormAddress] = useState("");
+  const [formLogoUrl, setFormLogoUrl] = useState("");
+
+  function resetCreateForm() {
+    setFormName("");
+    setFormDescription("");
+    setFormEmail("");
+    setFormPhone("");
+    setFormWebsite("");
+    setFormAddress("");
+    setFormLogoUrl("");
+  }
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim()) {
+      toast.error("Укажите название провайдера");
+      return;
+    }
+    setIsCreating(true);
     try {
-      const res = await fetch(`/api/admin/providers/${id}`, {
-        method: "DELETE",
+      const res = await fetch("/api/admin/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName.trim(),
+          description: formDescription.trim(),
+          contact_email: formEmail.trim(),
+          contact_phone: formPhone.trim(),
+          website: formWebsite.trim(),
+          address: formAddress.trim(),
+          logo_url: formLogoUrl.trim() || null,
+        }),
       });
-      if (res.ok) {
-        toast.success("Провайдер и его предложения удалены");
-        loadProviders();
-      } else {
-        toast.error("Не удалось удалить провайдера");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error?.message ?? "Не удалось создать провайдера");
+        return;
       }
+      toast.success("Провайдер создан");
+      setCreateOpen(false);
+      resetCreateForm();
+      loadProviders();
     } catch {
       toast.error("Ошибка сети");
+    } finally {
+      setIsCreating(false);
     }
   };
 
+  /* ----- Columns ----- */
+
+  const columns: ColumnDef<Provider>[] = useMemo(() => [
+    {
+      key: "name",
+      header: "Название",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: "slug",
+      header: "Slug",
+      sortable: true,
+      className: "text-muted-foreground",
+    },
+    {
+      key: "contact_email",
+      header: "Email",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => row.contact_email ?? "—",
+    },
+    {
+      key: "status",
+      header: "Статус",
+      filter: { type: "select", options: STATUS_OPTIONS },
+      cell: (row) => {
+        const st = STATUS_CONFIG[row.status] ?? STATUS_CONFIG.pending;
+        return <Badge variant={st.variant}>{st.label}</Badge>;
+      },
+    },
+  ], []);
+
+  const filtered = useClientFiltered(providers, table.state, columns);
+
   return (
-    <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Управление провайдерами</h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Провайдеры</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Поставщики льгот и услуг на платформе</p>
+        </div>
         <Button onClick={() => { resetCreateForm(); setCreateOpen(true); }}>
           <Plus className="size-4" />
           Добавить провайдера
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="text-muted-foreground">Загрузка...</div>
-      ) : providers.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Провайдеры не найдены
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader><CardTitle>Провайдеры ({providers.length})</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {providers.map((p) => {
-                const st = statusBadge[p.status] ?? statusBadge.pending;
-                return (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{p.name}</span>
-                        <Badge variant={st.variant}>{st.label}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{p.slug} &middot; {p.contact_email ?? "—"}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      {p.status === "pending" && (
-                        <Button size="sm" variant="outline" onClick={() => handleVerify(p.id)}>
-                          <Check className="mr-1 size-3.5" />Верифицировать
-                        </Button>
-                      )}
-                      {p.status !== "suspended" && (
-                        <Button size="sm" variant="ghost" onClick={() => setSuspendId(p.id)}>
-                          <Ban className="mr-1 size-3.5" />Заблокировать
-                        </Button>
-                      )}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="ghost">
-                            <Trash2 className="mr-1 size-3.5 text-destructive" />
-                            Удалить
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Удалить провайдера «{p.name}»?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Провайдер и все его предложения (льготы) будут удалены безвозвратно.
-                              Это действие нельзя отменить.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Отмена</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(p.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Удалить провайдера
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={columns}
+        data={filtered.filtered}
+        total={filtered.total}
+        loading={isLoading}
+        state={table.state}
+        onStateChange={table.setState}
+        onReset={table.resetFilters}
+        searchable={{ placeholder: "Поиск по названию или email..." }}
+        actions={(p) => [
+          ...(p.status === "pending"
+            ? [{ label: "Верифицировать", icon: Check, onClick: () => handleVerify(p.id) }]
+            : []),
+          ...(p.status !== "suspended"
+            ? [{ label: "Заблокировать", icon: Ban, onClick: () => setSuspendId(p.id), variant: "destructive" as const }]
+            : []),
+          { label: "Удалить", icon: Trash2, onClick: () => handleDelete(p.id), variant: "destructive" as const },
+        ]}
+        emptyState={{
+          icon: Store,
+          title: "Нет провайдеров",
+          description: "Добавьте первого провайдера",
+        }}
+      />
 
-      {/* Suspend confirmation dialog */}
+      {/* Suspend confirmation */}
       <AlertDialog open={!!suspendId} onOpenChange={() => { setSuspendId(null); setSuspendReason(""); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -364,6 +369,36 @@ export default function AdminProvidersPage() {
                 onChange={(e) => setFormAddress(e.target.value)}
                 placeholder="Город, улица, дом"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="provider-logo">Логотип (URL)</Label>
+              <div className="flex items-center gap-3">
+                {formLogoUrl && (
+                  <img src={formLogoUrl} alt="" className="size-8 rounded border object-contain" />
+                )}
+                <Input
+                  id="provider-logo"
+                  className="flex-1"
+                  value={formLogoUrl}
+                  onChange={(e) => setFormLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
+              {formWebsite && !formLogoUrl && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    try {
+                      const domain = new URL(formWebsite).hostname;
+                      setFormLogoUrl(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
+                    } catch { /* invalid url */ }
+                  }}
+                >
+                  Сгенерировать из сайта
+                </button>
+              )}
             </div>
 
             <DialogFooter>

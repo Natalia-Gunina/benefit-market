@@ -88,6 +88,7 @@ export function GET(request: NextRequest) {
     const statusFilter = searchParams.get("status") || "";
     const formatFilter = searchParams.get("format") || "";
     const providerFilter = searchParams.get("provider_id") || "";
+    const categoryFilter = searchParams.get("category") || "";
     const sortParam = (searchParams.get("sort") || "newest") as SortKey;
     const sort: SortKey = SORTS.has(sortParam) ? sortParam : "newest";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -125,13 +126,20 @@ export function GET(request: NextRequest) {
         demoItems = demoItems.filter((i) => i.name.toLowerCase().includes(q));
       }
       if (statusFilter) {
-        demoItems = demoItems.filter((i) => i.offering_status === statusFilter);
+        const vals = statusFilter.split(",");
+        demoItems = demoItems.filter((i) => vals.includes(i.offering_status ?? ""));
       }
       if (formatFilter) {
-        demoItems = demoItems.filter((i) => i.format === formatFilter);
+        const vals = formatFilter.split(",");
+        demoItems = demoItems.filter((i) => vals.includes(i.format));
       }
       if (providerFilter) {
-        demoItems = demoItems.filter((i) => i.provider_id === providerFilter);
+        const vals = providerFilter.split(",");
+        demoItems = demoItems.filter((i) => vals.includes(i.provider_id ?? ""));
+      }
+      if (categoryFilter) {
+        const vals = categoryFilter.split(",");
+        demoItems = demoItems.filter((i) => vals.includes(i.category_name));
       }
 
       demoItems = applySort(demoItems, sort);
@@ -151,9 +159,18 @@ export function GET(request: NextRequest) {
       .select("id, name, description, base_price_points, is_stackable, format, cities, status, created_at, provider_id, providers(name, status), global_categories(name)");
 
     if (search) oQuery = oQuery.ilike("name", `%${search}%`);
-    if (statusFilter) oQuery = oQuery.eq("status", statusFilter);
-    if (formatFilter) oQuery = oQuery.eq("format", formatFilter);
-    if (providerFilter) oQuery = oQuery.eq("provider_id", providerFilter);
+    if (statusFilter) {
+      const vals = statusFilter.split(",");
+      oQuery = vals.length === 1 ? oQuery.eq("status", vals[0]) : oQuery.in("status", vals);
+    }
+    if (formatFilter) {
+      const vals = formatFilter.split(",");
+      oQuery = vals.length === 1 ? oQuery.eq("format", vals[0]) : oQuery.in("format", vals);
+    }
+    if (providerFilter) {
+      const vals = providerFilter.split(",");
+      oQuery = vals.length === 1 ? oQuery.eq("provider_id", vals[0]) : oQuery.in("provider_id", vals);
+    }
 
     const offeringRows = unwrapRows<OfferingRow>(
       await oQuery,

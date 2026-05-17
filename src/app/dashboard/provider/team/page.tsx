@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +22,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 
 interface TeamMember {
   id: string;
@@ -38,16 +33,21 @@ interface TeamMember {
   users?: { id: string; email: string } | null;
 }
 
-const roleLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+const ROLE_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
   owner: { label: "Владелец", variant: "default" },
   admin: { label: "Админ", variant: "secondary" },
   member: { label: "Участник", variant: "outline" },
 };
 
+const ROLE_OPTIONS = Object.entries(ROLE_CONFIG).map(([value, { label }]) => ({ value, label }));
+
 export default function ProviderTeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const table = useLocalTableState();
+
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [saving, setSaving] = useState(false);
   const [formEmail, setFormEmail] = useState("");
   const [formRole, setFormRole] = useState<string>("member");
@@ -70,54 +70,60 @@ export default function ProviderTeamPage() {
     fetchTeam();
   }, [fetchTeam]);
 
-  async function handleAdd(e: React.FormEvent) {
+  function openAdd() {
+    setEditingMember(null);
+    setFormEmail("");
+    setFormRole("member");
+    setDialogOpen(true);
+  }
+
+  function openEditRole(member: TeamMember) {
+    setEditingMember(member);
+    setFormEmail(member.users?.email ?? "");
+    setFormRole(member.role);
+    setDialogOpen(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/provider/team", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formEmail, role: formRole }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error?.message || "Ошибка");
+      if (editingMember) {
+        const res = await fetch(`/api/provider/team/${editingMember.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: formRole }),
+        });
+        if (!res.ok) throw new Error();
+        setMembers((prev) =>
+          prev.map((m) => (m.id === editingMember.id ? { ...m, role: formRole } : m)),
+        );
+        toast.success("Роль обновлена");
+      } else {
+        const res = await fetch("/api/provider/team", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formEmail, role: formRole }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error?.message || "Ошибка");
+        }
+        toast.success("Участник добавлен");
+        fetchTeam();
       }
-      toast.success("Участник добавлен");
       setDialogOpen(false);
-      setFormEmail("");
-      setFormRole("member");
-      fetchTeam();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось добавить");
+      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleRoleChange(member: TeamMember, newRole: string) {
-    try {
-      const res = await fetch(`/api/provider/team/${member.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (!res.ok) throw new Error();
-      setMembers((prev) =>
-        prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m)),
-      );
-      toast.success("Роль обновлена");
-    } catch {
-      toast.error("Не удалось обновить роль");
     }
   }
 
   async function handleRemove(member: TeamMember) {
     if (!confirm(`Удалить ${member.users?.email ?? "участника"} из команды?`)) return;
     try {
-      const res = await fetch(`/api/provider/team/${member.id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/provider/team/${member.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setMembers((prev) => prev.filter((m) => m.id !== member.id));
       toast.success("Участник удалён");
@@ -126,94 +132,79 @@ export default function ProviderTeamPage() {
     }
   }
 
+  const columns: ColumnDef<TeamMember>[] = useMemo(() => [
+    {
+      key: "users",
+      header: "Email",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.users?.email ?? "—"}</span>,
+    },
+    {
+      key: "role",
+      header: "Роль",
+      filter: { type: "select", options: ROLE_OPTIONS },
+      cell: (row) => {
+        const rl = ROLE_CONFIG[row.role] ?? ROLE_CONFIG.member;
+        return <Badge variant={rl.variant}>{rl.label}</Badge>;
+      },
+    },
+    {
+      key: "created_at",
+      header: "Дата добавления",
+      sortable: true,
+      className: "text-muted-foreground",
+      cell: (row) => new Date(row.created_at).toLocaleDateString("ru"),
+    },
+  ], []);
+
+  const filtered = useClientFiltered(members, table.state, columns);
+
   return (
-    <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Команда</h1>
-        <Button onClick={() => setDialogOpen(true)}>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Команда</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Участники с доступом к кабинету провайдера</p>
+        </div>
+        <Button onClick={openAdd}>
           <UserPlus className="size-4" />
           Добавить участника
         </Button>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Роль</TableHead>
-              <TableHead>Дата добавления</TableHead>
-              <TableHead className="w-40">Действия</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : members.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
-                  В команде пока нет участников
-                </TableCell>
-              </TableRow>
-            ) : (
-              members.map((m) => {
-                const rl = roleLabels[m.role] ?? roleLabels.member;
-                const isOwner = m.role === "owner";
-                return (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium">
-                      {m.users?.email ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={rl.variant}>{rl.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(m.created_at).toLocaleDateString("ru")}
-                    </TableCell>
-                    <TableCell>
-                      {!isOwner && (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={m.role}
-                            onValueChange={(v) => handleRoleChange(m, v)}
-                          >
-                            <SelectTrigger className="h-8 w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Админ</SelectItem>
-                              <SelectItem value="member">Участник</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => handleRemove(m)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filtered.filtered}
+        total={filtered.total}
+        loading={loading}
+        state={table.state}
+        onStateChange={table.setState}
+        onReset={table.resetFilters}
+        searchable={{ placeholder: "Поиск по email..." }}
+        actions={(m) =>
+          m.role === "owner"
+            ? []
+            : [
+                { label: "Изменить роль", icon: Pencil, onClick: () => openEditRole(m) },
+                { label: "Удалить", icon: Trash2, onClick: () => handleRemove(m), variant: "destructive" as const },
+              ]
+        }
+        emptyState={{
+          icon: Users,
+          title: "Команда пуста",
+          description: "Добавьте участников для совместной работы",
+        }}
+      />
 
-      {/* Add member dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Добавить участника</DialogTitle>
+            <DialogTitle>
+              {editingMember ? "Изменить роль" : "Добавить участника"}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
@@ -222,6 +213,7 @@ export default function ProviderTeamPage() {
                 onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="user@example.com"
                 required
+                disabled={!!editingMember}
               />
             </div>
             <div className="space-y-2">
@@ -242,7 +234,7 @@ export default function ProviderTeamPage() {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="size-4 animate-spin" />}
-                Добавить
+                {editingMember ? "Сохранить" : "Добавить"}
               </Button>
             </DialogFooter>
           </form>

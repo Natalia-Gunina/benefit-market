@@ -15,10 +15,47 @@ import type { AuditLog } from "@/lib/types";
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
+      const { searchParams: sp } = new URL(request.url);
+      const dEntity = sp.get("entity_type") || "";
+      const dAction = sp.get("action") || "";
+      const dFrom = sp.get("date_from") || "";
+      const dTo = sp.get("date_to") || "";
+      const dPage = Math.max(1, parseInt(sp.get("page") || "1", 10));
+      const dPerPage = Math.min(100, Math.max(1, parseInt(sp.get("per_page") || "25", 10)));
+      const dSortBy = sp.get("sort_by") || "";
+      const dSortDir = sp.get("sort_dir") || "desc";
+
       const { DEMO_AUDIT_LOG } = await import("@/lib/demo-data");
+      let items = [...DEMO_AUDIT_LOG];
+
+      if (dEntity) {
+        const vals = dEntity.split(",");
+        items = items.filter((l) => vals.includes(l.entity_type));
+      }
+      if (dAction) {
+        const vals = dAction.split(",");
+        items = items.filter((l) => vals.some((v) => l.action.includes(v)));
+      }
+      if (dFrom) {
+        items = items.filter((l) => l.created_at >= dFrom);
+      }
+      if (dTo) {
+        items = items.filter((l) => l.created_at <= dTo + "T23:59:59Z");
+      }
+
+      if (dSortBy === "created_at") {
+        const dir = dSortDir === "asc" ? 1 : -1;
+        items.sort((a, b) => a.created_at.localeCompare(b.created_at) * dir);
+      } else {
+        items.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
+
+      const total = items.length;
+      const offset = (dPage - 1) * dPerPage;
+      const paginated = items.slice(offset, offset + dPerPage);
       return NextResponse.json({
-        data: DEMO_AUDIT_LOG,
-        meta: { page: 1, per_page: 50, total: DEMO_AUDIT_LOG.length },
+        data: paginated,
+        meta: { page: dPage, per_page: dPerPage, total },
       });
     }
 

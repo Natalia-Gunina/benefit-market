@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Package, Loader2, X, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -8,17 +8,6 @@ import { toast } from "sonner";
 import type { OrderStatus } from "@/lib/types";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,9 +19,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
+
+/* -------------------------------------------------------------------------- */
 
 interface OrderItemSummary {
   id: string;
@@ -47,11 +37,13 @@ interface OrderSummary {
   order_items: OrderItemSummary[];
 }
 
-type FilterTab = "all" | "active" | "completed";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Ожидает" },
+  { value: "reserved", label: "Резерв" },
+  { value: "paid", label: "Оплачен" },
+  { value: "cancelled", label: "Отменён" },
+  { value: "expired", label: "Истёк" },
+];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ru-RU", {
@@ -63,89 +55,58 @@ function formatDate(iso: string): string {
   });
 }
 
-function filterOrders(
-  orders: OrderSummary[],
-  tab: FilterTab,
-): OrderSummary[] {
-  switch (tab) {
-    case "active":
-      return orders.filter(
-        (o) => o.status === "reserved" || o.status === "pending",
-      );
-    case "completed":
-      return orders.filter(
-        (o) =>
-          o.status === "paid" ||
-          o.status === "cancelled" ||
-          o.status === "expired",
-      );
-    default:
-      return orders;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Orders Page
-// ---------------------------------------------------------------------------
+/* -------------------------------------------------------------------------- */
 
 export default function OrdersPage() {
   const router = useRouter();
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [reviewedOfferingIds, setReviewedOfferingIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [reviewedOfferingIds, setReviewedOfferingIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  /* ----- Fetch ------------------------------------------------------------ */
   const fetchOrders = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/orders");
-      if (res.ok) {
-        const json = await res.json();
-        const list: OrderSummary[] = json.data ?? [];
-        setOrders(list);
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      const list: OrderSummary[] = json.data ?? [];
+      setOrders(list);
 
-        // Fetch user's reviews for offerings in paid orders, so we can
-        // surface a "rate me" hint where applicable.
-        const offeringIds = Array.from(
-          new Set(
-            list
-              .filter((o) => o.status === "paid")
-              .flatMap((o) => o.order_items)
-              .map((it) => it.provider_offering_id)
-              .filter((v): v is string => !!v),
-          ),
-        );
-        if (offeringIds.length > 0) {
-          try {
-            const r = await fetch(
-              `/api/reviews/mine?provider_offering_ids=${offeringIds.join(",")}`,
+      const offeringIds = Array.from(
+        new Set(
+          list
+            .filter((o) => o.status === "paid")
+            .flatMap((o) => o.order_items)
+            .map((it) => it.provider_offering_id)
+            .filter((v): v is string => !!v),
+        ),
+      );
+      if (offeringIds.length > 0) {
+        try {
+          const r = await fetch(
+            `/api/reviews/mine?provider_offering_ids=${offeringIds.join(",")}`,
+          );
+          if (r.ok) {
+            const j = await r.json();
+            const data = j.data ?? j;
+            const reviewed: { provider_offering_id: string }[] = Array.isArray(data)
+              ? data
+              : (data?.data ?? []);
+            setReviewedOfferingIds(
+              new Set(reviewed.map((rv) => rv.provider_offering_id)),
             );
-            if (r.ok) {
-              const j = await r.json();
-              const data = j.data ?? j;
-              const reviewed: { provider_offering_id: string }[] = Array.isArray(
-                data,
-              )
-                ? data
-                : (data?.data ?? []);
-              setReviewedOfferingIds(
-                new Set(reviewed.map((rv) => rv.provider_offering_id)),
-              );
-            }
-          } catch {
-            /* soft-fail */
           }
-        }
-      } else {
-        toast.error("Не удалось загрузить заказы");
+        } catch { /* soft-fail */ }
       }
     } catch {
-      toast.error("Ошибка сети при загрузке заказов");
+      toast.error("Не удалось загрузить заказы");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -153,6 +114,18 @@ export default function OrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
+  /* ----- Client-side filtering -------------------------------------------- */
+  const filtered = useMemo(() => {
+    let result = orders;
+    const statusFilter = state.filters.status;
+    if (statusFilter) {
+      const vals = statusFilter.split(",");
+      result = result.filter((o) => vals.includes(o.status));
+    }
+    return result;
+  }, [orders, state.filters.status]);
+
+  /* ----- Helpers ---------------------------------------------------------- */
   const hasUnratedItems = useCallback(
     (order: OrderSummary): boolean => {
       if (order.status !== "paid") return false;
@@ -163,15 +136,6 @@ export default function OrdersPage() {
       );
     },
     [reviewedOfferingIds],
-  );
-
-  const filtered = filterOrders(orders, activeTab);
-
-  const handleRowClick = useCallback(
-    (orderId: string) => {
-      router.push(`/dashboard/employee/orders/${orderId}`);
-    },
-    [router],
   );
 
   const handleCancelOrder = useCallback(async () => {
@@ -196,113 +160,102 @@ export default function OrdersPage() {
     }
   }, [cancellingId, fetchOrders]);
 
+  /* ----- Columns ---------------------------------------------------------- */
+  const columns: ColumnDef<OrderSummary>[] = [
+    {
+      key: "id",
+      header: "Заказ",
+      cell: (row) => (
+        <span className="font-mono text-sm">#{row.id.slice(0, 8)}</span>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Дата",
+      sortable: true,
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">
+          {formatDate(row.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Статус",
+      sortable: true,
+      filter: { type: "select", options: STATUS_OPTIONS },
+      cell: (row) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <OrderStatusBadge status={row.status} />
+          {hasUnratedItems(row) && (
+            <Badge
+              variant="outline"
+              className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
+            >
+              <Star className="size-3 fill-amber-400 text-amber-400" />
+              Можно оценить
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "total_points",
+      header: "Баллы",
+      sortable: true,
+      filter: { type: "number" },
+      headerClassName: "text-right",
+      className: "text-right tabular-nums font-medium",
+      cell: (row) => `${row.total_points.toLocaleString("ru-RU")} б.`,
+    },
+    {
+      key: "order_items",
+      header: "Позиций",
+      headerClassName: "text-right",
+      className: "text-right tabular-nums",
+      cell: (row) => row.order_items?.length ?? 0,
+    },
+  ];
+
+  /* ----- Render ----------------------------------------------------------- */
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Мои заказы</h1>
+      <div>
+        <h1 className="text-2xl font-heading font-bold">Мои заказы</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          История заказов и их статусы — отмена возможна до подтверждения
+        </p>
+      </div>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as FilterTab)}
-      >
-        <TabsList>
-          <TabsTrigger value="all">
-            Все ({orders.length})
-          </TabsTrigger>
-          <TabsTrigger value="active">
-            Активные (
-            {filterOrders(orders, "active").length})
-          </TabsTrigger>
-          <TabsTrigger value="completed">
-            Завершённые (
-            {filterOrders(orders, "completed").length})
-          </TabsTrigger>
-        </TabsList>
+      <DataTable
+        columns={columns}
+        data={filtered}
+        total={filtered.length}
+        loading={loading}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        searchable={{ placeholder: "Поиск по номеру заказа..." }}
+        actions={(row) =>
+          row.status === "reserved" || row.status === "pending"
+            ? [
+                {
+                  label: "Отменить",
+                  icon: X,
+                  variant: "destructive" as const,
+                  onClick: () => setCancellingId(row.id),
+                },
+              ]
+            : []
+        }
+        onRowClick={(order) => router.push(`/dashboard/employee/orders/${order.id}`)}
+        emptyState={{
+          icon: Package,
+          title: "Заказов не найдено",
+          description: "У вас пока нет заказов",
+        }}
+      />
 
-        <TabsContent value={activeTab}>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-              <div className="rounded-full bg-muted p-6">
-                <Package className="size-12 text-muted-foreground" />
-              </div>
-              <p className="text-muted-foreground">Заказов не найдено</p>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Заказ</TableHead>
-                      <TableHead>Дата</TableHead>
-                      <TableHead>Статус</TableHead>
-                      <TableHead className="text-right">Баллы</TableHead>
-                      <TableHead className="text-right">Позиций</TableHead>
-                      <TableHead className="w-[50px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((order) => (
-                      <TableRow
-                        key={order.id}
-                        className="cursor-pointer"
-                        onClick={() => handleRowClick(order.id)}
-                      >
-                        <TableCell className="font-mono text-sm">
-                          #{order.id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(order.created_at)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <OrderStatusBadge status={order.status} />
-                            {hasUnratedItems(order) && (
-                              <Badge
-                                variant="outline"
-                                className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
-                              >
-                                <Star className="size-3 fill-amber-400 text-amber-400" />
-                                Можно оценить
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
-                          {order.total_points.toLocaleString("ru-RU")} б.
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {order.order_items?.length ?? 0}
-                        </TableCell>
-                        <TableCell>
-                          {(order.status === "reserved" || order.status === "pending") && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCancellingId(order.id);
-                              }}
-                            >
-                              <X className="size-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Cancel confirmation dialog */}
       <AlertDialog open={!!cancellingId} onOpenChange={() => setCancellingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

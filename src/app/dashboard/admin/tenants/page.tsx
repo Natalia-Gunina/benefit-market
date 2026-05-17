@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,27 +14,42 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 import type { Tenant } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
 
+const columns: ColumnDef<Tenant>[] = [
+  {
+    key: "name",
+    header: "Название",
+    sortable: true,
+    cell: (row) => <span className="font-medium">{row.name}</span>,
+  },
+  {
+    key: "domain",
+    header: "Домен",
+  },
+  {
+    key: "created_at",
+    header: "Дата создания",
+    className: "text-right",
+    headerClassName: "text-right",
+    cell: (row) => new Date(row.created_at).toLocaleDateString("ru-RU"),
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+
 export default function TenantsPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -48,24 +63,34 @@ export default function TenantsPage() {
   /* ----- Fetch ------------------------------------------------------------ */
   const fetchTenants = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+      if (state.search) params.set("search", state.search);
+      if (state.sort) {
+        params.set("sort_by", state.sort.key);
+        params.set("sort_dir", state.sort.direction);
+      }
+
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
       });
-      if (search) params.set("search", search);
 
       const res = await fetch(`/api/admin/tenants?${params}`);
       if (!res.ok) throw new Error("Ошибка загрузки");
       const json = await res.json();
-      setTenants(json.data ?? json);
-      setTotal(json.total ?? (json.data ?? json).length);
-    } catch {
+      setTenants(json.data ?? []);
+      setTotal(json.meta?.total ?? json.total ?? (json.data ?? []).length);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
       toast.error("Не удалось загрузить список компаний-клиентов");
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [state]);
 
   useEffect(() => {
     fetchTenants();
@@ -116,89 +141,32 @@ export default function TenantsPage() {
 
   /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">Управление компаниями-клиентами</h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Компании-клиенты</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Организации, подключённые к платформе</p>
+        </div>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
-          Добавить компанию-клиента
+          Добавить компанию
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          placeholder="Поиск по названию или домену..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Название</TableHead>
-              <TableHead>Домен</TableHead>
-              <TableHead className="text-right">Дата создания</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : tenants.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  Компании-клиенты не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              tenants.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell>{t.domain}</TableCell>
-                  <TableCell className="text-right">
-                    {new Date(t.created_at).toLocaleDateString("ru-RU")}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => openEdit(t)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={tenants}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        searchable={{ placeholder: "Поиск по названию или домену..." }}
+        actions={(t) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(t) },
+        ]}
+      />
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

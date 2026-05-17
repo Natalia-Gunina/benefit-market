@@ -1,41 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Sparkles,
-  Building2,
   Loader2,
   Package,
   CalendarDays,
-  Mail,
   LayoutGrid,
   Rows3,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { OrderStatus } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   OrderItemReview,
   type MyReview,
 } from "@/components/reviews/order-item-review";
+import {
+  DataTable,
+  useLocalTableState,
+  useClientFiltered,
+  type ColumnDef,
+} from "@/components/data-table";
 
 interface OrderItemData {
   id: string;
@@ -67,6 +59,7 @@ interface OrderData {
 }
 
 interface MyBenefit {
+  id: string;
   key: string;
   name: string;
   description: string | null;
@@ -92,6 +85,7 @@ function flattenBenefits(orders: OrderData[]): MyBenefit[] {
     .filter((o) => o.status === "paid")
     .flatMap((order) =>
       order.order_items.map<MyBenefit>((item) => ({
+        id: item.id,
         key: item.id,
         name:
           item.offering?.name ??
@@ -109,6 +103,23 @@ function flattenBenefits(orders: OrderData[]): MyBenefit[] {
       })),
     )
     .sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt));
+}
+
+function ViewToggle({ viewMode, onChange }: { viewMode: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <Tabs value={viewMode} onValueChange={(v) => onChange(v as ViewMode)}>
+      <TabsList className="h-10 px-1">
+        <TabsTrigger value="cards" className="gap-2 px-4 text-sm">
+          <LayoutGrid className="size-4" />
+          Карточки
+        </TabsTrigger>
+        <TabsTrigger value="table" className="gap-2 px-4 text-sm">
+          <Rows3 className="size-4" />
+          Таблица
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
 }
 
 export default function MyBenefitsPage() {
@@ -137,6 +148,90 @@ export default function MyBenefitsPage() {
       /* soft-fail */
     }
   }, []);
+
+  const providerOptions = useMemo(
+    () => [...new Set(benefits.map((b) => b.providerName).filter(Boolean) as string[])].sort().map((v) => ({ value: v, label: v })),
+    [benefits],
+  );
+
+  const columns = useMemo<ColumnDef<MyBenefit>[]>(
+    () => [
+      {
+        key: "name",
+        header: "Льгота",
+        sortable: true,
+        filter: { type: "text" },
+        cell: (row) => (
+          <div>
+            <span className="font-medium">{row.name}</span>
+            {row.providerName && (
+              <p className="text-xs text-muted-foreground">{row.providerName}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "providerName",
+        header: "Провайдер",
+        sortable: true,
+        filter: { type: "select", options: providerOptions },
+        hidden: true,
+      },
+      {
+        key: "acquiredAt",
+        header: "Получено",
+        sortable: true,
+        cell: (row) => (
+          <span className="text-muted-foreground">
+            {formatDate(row.acquiredAt)}
+          </span>
+        ),
+      },
+      {
+        key: "pricePoints",
+        header: "Баллы",
+        sortable: true,
+        filter: { type: "number" },
+        className: "text-right tabular-nums font-medium",
+        headerClassName: "text-right",
+        cell: (row) => (
+          <>
+            {(row.pricePoints * row.quantity).toLocaleString("ru-RU")} б.
+            {row.quantity > 1 && (
+              <span className="text-xs text-muted-foreground ml-1">×{row.quantity}</span>
+            )}
+          </>
+        ),
+      },
+      {
+        key: "_review",
+        header: "Оценка",
+        cell: (row) =>
+          row.providerOfferingId ? (
+            <OrderItemReview
+              providerOfferingId={row.providerOfferingId}
+              existingReview={
+                reviewsByOffering.get(row.providerOfferingId) ?? null
+              }
+              onChanged={() => {
+                if (row.providerOfferingId) {
+                  fetchReviews([row.providerOfferingId]);
+                }
+              }}
+              size="sm"
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+    ],
+    [reviewsByOffering, fetchReviews, providerOptions],
+  );
+
+  const { state: tableState, setState: setTableState, resetFilters } =
+    useLocalTableState();
+
+  const { filtered, total } = useClientFiltered(benefits, tableState, columns);
 
   const fetchBenefits = useCallback(async () => {
     setIsLoading(true);
@@ -180,49 +275,21 @@ export default function MyBenefitsPage() {
   const hasBenefits = benefits.length > 0;
 
   return (
-    <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
-          <Sparkles className="size-6" />
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+            <Sparkles className="size-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-heading font-bold">Мои льготы</h1>
+            <p className="text-sm text-muted-foreground">
+              Оформленные льготы — сертификаты направлены на email из профиля
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-heading font-bold">Мои льготы</h1>
-          <p className="text-sm text-muted-foreground">
-            Льготы, которые вы оформили и активировали
-          </p>
-        </div>
+        {hasBenefits && <ViewToggle viewMode={viewMode} onChange={setViewMode} />}
       </div>
-
-      {hasBenefits && (
-        <div className="flex items-start gap-3 rounded-lg border border-info/30 bg-info-light/50 p-3 text-sm">
-          <Mail className="size-4 shrink-0 text-info mt-0.5" />
-          <p>
-            Сертификат на пользование льготой направлен на электронную почту,
-            указанную в вашем профиле. Если письма нет — проверьте папку
-            «Спам» или обратитесь в HR.
-          </p>
-        </div>
-      )}
-
-      {hasBenefits && (
-        <div className="flex justify-end">
-          <Tabs
-            value={viewMode}
-            onValueChange={(v) => setViewMode(v as ViewMode)}
-          >
-            <TabsList>
-              <TabsTrigger value="cards" className="gap-1.5">
-                <LayoutGrid className="size-4" />
-                Карточки
-              </TabsTrigger>
-              <TabsTrigger value="table" className="gap-1.5">
-                <Rows3 className="size-4" />
-                Таблица
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      )}
 
       {!hasBenefits ? (
         <EmptyState
@@ -232,129 +299,75 @@ export default function MyBenefitsPage() {
           action={{ label: "Открыть каталог", href: "/dashboard/employee/catalog" }}
         />
       ) : viewMode === "cards" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {benefits.map((b) => {
             const existingReview = b.providerOfferingId
               ? reviewsByOffering.get(b.providerOfferingId)
               : undefined;
             return (
               <Card key={b.key} className="flex h-full flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base leading-tight">
-                      {b.name}
-                    </CardTitle>
-                    <Badge variant="outline" className="shrink-0 tabular-nums">
-                      {(b.pricePoints * b.quantity).toLocaleString("ru-RU")} б.
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
+                <CardContent className="flex-1 space-y-3 pt-5">
+                  <div>
+                    <h3 className="font-medium leading-snug">{b.name}</h3>
                     {b.providerName && (
-                      <Badge variant="secondary" className="w-fit text-xs gap-0.5">
-                        <Building2 className="size-3" />
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {b.providerName}
-                      </Badge>
-                    )}
-                    {b.quantity > 1 && (
-                      <Badge variant="outline" className="w-fit text-xs">
-                        × {b.quantity}
-                      </Badge>
+                      </p>
                     )}
                   </div>
-                </CardHeader>
 
-                <CardContent className="flex-1 space-y-2">
                   {b.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-3">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {b.description}
                     </p>
                   )}
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <CalendarDays className="size-3.5" />
-                    Получено {formatDate(b.acquiredAt)}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-lg font-semibold tabular-nums text-primary">
+                      {(b.pricePoints * b.quantity).toLocaleString("ru-RU")} б.
+                      {b.quantity > 1 && (
+                        <span className="text-xs font-normal text-muted-foreground ml-1">×{b.quantity}</span>
+                      )}
+                    </span>
+                    {b.providerOfferingId && (
+                      <OrderItemReview
+                        providerOfferingId={b.providerOfferingId}
+                        existingReview={existingReview ?? null}
+                        onChanged={() => {
+                          if (b.providerOfferingId) {
+                            fetchReviews([b.providerOfferingId]);
+                          }
+                        }}
+                      />
+                    )}
                   </div>
                 </CardContent>
 
-                {b.providerOfferingId && (
-                  <CardFooter className="border-t pt-3">
-                    <OrderItemReview
-                      providerOfferingId={b.providerOfferingId}
-                      existingReview={existingReview ?? null}
-                      onChanged={() => {
-                        if (b.providerOfferingId) {
-                          fetchReviews([b.providerOfferingId]);
-                        }
-                      }}
-                    />
-                  </CardFooter>
-                )}
+                <div className="border-t px-6 py-2.5">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CalendarDays className="size-3" />
+                    Получено {formatDate(b.acquiredAt)}
+                  </span>
+                </div>
               </Card>
             );
           })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Льгота</TableHead>
-                  <TableHead>Провайдер</TableHead>
-                  <TableHead>Получено</TableHead>
-                  <TableHead className="text-right">Кол-во</TableHead>
-                  <TableHead className="text-right">Баллы</TableHead>
-                  <TableHead>Оценка</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {benefits.map((b) => {
-                  const existingReview = b.providerOfferingId
-                    ? reviewsByOffering.get(b.providerOfferingId)
-                    : undefined;
-                  return (
-                    <TableRow key={b.key}>
-                      <TableCell>
-                        <div className="font-medium">{b.name}</div>
-                        {b.description && (
-                          <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                            {b.description}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {b.providerName ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(b.acquiredAt)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {b.quantity}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">
-                        {(b.pricePoints * b.quantity).toLocaleString("ru-RU")} б.
-                      </TableCell>
-                      <TableCell>
-                        {b.providerOfferingId ? (
-                          <OrderItemReview
-                            providerOfferingId={b.providerOfferingId}
-                            existingReview={existingReview ?? null}
-                            onChanged={() => {
-                              if (b.providerOfferingId) {
-                                fetchReviews([b.providerOfferingId]);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={filtered}
+          total={total}
+          state={tableState}
+          onStateChange={setTableState}
+          onReset={resetFilters}
+          searchable={{ placeholder: "Поиск по названию..." }}
+          emptyState={{
+            icon: Package,
+            title: "Ничего не найдено",
+            description: "Попробуйте изменить параметры поиска",
+          }}
+        />
       )}
     </div>
   );

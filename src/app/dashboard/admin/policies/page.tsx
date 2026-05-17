@@ -22,28 +22,21 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 import type { BudgetPolicy, Tenant } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
 
 export default function AdminPoliciesPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [policies, setPolicies] = useState<BudgetPolicy[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [filterTenantId, setFilterTenantId] = useState<string>("all");
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,25 +59,29 @@ export default function AdminPoliciesPage() {
   /* ----- Fetch ------------------------------------------------------------ */
   const fetchPolicies = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
       });
-      if (filterTenantId && filterTenantId !== "all")
-        params.set("tenant_id", filterTenantId);
 
       const res = await fetch(`/api/admin/policies?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить политики");
       const json = await res.json();
-      setPolicies(json.data ?? json);
-      setTotal(json.total ?? (json.data ?? json).length);
-    } catch {
-      toast.error("Не удалось загрузить политики");
+      setPolicies(json.data ?? []);
+      setTotal(json.total ?? (json.data ?? []).length);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, filterTenantId]);
+  }, [state]);
 
   useEffect(() => {
     fetchPolicies();
@@ -172,107 +169,67 @@ export default function AdminPoliciesPage() {
     return tenants.find((t) => t.id === id)?.name ?? "—";
   }
 
+  /* ----- Columns ---------------------------------------------------------- */
+  const tenantOptions = tenants.map((t) => ({ value: t.id, label: t.name }));
+
+  const columns: ColumnDef<BudgetPolicy>[] = [
+    {
+      key: "tenant_id",
+      header: "Компания",
+      filter: { type: "select", options: tenantOptions },
+      filterKey: "tenant_id",
+      cell: (row) => (
+        <span className="font-medium">{tenantName(row.tenant_id)}</span>
+      ),
+    },
+    {
+      key: "points_amount",
+      header: "Бюджет (баллов)",
+      headerClassName: "text-right",
+      className: "text-right tabular-nums",
+      cell: (row) => row.points_amount.toLocaleString("ru-RU"),
+    },
+    {
+      key: "is_active",
+      header: "Активна",
+      headerClassName: "text-center",
+      className: "text-center",
+      cell: (row) => (
+        <Switch
+          checked={row.is_active}
+          onCheckedChange={() => toggleActive(row)}
+        />
+      ),
+    },
+  ];
+
   /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">
-          Лимиты бюджета по компаниям
-        </h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Лимиты бюджета</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Бюджетные ограничения по компаниям-клиентам</p>
+        </div>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
           Добавить лимит
         </Button>
       </div>
 
-      {/* Filter by company */}
-      <div className="max-w-xs">
-        <Select
-          value={filterTenantId}
-          onValueChange={(v) => {
-            setFilterTenantId(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Все компании" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все компании</SelectItem>
-            {tenants.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Компания</TableHead>
-              <TableHead className="text-right">Бюджет (баллов)</TableHead>
-              <TableHead className="text-center">Активна</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : policies.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  Политики не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              policies.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">
-                    {tenantName(p.tenant_id)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {p.points_amount.toLocaleString("ru-RU")}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Switch
-                      checked={p.is_active}
-                      onCheckedChange={() => toggleActive(p)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => openEdit(p)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={policies}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        actions={(p) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(p) },
+        ]}
+      />
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
