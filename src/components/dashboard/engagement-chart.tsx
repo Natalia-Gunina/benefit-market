@@ -49,6 +49,11 @@ function CustomTooltip({
 export function EngagementChart({ data, title = "Вовлечённость по отделам" }: EngagementChartProps) {
   const c = useChartColors();
 
+  const stackedData = data.map((d) => ({
+    ...d,
+    inactive: Math.max(0, d.total - d.active),
+  }));
+
   return (
     <Card>
       <CardHeader>
@@ -57,20 +62,20 @@ export function EngagementChart({ data, title = "Вовлечённость по
       <CardContent>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+            <BarChart data={stackedData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={c.border} />
               <XAxis
                 dataKey="department"
                 tick={{ fontSize: 11, fill: c.muted }}
               />
-              <YAxis tick={{ fontSize: 12, fill: c.muted }} />
-              <Tooltip content={<CustomTooltip />} />
+              <YAxis tick={{ fontSize: 12, fill: c.muted }} allowDecimals={false} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
               <Legend
                 wrapperStyle={{ fontSize: 12 }}
                 formatter={(value: string) => <span className="text-xs">{value}</span>}
               />
-              <Bar dataKey="total" name="Всего" fill={c.border} radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="active" name="Активных" fill={c.chart2} radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="active" stackId="engagement" name="Активных" fill={c.chart2} maxBarSize={56} />
+              <Bar dataKey="inactive" stackId="engagement" name="Неактивных" fill="#CBD5E1" radius={[4, 4, 0, 0]} maxBarSize={56} />
             </BarChart>
           </ResponsiveContainer>
         </div>
