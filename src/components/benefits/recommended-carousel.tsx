@@ -103,6 +103,7 @@ function CompactCard({
         <Link href={href} className="flex-1 cursor-pointer space-y-2.5">
           <div className="flex items-start gap-3">
             {benefit.provider_logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={benefit.provider_logo_url}
                 alt={providerName}

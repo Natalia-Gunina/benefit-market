@@ -18,6 +18,7 @@ export function useTableState(options: UseTableStateOptions = {}) {
   const pathname = usePathname();
 
   const defaultSortRef = useRef(options.defaultSort ?? null);
+  // eslint-disable-next-line react-hooks/refs
   const defaultSort = defaultSortRef.current;
 
   const state: TableState = useMemo(() => {

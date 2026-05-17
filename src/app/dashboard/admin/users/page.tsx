@@ -201,7 +201,7 @@ export default function UsersPage() {
       filterKey: "name",
       cell: (row) => (
         <div>
-          <span className="font-medium">{row.full_name ?? row.display_name ?? row.email.split("@")[0]}</span>
+          <span className="font-medium">{row.full_name ?? row.email.split("@")[0]}</span>
           <p className="text-xs text-muted-foreground">{row.email}</p>
         </div>
       ),

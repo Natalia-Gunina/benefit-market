@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquarePlus, Pencil } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "./star-rating";
 import { ReviewForm } from "./review-form";

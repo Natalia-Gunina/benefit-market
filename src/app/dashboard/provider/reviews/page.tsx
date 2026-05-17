@@ -176,6 +176,7 @@ export default function ProviderReviewsPage() {
         </span>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [offerings]);
 
   /* ----- Render ---------------------------------------------------------- */

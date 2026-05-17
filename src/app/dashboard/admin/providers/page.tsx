@@ -375,6 +375,7 @@ export default function AdminProvidersPage() {
               <Label htmlFor="provider-logo">Логотип (URL)</Label>
               <div className="flex items-center gap-3">
                 {formLogoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={formLogoUrl} alt="" className="size-8 rounded border object-contain" />
                 )}
                 <Input

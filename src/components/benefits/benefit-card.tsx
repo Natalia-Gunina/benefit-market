@@ -96,6 +96,7 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
       <Link href={href} className="flex flex-1 flex-col cursor-pointer px-5 pt-4">
         <div className="flex items-start gap-3.5">
           {benefit.provider_logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={benefit.provider_logo_url}
               alt={providerName}
