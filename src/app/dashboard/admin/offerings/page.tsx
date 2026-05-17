@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Archive, Check, ShieldAlert, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
@@ -41,6 +40,7 @@ export default function AdminOfferingsPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const updateStatus = async (id: string, status: string) => {

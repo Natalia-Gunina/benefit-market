@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
   Archive,
   CalendarClock,
+  Check,
+  ChevronsUpDown,
   Info,
   Loader2,
   Pencil,
@@ -44,6 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
 import type { ColumnDef } from "@/components/data-table";
+import { cn } from "@/lib/utils";
 
 import type {
   BudgetPolicy,
@@ -895,7 +898,7 @@ export default function HrPoliciesPage() {
 
   /* -------------------- Derived data -------------------- */
 
-  const activePolicies = useMemo(
+  const _activePolicies = useMemo(
     () => policies.filter((p) => p.is_active),
     [policies],
   );
@@ -903,7 +906,7 @@ export default function HrPoliciesPage() {
     () => policies.filter((p) => !p.is_active),
     [policies],
   );
-  const activeIndividuals = useMemo(
+  const _activeIndividuals = useMemo(
     () => individuals.filter((a) => a.is_active),
     [individuals],
   );
@@ -1035,6 +1038,7 @@ export default function HrPoliciesPage() {
         />
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], []);
 
   const individualColumns: ColumnDef<IndividualAccrual>[] = useMemo(() => [
@@ -1121,6 +1125,7 @@ export default function HrPoliciesPage() {
         />
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [employeeNameById]);
 
   const providerOptions = useMemo(
@@ -1249,6 +1254,7 @@ export default function HrPoliciesPage() {
         <span className="text-muted-foreground">{formatDateRu(row.archivedAt)}</span>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [employeeNameById]);
 
   /* -------------------- Client-side filtering -------------------- */

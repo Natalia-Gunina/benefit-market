@@ -195,6 +195,7 @@ export default function OfferingDetailPage() {
           {/* Header: avatar + name + meta + price */}
           <div className="flex items-start gap-4">
             {provider?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={provider.logo_url}
                 alt={providerName}

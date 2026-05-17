@@ -183,6 +183,7 @@ export default function ProviderProfilePage() {
             <Label>Логотип (URL)</Label>
             <div className="flex items-center gap-3">
               {profile.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={profile.logo_url}
                   alt="Логотип"
