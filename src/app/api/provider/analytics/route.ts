@@ -1,3 +1,4 @@
+import { type NextRequest } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, withErrorHandling } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
@@ -25,9 +26,13 @@ type ReviewRow = Record<string, unknown> & {
   id: string;
   rating: number;
 };
+type TenantIdRow = Record<string, unknown> & { tenant_id: string };
 
-export function GET() {
+export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
+    const { searchParams } = new URL(request.url);
+    const offeringFilter = searchParams.get("offering_id")?.trim() || "";
+
     if (isDemo) {
       const {
         DEMO_PROVIDER_OFFERINGS,
@@ -40,9 +45,18 @@ export function GET() {
 
       // Scope strictly to the current provider (World Class) so the cabinet
       // never shows numbers belonging to other providers in the dataset.
-      const myOfferings = (DEMO_PROVIDER_OFFERINGS ?? []).filter(
+      const allMyOfferings = (DEMO_PROVIDER_OFFERINGS ?? []).filter(
         (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
       );
+      const allMyOfferingIds = new Set(allMyOfferings.map((o) => o.id));
+
+      // Honour the optional ?offering_id=<id> filter: scope all aggregates to
+      // a single offering when it belongs to this provider. Unknown ids
+      // produce empty results rather than leaking other providers' data.
+      const myOfferings =
+        offeringFilter && allMyOfferingIds.has(offeringFilter)
+          ? allMyOfferings.filter((o) => o.id === offeringFilter)
+          : allMyOfferings;
       const myOfferingIds = new Set(myOfferings.map((o) => o.id));
 
       const offeringMap = new Map(myOfferings.map((o) => [o.id, o]));
@@ -149,24 +163,60 @@ export function GET() {
 
     if (!provider) throw providerNotFound();
 
-    // Active offerings count
-    const activeOfferingsResult = await admin
-      .from("provider_offerings")
-      .select("id", { count: "exact", head: true })
-      .eq("provider_id", provider.id)
-      .eq("status", "published");
-    const activeOfferings = activeOfferingsResult.count;
-
-    // Average rating
-    const offerings = unwrapRowsSoft<OfferingRatingRow>(
+    // Resolve the scope of offering ids first: either a single one (when the
+    // ?offering_id filter is present and belongs to this provider) or all
+    // offerings owned by the provider. This single source of truth is then
+    // reused by every downstream metric.
+    const allOfferingIdRows = unwrapRowsSoft<OfferingIdRow>(
       await admin
         .from("provider_offerings")
-        .select("avg_rating, review_count, name")
-        .eq("provider_id", provider.id)
-        .eq("status", "published")
-        .order("review_count", { ascending: false })
-        .limit(5),
+        .select("id")
+        .eq("provider_id", provider.id),
     );
+    const allProviderOfferingIds = allOfferingIdRows.map((o) => o.id);
+
+    let ids: string[];
+    if (offeringFilter) {
+      ids = allProviderOfferingIds.includes(offeringFilter)
+        ? [offeringFilter]
+        : [];
+    } else {
+      ids = allProviderOfferingIds;
+    }
+
+    // Active offerings count — published offerings within the scope
+    let activeOfferings = 0;
+    if (offeringFilter) {
+      if (ids.length > 0) {
+        const r = await admin
+          .from("provider_offerings")
+          .select("id", { count: "exact", head: true })
+          .eq("id", offeringFilter)
+          .eq("status", "published");
+        activeOfferings = r.count ?? 0;
+      }
+    } else {
+      const r = await admin
+        .from("provider_offerings")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", provider.id)
+        .eq("status", "published");
+      activeOfferings = r.count ?? 0;
+    }
+
+    // Average rating + popular offerings — published only, within the scope
+    let offerings: OfferingRatingRow[] = [];
+    if (ids.length > 0) {
+      offerings = unwrapRowsSoft<OfferingRatingRow>(
+        await admin
+          .from("provider_offerings")
+          .select("avg_rating, review_count, name")
+          .in("id", ids)
+          .eq("status", "published")
+          .order("review_count", { ascending: false })
+          .limit(5),
+      );
+    }
 
     const rated = offerings.filter((o) => o.avg_rating != null && o.review_count > 0);
     const totalReviews = rated.reduce((sum, o) => sum + o.review_count, 0);
@@ -174,24 +224,21 @@ export function GET() {
       ? rated.reduce((sum, o) => sum + Number(o.avg_rating) * o.review_count, 0) / totalReviews
       : 0;
 
-    // Tenant connections
-    const offeringIdRows = unwrapRowsSoft<OfferingIdRow>(
-      await admin
-        .from("provider_offerings")
-        .select("id")
-        .eq("provider_id", provider.id),
-    );
-
-    const ids = offeringIdRows.map((o) => o.id);
     let tenantConnections = 0;
     let totalOrders = 0;
 
     if (ids.length > 0) {
-      const tenantResult = await admin
-        .from("tenant_offerings")
-        .select("tenant_id", { count: "exact", head: true })
-        .in("provider_offering_id", ids);
-      tenantConnections = tenantResult.count ?? 0;
+      // Tenant connections — count DISTINCT tenants that have an active
+      // mapping to any in-scope offering. Supabase's count:'exact' returns
+      // raw row counts, so we pull the column and dedupe client-side.
+      const tenantRows = unwrapRowsSoft<TenantIdRow>(
+        await admin
+          .from("tenant_offerings")
+          .select("tenant_id")
+          .in("provider_offering_id", ids)
+          .eq("is_active", true),
+      );
+      tenantConnections = new Set(tenantRows.map((r) => r.tenant_id)).size;
 
       // Total orders
       const orderResult = await admin
@@ -231,12 +278,24 @@ export function GET() {
     }
 
     // Action items
-    const pendingOfferingsResult = await admin
-      .from("provider_offerings")
-      .select("id", { count: "exact", head: true })
-      .eq("provider_id", provider.id)
-      .eq("status", "pending_review");
-    const pendingOfferings = pendingOfferingsResult.count ?? 0;
+    let pendingOfferings = 0;
+    if (offeringFilter) {
+      if (ids.length > 0) {
+        const r = await admin
+          .from("provider_offerings")
+          .select("id", { count: "exact", head: true })
+          .eq("id", offeringFilter)
+          .eq("status", "pending_review");
+        pendingOfferings = r.count ?? 0;
+      }
+    } else {
+      const r = await admin
+        .from("provider_offerings")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", provider.id)
+        .eq("status", "pending_review");
+      pendingOfferings = r.count ?? 0;
+    }
 
     let newReviews = 0;
     if (ids.length > 0) {
