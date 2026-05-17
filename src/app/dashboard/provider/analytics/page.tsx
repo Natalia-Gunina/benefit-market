@@ -34,14 +34,17 @@ export default function ProviderAnalyticsPage() {
   const [offerings, setOfferings] = useState<OfferingOption[]>([]);
   const [selectedOfferingId, setSelectedOfferingId] = useState<string>(ALL_OFFERINGS);
 
-  // Load the provider's offerings once for the filter dropdown. We fetch a
-  // large page to avoid pagination complexity — typical providers have far
-  // fewer than 500 offerings.
+  // Load the provider's offerings once for the filter dropdown. The list
+  // endpoint caps per_page at 100, which is enough for typical providers.
+  // Response shape: { data: { data: [...], meta: {...} } }.
   useEffect(() => {
-    fetch("/api/provider/offerings?per_page=500")
+    fetch("/api/provider/offerings?per_page=100")
       .then((r) => r.json())
       .then((json) => {
-        const list = (json.data ?? []) as Array<{ id: string; name: string }>;
+        const list = (json.data?.data ?? json.data ?? []) as Array<{
+          id: string;
+          name: string;
+        }>;
         setOfferings(list.map((o) => ({ id: o.id, name: o.name })));
       })
       .catch(() => {
