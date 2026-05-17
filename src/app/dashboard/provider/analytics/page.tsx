@@ -34,11 +34,11 @@ export default function ProviderAnalyticsPage() {
   const [offerings, setOfferings] = useState<OfferingOption[]>([]);
   const [selectedOfferingId, setSelectedOfferingId] = useState<string>(ALL_OFFERINGS);
 
-  // Load the provider's offerings once for the filter dropdown. The list
-  // endpoint caps per_page at 100, which is enough for typical providers.
-  // Response shape: { data: { data: [...], meta: {...} } }.
+  // Load the provider's offerings once for the filter dropdown. Only
+  // published ones — drafts, pending and archived have no useful analytics
+  // and would clutter the picker. Response shape: { data: { data: [...] } }.
   useEffect(() => {
-    fetch("/api/provider/offerings?per_page=100")
+    fetch("/api/provider/offerings?per_page=100&status=published")
       .then((r) => r.json())
       .then((json) => {
         const list = (json.data?.data ?? json.data ?? []) as Array<{
