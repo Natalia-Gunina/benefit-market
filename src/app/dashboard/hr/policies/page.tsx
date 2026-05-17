@@ -6,7 +6,9 @@ import {
   Archive,
   ArrowUpDown,
   CalendarClock,
+  Check,
   ChevronDown,
+  ChevronsUpDown,
   ChevronUp,
   Info,
   Loader2,
@@ -41,6 +43,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -49,6 +56,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTablePagination } from "@/components/shared/data-table-pagination";
+import { cn } from "@/lib/utils";
 
 import type {
   BudgetPolicy,
@@ -335,6 +343,134 @@ function emptyIndividualForm(): IndividualForm {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Employee combobox (searchable select)                                      */
+/* -------------------------------------------------------------------------- */
+
+function EmployeeCombobox({
+  value,
+  onChange,
+  employees,
+  disabled,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  employees: EmployeeOption[];
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selected = useMemo(
+    () => employees.find((e) => e.id === value) ?? null,
+    [employees, value],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return employees;
+    return employees.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.email.toLowerCase().includes(q),
+    );
+  }, [employees, query]);
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+  }, []);
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="w-full justify-between font-normal"
+        >
+          <span
+            className={cn(
+              "truncate",
+              !selected && "text-muted-foreground",
+            )}
+          >
+            {selected
+              ? `${selected.name} (${selected.email})`
+              : "Выберите сотрудника..."}
+          </span>
+          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="border-b p-2">
+          <Input
+            autoFocus
+            placeholder="Поиск по ФИО или email..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setOpen(false);
+              } else if (e.key === "Enter" && filtered.length > 0) {
+                e.preventDefault();
+                onChange(filtered[0].id);
+                setOpen(false);
+              }
+            }}
+            className="h-9"
+          />
+        </div>
+        <div className="max-h-64 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+              Сотрудники не найдены
+            </div>
+          ) : (
+            filtered.map((e) => {
+              const isSelected = e.id === value;
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(e.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none",
+                    "hover:bg-accent hover:text-accent-foreground",
+                    "focus:bg-accent focus:text-accent-foreground",
+                  )}
+                >
+                  <Check
+                    className={cn(
+                      "size-4 shrink-0",
+                      isSelected ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span className="truncate">
+                    {e.name}{" "}
+                    <span className="text-muted-foreground">({e.email})</span>
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
@@ -399,7 +535,7 @@ export default function HrPoliciesPage() {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await fetch("/api/hr/employees?per_page=100");
+      const res = await fetch("/api/hr/employees?per_page=500");
       if (!res.ok) return;
       const json = await res.json();
       const list = (json.data ?? []) as Array<{
@@ -1611,29 +1747,14 @@ export default function HrPoliciesPage() {
               {/* Employee picker */}
               <div className="space-y-2">
                 <Label>Сотрудник (ФИО)</Label>
-                <Select
+                <EmployeeCombobox
                   value={individualForm.user_id}
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     setIndividualForm({ ...individualForm, user_id: v })
                   }
+                  employees={employees}
                   disabled={!!editingIndividual}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите сотрудника..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.length === 0 && (
-                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        Сотрудники не найдены
-                      </div>
-                    )}
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.name} ({e.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
                 {editingIndividual && (
                   <p className="text-xs text-muted-foreground">
                     Сотрудника нельзя изменить после создания. Деактивируйте и
