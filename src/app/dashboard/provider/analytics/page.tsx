@@ -80,7 +80,7 @@ export default function ProviderAnalyticsPage() {
   const totalRatings = rd ? Object.values(rd).reduce((a, b) => a + b, 0) : 0;
 
   return (
-    <div className="page-transition space-y-6 p-6">
+    <div className="page-transition space-y-8 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-heading font-bold">Аналитика</h1>
         <Select value={selectedOfferingId} onValueChange={handleOfferingChange}>

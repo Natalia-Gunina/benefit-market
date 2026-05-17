@@ -33,18 +33,12 @@ export function OrderItemReview({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {hasReview ? (
-        <>
+        <button
+          className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 transition-colors hover:bg-muted"
+          onClick={() => setOpen(true)}
+        >
           <StarRating rating={existingReview!.rating} size={size} />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => setOpen(true)}
-          >
-            <Pencil className="size-3 mr-1" />
-            Изменить оценку
-          </Button>
-        </>
+        </button>
       ) : (
         <Button
           variant="outline"

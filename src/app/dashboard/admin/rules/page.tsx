@@ -21,28 +21,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
 
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 import type { EligibilityRule, Benefit } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
@@ -52,12 +34,13 @@ interface RuleWithBenefit extends EligibilityRule {
 }
 
 export default function RulesPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [rules, setRules] = useState<RuleWithBenefit[]>([]);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,26 +65,122 @@ export default function RulesPage() {
   /* ----- Fetch rules ------------------------------------------------------ */
   const fetchRules = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
+        page: String(state.page),
+        per_page: String(state.pageSize),
       });
       const res = await fetch(`/api/admin/rules?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить правила");
       const json = await res.json();
       setRules(json.data ?? json);
       setTotal(json.total ?? (json.data ?? json).length);
-    } catch {
-      toast.error("Не удалось загрузить правила");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [state]);
 
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  /* ----- Display helpers -------------------------------------------------- */
+  function benefitName(id: string) {
+    return benefits.find((b) => b.id === id)?.name ?? id;
+  }
+
+  function formatConditions(c: Record<string, unknown>) {
+    const parts: React.ReactNode[] = [];
+
+    if (Array.isArray(c?.grade) && c.grade.length) {
+      parts.push(
+        <span key="grade" className="inline-flex items-center gap-1">
+          <span className="text-muted-foreground">Грейд:</span>{" "}
+          {(c.grade as string[]).map((g) => (
+            <Badge key={g} variant="outline" className="text-xs">
+              {g}
+            </Badge>
+          ))}
+        </span>
+      );
+    }
+
+    if (c?.min_tenure != null) {
+      parts.push(
+        <span key="tenure" className="inline-flex items-center gap-1">
+          <span className="text-muted-foreground">Стаж &ge;</span>{" "}
+          <Badge variant="outline" className="text-xs">
+            {String(c.min_tenure)} мес.
+          </Badge>
+        </span>
+      );
+    }
+
+    if (Array.isArray(c?.location) && c.location.length) {
+      parts.push(
+        <span key="location" className="inline-flex items-center gap-1">
+          <span className="text-muted-foreground">Локация:</span>{" "}
+          {(c.location as string[]).map((l) => (
+            <Badge key={l} variant="outline" className="text-xs">
+              {l}
+            </Badge>
+          ))}
+        </span>
+      );
+    }
+
+    if (Array.isArray(c?.legal_entity) && c.legal_entity.length) {
+      parts.push(
+        <span key="entity" className="inline-flex items-center gap-1">
+          <span className="text-muted-foreground">Юрлицо:</span>{" "}
+          {(c.legal_entity as string[]).map((e) => (
+            <Badge key={e} variant="outline" className="text-xs">
+              {e}
+            </Badge>
+          ))}
+        </span>
+      );
+    }
+
+    if (parts.length === 0) {
+      return <span className="text-muted-foreground">Нет условий</span>;
+    }
+
+    return <div className="flex flex-wrap gap-3">{parts}</div>;
+  }
+
+  /* ----- Columns ---------------------------------------------------------- */
+  const columns: ColumnDef<RuleWithBenefit>[] = [
+    {
+      key: "benefit_name",
+      header: "Льгота",
+      cell: (r) => (
+        <span className="font-medium">
+          {r.benefit_name ?? (r.benefit_id ? benefitName(r.benefit_id) : "—")}
+        </span>
+      ),
+    },
+    {
+      key: "conditions",
+      header: "Условия",
+      cell: (r) => formatConditions(r.conditions),
+    },
+    {
+      key: "created_at",
+      header: "Дата создания",
+      headerClassName: "text-right",
+      className: "text-right whitespace-nowrap",
+      cell: (r) =>
+        "created_at" in r && r.created_at
+          ? new Date(r.created_at as string).toLocaleDateString("ru-RU")
+          : "—",
+    },
+  ];
 
   /* ----- Dialog helpers --------------------------------------------------- */
   function openCreate() {
@@ -197,175 +276,40 @@ export default function RulesPage() {
     }
   }
 
-  /* ----- Display helpers -------------------------------------------------- */
-  function benefitName(id: string) {
-    return benefits.find((b) => b.id === id)?.name ?? id;
-  }
-
-  function formatConditions(c: Record<string, unknown>) {
-    const parts: React.ReactNode[] = [];
-
-    if (Array.isArray(c?.grade) && c.grade.length) {
-      parts.push(
-        <span key="grade" className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Грейд:</span>{" "}
-          {(c.grade as string[]).map((g) => (
-            <Badge key={g} variant="outline" className="text-xs">
-              {g}
-            </Badge>
-          ))}
-        </span>
-      );
-    }
-
-    if (c?.min_tenure != null) {
-      parts.push(
-        <span key="tenure" className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Стаж &ge;</span>{" "}
-          <Badge variant="outline" className="text-xs">
-            {String(c.min_tenure)} мес.
-          </Badge>
-        </span>
-      );
-    }
-
-    if (Array.isArray(c?.location) && c.location.length) {
-      parts.push(
-        <span key="location" className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Локация:</span>{" "}
-          {(c.location as string[]).map((l) => (
-            <Badge key={l} variant="outline" className="text-xs">
-              {l}
-            </Badge>
-          ))}
-        </span>
-      );
-    }
-
-    if (Array.isArray(c?.legal_entity) && c.legal_entity.length) {
-      parts.push(
-        <span key="entity" className="inline-flex items-center gap-1">
-          <span className="text-muted-foreground">Юрлицо:</span>{" "}
-          {(c.legal_entity as string[]).map((e) => (
-            <Badge key={e} variant="outline" className="text-xs">
-              {e}
-            </Badge>
-          ))}
-        </span>
-      );
-    }
-
-    if (parts.length === 0) {
-      return <span className="text-muted-foreground">Нет условий</span>;
-    }
-
-    return <div className="flex flex-wrap gap-3">{parts}</div>;
-  }
-
   /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-heading font-bold">
-          Правила доступности
-        </h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Правила доступности</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Условия отображения льгот для сотрудников</p>
+        </div>
         <Button onClick={openCreate}>
           <Plus className="size-4" />
           Добавить правило
         </Button>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Льгота</TableHead>
-              <TableHead>Условия</TableHead>
-              <TableHead className="text-right">Дата создания</TableHead>
-              <TableHead className="w-20" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : rules.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  Правила не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              rules.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">
-                    {r.benefit_name ?? (r.benefit_id ? benefitName(r.benefit_id) : "—")}
-                  </TableCell>
-                  <TableCell>{formatConditions(r.conditions)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    {"created_at" in r && r.created_at
-                      ? new Date(r.created_at as string).toLocaleDateString(
-                          "ru-RU"
-                        )
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => openEdit(r)}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon-xs">
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Удалить правило?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Это действие нельзя отменить. Правило будет удалено
-                              безвозвратно.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Отмена</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(r.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Удалить
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={rules}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        actions={(r) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(r) },
+          {
+            label: "Удалить",
+            icon: Trash2,
+            onClick: () => handleDelete(r.id),
+            variant: "destructive",
+            confirm: "Удалить правило?",
+          },
+        ]}
+      />
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -104,8 +104,11 @@ export default function ProviderProfilePage() {
 
   if (needsRegistration) {
     return (
-      <div className="page-transition space-y-6 p-6 max-w-lg">
-        <h1 className="text-2xl font-heading font-bold">Регистрация провайдера</h1>
+      <div className="page-transition space-y-8 p-6 max-w-lg">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Регистрация провайдера</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Заполните данные для начала работы</p>
+        </div>
         <Card>
           <CardContent className="pt-6">
             <form onSubmit={handleRegister} className="space-y-4">
@@ -145,7 +148,7 @@ export default function ProviderProfilePage() {
   };
 
   return (
-    <div className="page-transition space-y-6 p-6 max-w-2xl">
+    <div className="page-transition space-y-8 p-6 max-w-2xl">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-heading font-bold">Профиль провайдера</h1>
         <Badge variant={statusColors[profile.status] ?? "secondary"}>{profile.status}</Badge>
@@ -174,6 +177,39 @@ export default function ProviderProfilePage() {
             <div className="space-y-2">
               <Label>Телефон</Label>
               <Input value={profile.contact_phone ?? ""} onChange={(e) => setProfile({ ...profile, contact_phone: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Логотип (URL)</Label>
+            <div className="flex items-center gap-3">
+              {profile.logo_url && (
+                <img
+                  src={profile.logo_url}
+                  alt="Логотип"
+                  className="size-10 rounded-md border object-contain"
+                />
+              )}
+              <div className="flex-1 space-y-1.5">
+                <Input
+                  value={profile.logo_url ?? ""}
+                  onChange={(e) => setProfile({ ...profile, logo_url: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                />
+                {profile.website && !profile.logo_url && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => {
+                      try {
+                        const domain = new URL(profile.website!).hostname;
+                        setProfile({ ...profile, logo_url: `https://www.google.com/s2/favicons?domain=${domain}&sz=64` });
+                      } catch { /* invalid url */ }
+                    }}
+                  >
+                    Сгенерировать из сайта
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <div className="space-y-2">

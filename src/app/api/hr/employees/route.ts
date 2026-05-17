@@ -43,7 +43,111 @@ export interface EmployeeWithProfile {
 
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
-    if (isDemo) return demoEmployeesList();
+    if (isDemo) {
+      const { searchParams: sp } = new URL(request.url);
+      const res = await demoEmployeesList();
+      const json = await res.json();
+      let items = json.data as Record<string, unknown>[];
+
+      const dSearch = sp.get("search")?.toLowerCase() || "";
+      const dName = sp.get("name")?.toLowerCase() || "";
+      const dEmail = sp.get("email")?.toLowerCase() || "";
+      const dGrade = sp.get("grade") || "";
+      const dLocation = sp.get("location") || "";
+      const dSortBy = sp.get("sort_by") || "";
+      const dSortDir = sp.get("sort_dir") || "asc";
+      const dPage = Math.max(1, parseInt(sp.get("page") || "1", 10));
+      const dPerPage = Math.min(100, Math.max(1, parseInt(sp.get("per_page") || "20", 10)));
+
+      if (dSearch) {
+        items = items.filter((e) =>
+          (e.email as string).toLowerCase().includes(dSearch) ||
+          ((e.name as string) ?? "").toLowerCase().includes(dSearch)
+        );
+      }
+      if (dName) {
+        items = items.filter((e) => ((e.name as string) ?? "").toLowerCase().includes(dName));
+      }
+      if (dEmail) {
+        items = items.filter((e) => (e.email as string).toLowerCase().includes(dEmail));
+      }
+      if (dGrade) {
+        const vals = dGrade.split(",");
+        items = items.filter((e) => {
+          const p = e.profile as Record<string, unknown> | null;
+          return p && vals.includes(p.grade as string);
+        });
+      }
+      if (dLocation) {
+        const vals = dLocation.split(",");
+        items = items.filter((e) => {
+          const p = e.profile as Record<string, unknown> | null;
+          return p && vals.includes(p.location as string);
+        });
+      }
+
+      // Number range filters: key=min~max
+      const NUMERIC_FIELDS = ["tenure", "initial_limit", "remaining_balance"];
+      for (const nf of NUMERIC_FIELDS) {
+        const raw = sp.get(nf) || "";
+        if (!raw) continue;
+        const [minStr, maxStr] = raw.split("~");
+        const min = minStr ? Number(minStr) : null;
+        const max = maxStr ? Number(maxStr) : null;
+        items = items.filter((e) => {
+          let val: number;
+          if (nf === "tenure") {
+            const p = e.profile as Record<string, unknown> | null;
+            val = Math.floor(((p?.tenure_months as number) ?? 0) / 12);
+          } else {
+            val = (e[nf] as number) ?? 0;
+          }
+          if (min !== null && !isNaN(min) && val < min) return false;
+          if (max !== null && !isNaN(max) && val > max) return false;
+          return true;
+        });
+      }
+
+      if (dSortBy) {
+        const NUMERIC_SORT = new Set(["initial_limit", "remaining_balance", "tenure", "grade"]);
+        const PROFILE_STR = new Set(["location", "legal_entity", "hire_date"]);
+        const dir = dSortDir === "desc" ? -1 : 1;
+
+        items.sort((a, b) => {
+          const ap = a.profile as Record<string, unknown> | null;
+          const bp = b.profile as Record<string, unknown> | null;
+
+          if (dSortBy === "grade") {
+            const av = (ap?.grade_numeric as number) ?? 0;
+            const bv = (bp?.grade_numeric as number) ?? 0;
+            return (av - bv) * dir;
+          }
+          if (dSortBy === "tenure") {
+            const av = (ap?.tenure_months as number) ?? 0;
+            const bv = (bp?.tenure_months as number) ?? 0;
+            return (av - bv) * dir;
+          }
+          if (NUMERIC_SORT.has(dSortBy)) {
+            const av = (a[dSortBy] as number) ?? 0;
+            const bv = (b[dSortBy] as number) ?? 0;
+            return (av - bv) * dir;
+          }
+          if (PROFILE_STR.has(dSortBy)) {
+            const av = String(ap?.[dSortBy] ?? "");
+            const bv = String(bp?.[dSortBy] ?? "");
+            return av.localeCompare(bv, "ru") * dir;
+          }
+          const av = String(a[dSortBy] ?? "");
+          const bv = String(b[dSortBy] ?? "");
+          return av.localeCompare(bv, "ru") * dir;
+        });
+      }
+
+      const total = items.length;
+      const offset = (dPage - 1) * dPerPage;
+      const paginated = items.slice(offset, offset + dPerPage);
+      return NextResponse.json({ data: paginated, meta: { page: dPage, per_page: dPerPage, total } });
+    }
 
     const appUser = await requireRole("hr", "admin");
     const tenantId = appUser.tenant_id;

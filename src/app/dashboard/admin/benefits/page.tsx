@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Search, Loader2, Trash2, X } from "lucide-react";
+import { Pencil, Loader2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -24,15 +29,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+import { cn } from "@/lib/utils";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 
 /* -------------------------------------------------------------------------- */
 
@@ -61,30 +67,21 @@ interface ProviderOption {
   name: string;
 }
 
-type SortKey =
-  | "newest"
-  | "oldest"
-  | "price_asc"
-  | "price_desc"
-  | "name_asc"
-  | "name_desc";
-
 const STATUS_OPTIONS: { value: OfferingStatus; label: string }[] = [
   { value: "pending_review", label: "На согласовании" },
   { value: "published", label: "Активна" },
   { value: "archived", label: "В архиве" },
 ];
 
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "newest", label: "Сначала новые" },
-  { value: "oldest", label: "Сначала старые" },
-  { value: "price_asc", label: "Цена: по возрастанию" },
-  { value: "price_desc", label: "Цена: по убыванию" },
-  { value: "name_asc", label: "Название А–Я" },
-  { value: "name_desc", label: "Название Я–А" },
+const FORMAT_OPTIONS = [
+  { value: "online", label: "Онлайн" },
+  { value: "offline", label: "Офлайн" },
 ];
 
-const statusBadgeVariant: Record<OfferingStatus, "default" | "secondary" | "destructive" | "outline"> = {
+const statusBadgeVariant: Record<
+  OfferingStatus,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   draft: "secondary",
   pending_review: "outline",
   published: "default",
@@ -93,17 +90,70 @@ const statusBadgeVariant: Record<OfferingStatus, "default" | "secondary" | "dest
 
 /* -------------------------------------------------------------------------- */
 
+function StatusBadge({
+  item,
+  onStatusChange,
+}: {
+  item: CatalogItem;
+  onStatusChange: (item: CatalogItem, status: OfferingStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const currentStatus = item.offering_status ?? "pending_review";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Badge
+            variant={statusBadgeVariant[currentStatus]}
+            className="text-xs hover:ring-2 hover:ring-ring/20 transition-shadow"
+          >
+            {STATUS_OPTIONS.find((s) => s.value === currentStatus)?.label ?? "Черновик"}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-40 p-1"
+        align="center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {STATUS_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            className={cn(
+              "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted",
+              opt.value === currentStatus && "bg-primary/10 font-medium"
+            )}
+            onClick={() => {
+              onStatusChange(item, opt.value);
+              setOpen(false);
+            }}
+          >
+            <Badge variant={statusBadgeVariant[opt.value]} className="text-xs">
+              {opt.label}
+            </Badge>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 export default function CatalogPage() {
+  const { state, setState, resetFilters } = useTableState({
+    pageSize: 20,
+    defaultSort: { key: "created_at", direction: "desc" },
+  });
+
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [formatFilter, setFormatFilter] = useState<string>("all");
-  const [providerFilter, setProviderFilter] = useState<string>("all");
-  const [sort, setSort] = useState<SortKey>("newest");
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
   const [providers, setProviders] = useState<ProviderOption[]>([]);
 
@@ -112,7 +162,7 @@ export default function CatalogPage() {
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form fields (edit-only)
+  // Form fields
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formPrice, setFormPrice] = useState("");
@@ -124,34 +174,48 @@ export default function CatalogPage() {
   /* ----- Fetch catalog --------------------------------------------------- */
   const fetchCatalog = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
-        sort,
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+      if (state.search) params.set("search", state.search);
+
+      if (state.sort) {
+        const sortMap: Record<string, string> = {
+          "created_at.desc": "newest",
+          "created_at.asc": "oldest",
+          "price_points.asc": "price_asc",
+          "price_points.desc": "price_desc",
+          "name.asc": "name_asc",
+          "name.desc": "name_desc",
+        };
+        params.set("sort", sortMap[`${state.sort.key}.${state.sort.direction}`] ?? "newest");
+      }
+
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
       });
-      if (search) params.set("search", search);
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      if (formatFilter !== "all") params.set("format", formatFilter);
-      if (providerFilter !== "all") params.set("provider_id", providerFilter);
 
       const res = await fetch(`/api/admin/catalog?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить каталог");
       const json = await res.json();
       setItems(json.data?.data ?? []);
       setTotal(json.data?.meta?.total ?? 0);
-    } catch {
-      toast.error("Не удалось загрузить каталог");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, formatFilter, providerFilter, sort]);
+  }, [state]);
 
   useEffect(() => {
     fetchCatalog();
   }, [fetchCatalog]);
 
-  /* ----- Fetch providers for filter dropdown ----------------------------- */
+  /* ----- Fetch providers ------------------------------------------------- */
   useEffect(() => {
     fetch("/api/admin/providers?per_page=100")
       .then((r) => (r.ok ? r.json() : null))
@@ -163,23 +227,129 @@ export default function CatalogPage() {
       .catch(() => {});
   }, []);
 
-  function resetFilters() {
-    setSearch("");
-    setStatusFilter("all");
-    setFormatFilter("all");
-    setProviderFilter("all");
-    setSort("newest");
-    setPage(1);
+  /* ----- Table columns with per-column filters --------------------------- */
+  const columns: ColumnDef<CatalogItem>[] = [
+    {
+      key: "provider_name",
+      header: "Провайдер",
+      filterKey: "provider_id",
+      filter: {
+        type: "select",
+        options: providers.map((p) => ({ value: p.id, label: p.name })),
+      },
+      cell: (row) => (
+        <span className="text-muted-foreground">{row.provider_name ?? "—"}</span>
+      ),
+    },
+    {
+      key: "name",
+      header: "Название",
+      sortable: true,
+      filterKey: "search",
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: "category_name",
+      header: "Категория",
+      filterKey: "category",
+      filter: { type: "auto", field: "catalog.category" },
+    },
+    {
+      key: "price_points",
+      header: "Цена",
+      sortable: true,
+      filter: { type: "number" },
+      headerClassName: "text-right",
+      className: "text-right tabular-nums",
+      cell: (row) => row.price_points.toLocaleString("ru-RU"),
+    },
+    {
+      key: "format",
+      header: "Формат",
+      filter: { type: "select", options: FORMAT_OPTIONS },
+      headerClassName: "text-center",
+      className: "text-center",
+      cell: (row) =>
+        row.format === "offline" && row.cities?.length > 0 ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-default">
+                  <Badge variant="outline" className="text-xs">Офлайн</Badge>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {row.cities.join(", ")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : row.format === "offline" ? (
+          <Badge variant="outline" className="text-xs">Офлайн</Badge>
+        ) : (
+          <Badge variant="secondary" className="text-xs">Онлайн</Badge>
+        ),
+    },
+    {
+      key: "is_stackable",
+      header: "Множ.",
+      headerClassName: "text-center",
+      className: "text-center",
+      cell: (row) =>
+        row.is_stackable ? (
+          <Badge variant="outline" className="text-xs">Можно увеличивать</Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">1 шт.</span>
+        ),
+    },
+    {
+      key: "offering_status",
+      header: "Статус",
+      filterKey: "status",
+      filter: {
+        type: "select",
+        options: STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
+      },
+      headerClassName: "text-center",
+      className: "text-center",
+      cell: (row) => <StatusBadge item={row} onStatusChange={handleStatusChange} />,
+    },
+  ];
+
+  /* ----- Actions --------------------------------------------------------- */
+  async function handleStatusChange(item: CatalogItem, next: OfferingStatus) {
+    if (item.offering_status === next) return;
+    try {
+      const res = await fetch(`/api/admin/catalog/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error?.message ?? "Не удалось обновить статус");
+        return;
+      }
+      toast.success("Статус обновлён");
+      fetchCatalog();
+    } catch {
+      toast.error("Ошибка сети");
+    }
   }
 
-  const filtersActive =
-    search !== "" ||
-    statusFilter !== "all" ||
-    formatFilter !== "all" ||
-    providerFilter !== "all" ||
-    sort !== "newest";
+  async function handleDelete(item: CatalogItem) {
+    try {
+      const res = await fetch(`/api/admin/catalog/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Удалено");
+      fetchCatalog();
+    } catch {
+      toast.error("Не удалось удалить");
+    }
+  }
 
-  /* ----- Dialog helpers --------------------------------------------------- */
   function openEdit(item: CatalogItem) {
     setEditing(item);
     setFormName(item.name);
@@ -194,8 +364,7 @@ export default function CatalogPage() {
 
   function addCity() {
     const v = formCityInput.trim();
-    if (!v) return;
-    if (formCities.includes(v)) {
+    if (!v || formCities.includes(v)) {
       setFormCityInput("");
       return;
     }
@@ -243,264 +412,35 @@ export default function CatalogPage() {
     }
   }
 
-  async function handleStatusChange(item: CatalogItem, next: OfferingStatus) {
-    if (item.offering_status === next) return;
-    try {
-      const res = await fetch(`/api/admin/catalog/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error?.message ?? "Не удалось обновить статус");
-        return;
-      }
-      toast.success("Статус обновлён");
-      fetchCatalog();
-    } catch {
-      toast.error("Ошибка сети");
-    }
-  }
-
-  async function handleDelete(item: CatalogItem) {
-    if (!confirm("Удалить эту льготу?")) return;
-    try {
-      const res = await fetch(`/api/admin/catalog/${item.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Удалено");
-      fetchCatalog();
-    } catch {
-      toast.error("Не удалось удалить");
-    }
-  }
-
   /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="page-transition space-y-8 p-6">
+      <div>
         <h1 className="text-2xl font-heading font-bold">Каталог льгот</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Все льготы, доступные в системе</p>
       </div>
 
-      {/* Filters + sort */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Поиск по названию..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]" aria-label="Статус">
-            <SelectValue placeholder="Статус" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все статусы</SelectItem>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={formatFilter}
-          onValueChange={(v) => {
-            setFormatFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[150px]" aria-label="Формат">
-            <SelectValue placeholder="Формат" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все форматы</SelectItem>
-            <SelectItem value="online">Онлайн</SelectItem>
-            <SelectItem value="offline">Офлайн</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={providerFilter}
-          onValueChange={(v) => {
-            setProviderFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[200px]" aria-label="Провайдер">
-            <SelectValue placeholder="Провайдер" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все провайдеры</SelectItem>
-            {providers.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={sort}
-          onValueChange={(v) => {
-            setSort(v as SortKey);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[210px]" aria-label="Сортировка">
-            <SelectValue placeholder="Сортировка" />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {filtersActive && (
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
-            Сбросить
-          </Button>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Провайдер</TableHead>
-              <TableHead>Название</TableHead>
-              <TableHead>Категория</TableHead>
-              <TableHead className="text-right">Цена</TableHead>
-              <TableHead className="text-center">Формат</TableHead>
-              <TableHead className="text-center">Множественный выбор</TableHead>
-              <TableHead className="text-center">Статус</TableHead>
-              <TableHead className="w-20" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                  Льготы не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((item) => {
-                const currentStatus = item.offering_status ?? "pending_review";
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="text-muted-foreground">
-                      {item.provider_name ?? "—"}
-                    </TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.category_name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {item.price_points.toLocaleString("ru-RU")}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {item.format === "offline" ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <Badge variant="outline" className="text-xs">Офлайн</Badge>
-                          {item.cities && item.cities.length > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {item.cities.join(", ")}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">Онлайн</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {item.is_stackable ? (
-                        <Badge variant="outline" className="text-xs">Можно увеличивать</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">1 шт.</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Select
-                        value={currentStatus}
-                        onValueChange={(v) =>
-                          handleStatusChange(item, v as OfferingStatus)
-                        }
-                      >
-                        <SelectTrigger
-                          className="h-8 w-[160px] mx-auto"
-                          aria-label="Статус"
-                        >
-                          <SelectValue>
-                            <Badge
-                              variant={statusBadgeVariant[currentStatus]}
-                              className="text-xs"
-                            >
-                              {STATUS_OPTIONS.find((s) => s.value === currentStatus)?.label ??
-                                "Черновик"}
-                            </Badge>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUS_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon-xs" onClick={() => openEdit(item)}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-xs" onClick={() => handleDelete(item)}>
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={items}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        searchable={{ placeholder: "Поиск по всем полям..." }}
+        actions={(item) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(item) },
+          {
+            label: "Удалить",
+            icon: Trash2,
+            onClick: () => handleDelete(item),
+            variant: "destructive",
+            confirm: "Удалить эту льготу?",
+          },
+        ]}
+      />
 
       {/* Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -586,11 +526,7 @@ export default function CatalogPage() {
                 {formCities.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {formCities.map((city) => (
-                      <Badge
-                        key={city}
-                        variant="secondary"
-                        className="gap-1 pr-1"
-                      >
+                      <Badge key={city} variant="secondary" className="gap-1 pr-1">
                         {city}
                         <button
                           type="button"

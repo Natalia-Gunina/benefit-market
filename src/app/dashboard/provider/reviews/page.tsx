@@ -1,25 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Star } from "lucide-react";
+import { MessageSquare, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
+
+/* -------------------------------------------------------------------------- */
 
 interface ReviewItem {
   id: string;
@@ -37,11 +25,16 @@ interface OfferingOption {
   name: string;
 }
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
+const statusLabels: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" }
+> = {
   visible: { label: "Опубликован", variant: "default" },
   hidden: { label: "Скрыт", variant: "secondary" },
   flagged: { label: "Жалоба", variant: "destructive" },
 };
+
+/* -------------------------------------------------------------------------- */
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -56,151 +49,158 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+
 export default function ProviderReviewsPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
-  const [offerings, setOfferings] = useState<OfferingOption[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [offeringFilter, setOfferingFilter] = useState("all");
-  const [ratingFilter, setRatingFilter] = useState("all");
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
+  const [offerings, setOfferings] = useState<OfferingOption[]>([]);
+
+  /* ----- Fetch offerings for filter -------------------------------------- */
   useEffect(() => {
     fetch("/api/provider/offerings?per_page=100")
       .then((r) => r.json())
       .then((json) => {
         const data = json.data?.data ?? json.data ?? [];
-        setOfferings(data.map((o: { id: string; name: string }) => ({ id: o.id, name: o.name })));
+        setOfferings(
+          data.map((o: { id: string; name: string }) => ({
+            id: o.id,
+            name: o.name,
+          })),
+        );
       })
       .catch(() => {});
   }, []);
 
+  /* ----- Fetch reviews --------------------------------------------------- */
   const fetchReviews = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
       });
-      if (offeringFilter !== "all") params.set("offering_id", offeringFilter);
-      if (ratingFilter !== "all") params.set("rating", ratingFilter);
 
       const res = await fetch(`/api/provider/reviews?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить отзывы");
       const json = await res.json();
       setReviews(json.data?.data ?? []);
       setTotal(json.data?.meta?.total ?? 0);
-    } catch {
-      toast.error("Не удалось загрузить отзывы");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, offeringFilter, ratingFilter]);
+  }, [state]);
 
   useEffect(() => {
     fetchReviews();
   }, [fetchReviews]);
 
+  /* ----- Table columns --------------------------------------------------- */
+  const STATUS_OPTIONS = [
+    { value: "visible", label: "Опубликован" },
+    { value: "hidden", label: "Скрыт" },
+    { value: "flagged", label: "Жалоба" },
+  ];
+
+  const columns: ColumnDef<ReviewItem>[] = useMemo(() => [
+    {
+      key: "offering",
+      header: "Предложение",
+      filterKey: "offering_id",
+      filter: {
+        type: "select",
+        options: offerings.map((o) => ({ value: o.id, label: o.name })),
+      },
+      cell: (row) => (
+        <span className="font-medium">
+          {row.provider_offerings?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "rating",
+      header: "Оценка",
+      sortable: true,
+      filter: {
+        type: "select",
+        options: [5, 4, 3, 2, 1].map((r) => ({
+          value: String(r),
+          label: `${r} звёзд`,
+        })),
+      },
+      cell: (row) => <StarRating rating={row.rating} />,
+    },
+    {
+      key: "title",
+      header: "Заголовок",
+      filter: { type: "text" },
+      cell: (row) => row.title || "—",
+    },
+    {
+      key: "body",
+      header: "Текст",
+      className: "max-w-[300px] truncate text-muted-foreground",
+      cell: (row) => row.body || "—",
+    },
+    {
+      key: "status",
+      header: "Статус",
+      headerClassName: "text-center",
+      className: "text-center",
+      filter: { type: "select", options: STATUS_OPTIONS },
+      cell: (row) => {
+        const st = statusLabels[row.status] ?? statusLabels.visible;
+        return <Badge variant={st.variant}>{st.label}</Badge>;
+      },
+    },
+    {
+      key: "created_at",
+      header: "Дата",
+      sortable: true,
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {new Date(row.created_at).toLocaleDateString("ru")}
+        </span>
+      ),
+    },
+  ], [offerings]);
+
+  /* ----- Render ---------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Отзывы</h1>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={offeringFilter}
-          onValueChange={(v) => { setOfferingFilter(v); setPage(1); }}
-        >
-          <SelectTrigger className="w-[240px]">
-            <SelectValue placeholder="Все предложения" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все предложения</SelectItem>
-            {offerings.map((o) => (
-              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={ratingFilter}
-          onValueChange={(v) => { setRatingFilter(v); setPage(1); }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Все оценки" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все оценки</SelectItem>
-            {[5, 4, 3, 2, 1].map((r) => (
-              <SelectItem key={r} value={String(r)}>{r} звёзд</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="page-transition space-y-8 p-6">
+      <div>
+        <h1 className="text-2xl font-heading font-bold">Отзывы</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Отзывы сотрудников о ваших услугах</p>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Предложение</TableHead>
-              <TableHead>Оценка</TableHead>
-              <TableHead>Заголовок</TableHead>
-              <TableHead className="max-w-[300px]">Текст</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Дата</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : reviews.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  Отзывов пока нет
-                </TableCell>
-              </TableRow>
-            ) : (
-              reviews.map((r) => {
-                const st = statusLabels[r.status] ?? statusLabels.visible;
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">
-                      {r.provider_offerings?.name ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StarRating rating={r.rating} />
-                    </TableCell>
-                    <TableCell>{r.title || "—"}</TableCell>
-                    <TableCell className="max-w-[300px] truncate">
-                      {r.body || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={st.variant}>{st.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString("ru")}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={reviews}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        emptyState={{
+          icon: MessageSquare,
+          title: "Отзывов пока нет",
+          description: "Отзывы от сотрудников появятся здесь",
+        }}
+      />
     </div>
   );
 }

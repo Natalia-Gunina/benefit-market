@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { FolderOpen, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
+import { getCategoryIcon } from "@/lib/category-icons";
 
 interface GlobalCategory {
   id: string;
@@ -18,8 +29,13 @@ interface GlobalCategory {
 export default function AdminGlobalCategoriesPage() {
   const [categories, setCategories] = useState<GlobalCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [newIcon, setNewIcon] = useState("");
+  const table = useLocalTableState();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<GlobalCategory | null>(null);
+  const [formName, setFormName] = useState("");
+  const [formIcon, setFormIcon] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const load = useCallback(() => {
     setIsLoading(true);
@@ -30,21 +46,43 @@ export default function AdminGlobalCategoriesPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
   useEffect(() => { load(); }, [load]);
 
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
+  function openCreate() {
+    setEditing(null);
+    setFormName("");
+    setFormIcon("");
+    setDialogOpen(true);
+  }
+
+  function openEdit(cat: GlobalCategory) {
+    setEditing(cat);
+    setFormName(cat.name);
+    setFormIcon(cat.icon);
+    setDialogOpen(true);
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim()) return;
+    setIsSaving(true);
     try {
-      const res = await fetch("/api/admin/global-categories", {
-        method: "POST",
+      const url = editing
+        ? `/api/admin/global-categories/${editing.id}`
+        : "/api/admin/global-categories";
+      const method = editing ? "PATCH" : "POST";
+      const body = editing
+        ? { name: formName, icon: formIcon }
+        : { name: formName, icon: formIcon, sort_order: categories.length + 1 };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName, icon: newIcon, sort_order: categories.length + 1 }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        toast.success("Категория создана");
-        setNewName("");
-        setNewIcon("");
+        toast.success(editing ? "Категория обновлена" : "Категория создана");
+        setDialogOpen(false);
         load();
       } else {
         const err = await res.json();
@@ -52,10 +90,13 @@ export default function AdminGlobalCategoriesPage() {
       }
     } catch {
       toast.error("Ошибка сети");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Удалить эту категорию?")) return;
     try {
       const res = await fetch(`/api/admin/global-categories/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -70,44 +111,106 @@ export default function AdminGlobalCategoriesPage() {
     }
   };
 
+  const columns: ColumnDef<GlobalCategory>[] = useMemo(() => [
+    {
+      key: "icon",
+      header: "",
+      className: "w-12 text-center",
+      cell: (row) => {
+        const Icon = getCategoryIcon(row.icon);
+        return <Icon className="size-5 text-muted-foreground mx-auto" />;
+      },
+    },
+    {
+      key: "name",
+      header: "Название",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: "sort_order",
+      header: "Порядок",
+      sortable: true,
+      className: "text-right tabular-nums text-muted-foreground",
+      headerClassName: "text-right",
+      cell: (row) => `#${row.sort_order}`,
+    },
+  ], []);
+
+  const filtered = useClientFiltered(categories, table.state, columns);
+
   return (
-    <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Глобальные категории</h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">Категории</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Глобальные категории льгот для каталога</p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="size-4" />
+          Добавить категорию
+        </Button>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle>Добавить категорию</CardTitle></CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input placeholder="Название" value={newName} onChange={(e) => setNewName(e.target.value)} />
-            <Input placeholder="Иконка" value={newIcon} onChange={(e) => setNewIcon(e.target.value)} className="w-40" />
-            <Button onClick={handleCreate}><Plus className="mr-1 size-4" />Добавить</Button>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={filtered.filtered}
+        total={filtered.total}
+        loading={isLoading}
+        state={table.state}
+        onStateChange={table.setState}
+        onReset={table.resetFilters}
+        searchable={{ placeholder: "Поиск по названию..." }}
+        actions={(c) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(c) },
+          { label: "Удалить", icon: Trash2, onClick: () => handleDelete(c.id), variant: "destructive" as const },
+        ]}
+        emptyState={{
+          icon: FolderOpen,
+          title: "Нет категорий",
+          description: "Добавьте первую категорию для каталога",
+        }}
+      />
 
-      {isLoading ? (
-        <div className="text-muted-foreground">Загрузка...</div>
-      ) : (
-        <Card>
-          <CardHeader><CardTitle>Категории ({categories.length})</CardTitle></CardHeader>
-          <CardContent>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Редактировать категорию" : "Новая категория"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              {categories.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{c.icon || "—"}</span>
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-sm text-muted-foreground">#{c.sort_order}</span>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ))}
+              <Label htmlFor="cat-name">Название</Label>
+              <Input
+                id="cat-name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Например: Спорт и фитнес"
+                required
+              />
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="space-y-2">
+              <Label htmlFor="cat-icon">Иконка (имя lucide)</Label>
+              <Input
+                id="cat-icon"
+                value={formIcon}
+                onChange={(e) => setFormIcon(e.target.value)}
+                placeholder="Например: dumbbell"
+                className="w-48"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="size-4 animate-spin" />}
+                {editing ? "Сохранить" : "Создать"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

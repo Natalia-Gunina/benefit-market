@@ -188,9 +188,10 @@ export function AppSidebar({ role, userEmail, tenantName, isDemo }: AppSidebarPr
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
+                const isExactDashboardRoot = ["/dashboard/hr", "/dashboard/admin", "/dashboard/provider", "/dashboard/employee"].includes(item.href);
+                const isActive = isExactDashboardRoot
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(item.href + "/");
 
                 return (
                   <SidebarMenuItem key={item.href}>

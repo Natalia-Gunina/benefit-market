@@ -80,7 +80,7 @@ export function POST(request: NextRequest) {
         name: body.name,
         slug: slugify(body.name),
         description: body.description ?? "",
-        logo_url: null,
+        logo_url: body.logo_url || null,
         website: body.website || null,
         contact_email: body.contact_email || "",
         contact_phone: body.contact_phone || null,

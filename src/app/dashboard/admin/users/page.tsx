@@ -2,26 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Search, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,8 +19,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
+import { cn } from "@/lib/utils";
 
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 import type { UserRole } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
@@ -42,16 +31,13 @@ interface UserRow {
   id: string;
   email: string;
   role: UserRole;
+  full_name?: string;
+  department?: string;
+  grade?: string;
+  location?: string;
+  balance?: number;
+  is_active?: boolean;
   created_at: string;
-  profile?: {
-    grade: string;
-    location: string;
-    legal_entity: string;
-  };
-  wallet?: {
-    balance: number;
-  };
-  display_name?: string;
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -70,37 +56,104 @@ const ROLE_VARIANTS: Record<UserRole, "default" | "secondary" | "outline"> = {
 
 const ALL_ROLES: UserRole[] = ["employee", "hr", "admin", "provider"];
 
+const ROLE_OPTIONS = ALL_ROLES.map((r) => ({
+  value: r,
+  label: ROLE_LABELS[r],
+}));
+
+/* -------------------------------------------------------------------------- */
+
+function RoleBadge({
+  user,
+  onRequestChange,
+}: {
+  user: UserRow;
+  onRequestChange: (userId: string, email: string, newRole: UserRole) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <Badge
+            variant={ROLE_VARIANTS[user.role]}
+            className="text-xs hover:ring-2 hover:ring-ring/20 transition-shadow"
+          >
+            {ROLE_LABELS[user.role]}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-36 p-1"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {ALL_ROLES.map((r) => (
+          <button
+            key={r}
+            className={cn(
+              "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted",
+              r === user.role && "bg-primary/10 font-medium"
+            )}
+            onClick={() => {
+              if (r !== user.role) {
+                onRequestChange(user.id, user.email, r);
+              }
+              setOpen(false);
+            }}
+          >
+            <Badge variant={ROLE_VARIANTS[r]} className="text-xs">
+              {ROLE_LABELS[r]}
+            </Badge>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 export default function UsersPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [users, setUsers] = useState<UserRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
   /* ----- Fetch ------------------------------------------------------------ */
   const fetchUsers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+      if (state.search) params.set("search", state.search);
+      if (state.sort) {
+        params.set("sort_by", state.sort.key);
+        params.set("sort_dir", state.sort.direction);
+      }
+
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
       });
-      if (search) params.set("search", search);
-      if (roleFilter && roleFilter !== "all") params.set("role", roleFilter);
 
       const res = await fetch(`/api/admin/users?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить пользователей");
       const json = await res.json();
-      setUsers(json.data ?? json);
-      setTotal(json.total ?? (json.data ?? json).length);
-    } catch {
-      toast.error("Не удалось загрузить пользователей");
+      setUsers(json.data ?? []);
+      setTotal(json.meta?.total ?? json.total ?? (json.data ?? []).length);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, search, roleFilter]);
+  }, [state]);
 
   useEffect(() => {
     fetchUsers();
@@ -138,140 +191,99 @@ export default function UsersPage() {
     }
   }
 
+  /* ----- Columns ---------------------------------------------------------- */
+  const columns: ColumnDef<UserRow>[] = [
+    {
+      key: "full_name",
+      header: "Пользователь",
+      sortable: true,
+      filter: { type: "text" },
+      filterKey: "name",
+      cell: (row) => (
+        <div>
+          <span className="font-medium">{row.full_name ?? row.display_name ?? row.email.split("@")[0]}</span>
+          <p className="text-xs text-muted-foreground">{row.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: "role",
+      header: "Роль",
+      filter: { type: "select", options: ROLE_OPTIONS },
+      cell: (row) => (
+        <RoleBadge user={row} onRequestChange={requestRoleChange} />
+      ),
+    },
+    {
+      key: "grade",
+      header: "Грейд",
+      sortable: true,
+      filter: {
+        type: "select",
+        options: [
+          { value: "junior", label: "Junior" },
+          { value: "middle", label: "Middle" },
+          { value: "senior", label: "Senior" },
+          { value: "lead", label: "Lead" },
+        ],
+      },
+      filterKey: "grade",
+      cell: (row) => row.grade ?? "—",
+    },
+    {
+      key: "location",
+      header: "Локация",
+      filter: { type: "text" },
+      filterKey: "location",
+      cell: (row) => row.location ?? "—",
+    },
+    {
+      key: "balance",
+      header: "Баланс",
+      sortable: true,
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) =>
+        row.balance != null
+          ? row.balance.toLocaleString("ru-RU")
+          : "—",
+    },
+  ];
+
   /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Пользователи</h1>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Поиск по email или имени..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            variant={roleFilter === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setRoleFilter("all");
-              setPage(1);
-            }}
-          >
-            Все
-          </Button>
-          {ALL_ROLES.map((r) => (
-            <Button
-              key={r}
-              variant={roleFilter === r ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setRoleFilter(r);
-                setPage(1);
-              }}
-            >
-              {ROLE_LABELS[r]}
-            </Button>
-          ))}
-        </div>
+    <div className="page-transition space-y-8 p-6">
+      <div>
+        <h1 className="text-2xl font-heading font-bold">Пользователи</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Управление ролями и доступом</p>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Имя</TableHead>
-              <TableHead>Роль</TableHead>
-              <TableHead>Грейд</TableHead>
-              <TableHead>Локация</TableHead>
-              <TableHead className="text-right">Баланс</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : users.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="h-32 text-center text-muted-foreground"
-                >
-                  Пользователи не найдены
-                </TableCell>
-              </TableRow>
-            ) : (
-              users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.email}</TableCell>
-                  <TableCell>{u.display_name ?? "—"}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={u.role}
-                      onValueChange={(v) => requestRoleChange(u.id, u.email, v as UserRole)}
-                    >
-                      <SelectTrigger className="w-[130px]" size="sm">
-                        <SelectValue>
-                          <Badge variant={ROLE_VARIANTS[u.role]}>
-                            {ROLE_LABELS[u.role]}
-                          </Badge>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ALL_ROLES.map((r) => (
-                          <SelectItem key={r} value={r}>
-                            {ROLE_LABELS[r]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>{u.profile?.grade ?? "—"}</TableCell>
-                  <TableCell>{u.profile?.location ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {u.wallet?.balance != null
-                      ? u.wallet.balance.toLocaleString("ru-RU")
-                      : "—"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      <DataTable
+        columns={columns}
+        data={users}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        searchable={{ placeholder: "Поиск по email или имени..." }}
+      />
 
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
-      {/* Role change confirmation dialog */}
-      <AlertDialog open={!!pendingRoleChange} onOpenChange={() => setPendingRoleChange(null)}>
+      <AlertDialog
+        open={!!pendingRoleChange}
+        onOpenChange={() => setPendingRoleChange(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Изменить роль пользователя?</AlertDialogTitle>
             <AlertDialogDescription>
               Вы собираетесь изменить роль пользователя{" "}
               <strong>{pendingRoleChange?.email}</strong> на{" "}
-              <strong>{pendingRoleChange ? ROLE_LABELS[pendingRoleChange.newRole] : ""}</strong>.
-              Это повлияет на его права доступа в системе.
+              <strong>
+                {pendingRoleChange ? ROLE_LABELS[pendingRoleChange.newRole] : ""}
+              </strong>
+              . Это повлияет на его права доступа в системе.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

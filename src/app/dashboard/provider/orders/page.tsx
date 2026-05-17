@@ -1,21 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Search } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
+
+/* -------------------------------------------------------------------------- */
 
 interface OrderItem {
   id: string;
@@ -26,14 +19,6 @@ interface OrderItem {
   orders?: { id: string; status: string; total_points: number; created_at: string; tenant_id: string } | null;
 }
 
-const statusTabs = [
-  { key: "all", label: "Все" },
-  { key: "pending", label: "Ожидает" },
-  { key: "reserved", label: "Резерв" },
-  { key: "paid", label: "Оплачен" },
-  { key: "cancelled", label: "Отменён" },
-] as const;
-
 const statusBadge: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Ожидает", variant: "outline" },
   reserved: { label: "Резерв", variant: "secondary" },
@@ -42,135 +27,143 @@ const statusBadge: Record<string, { label: string; variant: "default" | "seconda
   expired: { label: "Истёк", variant: "destructive" },
 };
 
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Ожидает" },
+  { value: "reserved", label: "Резерв" },
+  { value: "paid", label: "Оплачен" },
+  { value: "cancelled", label: "Отменён" },
+  { value: "expired", label: "Истёк" },
+];
+
+/* -------------------------------------------------------------------------- */
+
 export default function ProviderOrdersPage() {
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const perPage = 20;
+  const [error, setError] = useState<string | null>(null);
 
+  /* ----- Fetch ------------------------------------------------------------ */
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: String(perPage),
-      });
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      if (search) params.set("search", search);
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+      if (state.search) params.set("search", state.search);
+      if (state.filters.status) params.set("status", state.filters.status);
 
       const res = await fetch(`/api/provider/orders?${params}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Не удалось загрузить заказы");
       const json = await res.json();
       setOrders(json.data?.data ?? []);
       setTotal(json.data?.meta?.total ?? 0);
-    } catch {
-      toast.error("Ошибка загрузки данных");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки данных";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search]);
+  }, [state]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
+  /* ----- Columns ---------------------------------------------------------- */
+  const columns: ColumnDef<OrderItem>[] = useMemo(() => [
+    {
+      key: "order_id",
+      header: "ID заказа",
+      cell: (row) => {
+        const orderId = row.orders?.id ?? row.order_id;
+        return (
+          <span className="font-mono text-sm text-muted-foreground">
+            {orderId ? orderId.slice(0, 8) : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "offering",
+      header: "Предложение",
+      filter: { type: "text" },
+      filterKey: "search",
+      cell: (row) => (
+        <span className="font-medium">
+          {row.provider_offerings?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "quantity",
+      header: "Кол-во",
+      sortable: true,
+      headerClassName: "text-right",
+      className: "text-right tabular-nums",
+      cell: (row) => row.quantity,
+    },
+    {
+      key: "price_points",
+      header: "Баллы",
+      sortable: true,
+      filter: { type: "number" },
+      headerClassName: "text-right",
+      className: "text-right tabular-nums",
+      cell: (row) => row.price_points.toLocaleString("ru-RU"),
+    },
+    {
+      key: "status",
+      header: "Статус",
+      headerClassName: "text-center",
+      className: "text-center",
+      filter: { type: "select", options: STATUS_OPTIONS },
+      cell: (row) => {
+        const st = statusBadge[row.orders?.status ?? "pending"] ?? statusBadge.pending;
+        return <Badge variant={st.variant}>{st.label}</Badge>;
+      },
+    },
+    {
+      key: "created_at",
+      header: "Дата",
+      sortable: true,
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {row.orders?.created_at
+            ? new Date(row.orders.created_at).toLocaleDateString("ru")
+            : "—"}
+        </span>
+      ),
+    },
+  ], []);
+
+  /* ----- Render ----------------------------------------------------------- */
   return (
-    <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Заказы</h1>
-
-      {/* Status tabs */}
-      <div className="flex flex-wrap gap-1">
-        {statusTabs.map((tab) => (
-          <Button
-            key={tab.key}
-            variant={statusFilter === tab.key ? "default" : "ghost"}
-            size="sm"
-            onClick={() => { setStatusFilter(tab.key); setPage(1); }}
-          >
-            {tab.label}
-          </Button>
-        ))}
+    <div className="page-transition space-y-8 p-6">
+      <div>
+        <h1 className="text-2xl font-heading font-bold">Заказы</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Заказы от сотрудников на ваши льготы</p>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          placeholder="Поиск..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        />
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID заказа</TableHead>
-              <TableHead>Предложение</TableHead>
-              <TableHead className="text-right">Кол-во</TableHead>
-              <TableHead className="text-right">Баллы</TableHead>
-              <TableHead className="text-center">Статус</TableHead>
-              <TableHead>Дата</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : orders.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  Заказов не найдено
-                </TableCell>
-              </TableRow>
-            ) : (
-              orders.map((oi) => {
-                const st = statusBadge[oi.orders?.status ?? "pending"] ?? statusBadge.pending;
-                const orderId = oi.orders?.id ?? oi.order_id;
-                const shortId = orderId ? orderId.slice(0, 8) : "—";
-                return (
-                  <TableRow key={oi.id}>
-                    <TableCell className="font-mono text-sm">{shortId}</TableCell>
-                    <TableCell className="font-medium">
-                      {oi.provider_offerings?.name ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{oi.quantity}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {oi.price_points.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={st.variant}>{st.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {oi.orders?.created_at
-                        ? new Date(oi.orders.created_at).toLocaleDateString("ru")
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        {!loading && total > perPage && (
-          <DataTablePagination
-            page={page}
-            per_page={perPage}
-            total={total}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={orders}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        emptyState={{
+          icon: ClipboardList,
+          title: "Заказов пока нет",
+          description: "Заказы от сотрудников появятся здесь",
+        }}
+      />
     </div>
   );
 }

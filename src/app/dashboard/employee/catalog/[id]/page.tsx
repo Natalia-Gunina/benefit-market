@@ -5,20 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Package,
-  Heart,
-  HeartPulse,
-  GraduationCap,
-  Plane,
-  Dumbbell,
-  UtensilsCrossed,
-  Gift,
-  ShieldCheck,
-  Car,
-  Baby,
-  Laptop,
   ChevronRight,
-  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { BenefitWithCategory } from "@/components/benefits/benefit-card";
@@ -33,20 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const iconMap: Record<string, LucideIcon> = {
-  heart: Heart,
-  "heart-pulse": HeartPulse,
-  "graduation-cap": GraduationCap,
-  plane: Plane,
-  dumbbell: Dumbbell,
-  utensils: UtensilsCrossed,
-  gift: Gift,
-  shield: ShieldCheck,
-  car: Car,
-  baby: Baby,
-  laptop: Laptop,
-};
+import { getCategoryIcon } from "@/lib/category-icons";
 
 export default function BenefitDetailPage() {
   const params = useParams<{ id: string }>();
@@ -122,10 +96,11 @@ export default function BenefitDetailPage() {
     );
   }
 
-  const IconComponent = iconMap[benefit.category?.icon ?? ""] ?? Package;
+  const IconComponent = getCategoryIcon(benefit.category?.icon ?? "");
   const outOfStock =
     benefit.stock_limit !== null && benefit.stock_limit <= 0;
   const canAfford = balance !== null && balance >= benefit.price_points;
+  const vtId = benefit.id.slice(0, 8);
 
   return (
     <div className="page-transition space-y-6 p-6">
@@ -164,11 +139,11 @@ export default function BenefitDetailPage() {
       <Card className="max-w-2xl">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-primary/10 p-3 text-primary">
+            <div className="rounded-xl bg-primary/10 p-3 text-primary" style={{ viewTransitionName: `benefit-avatar-${vtId}` }}>
               <IconComponent className="size-7" />
             </div>
             <div className="space-y-1">
-              <CardTitle className="font-heading text-xl">
+              <CardTitle className="font-heading text-xl" style={{ viewTransitionName: `benefit-title-${vtId}` }}>
                 {benefit.name}
               </CardTitle>
               {benefit.category && (

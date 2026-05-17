@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+import { DataTable, useTableState } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,24 +37,6 @@ interface Employee {
   initial_limit: number;
   remaining_balance: number;
 }
-
-interface Meta {
-  page: number;
-  per_page: number;
-  total: number;
-}
-
-type SortKey =
-  | "name"
-  | "email"
-  | "grade"
-  | "location"
-  | "hire_date"
-  | "tenure"
-  | "initial_limit"
-  | "remaining"
-  | "legal_entity";
-type SortDir = "asc" | "desc";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -113,17 +86,100 @@ function formatGrade(profile: EmployeeProfile | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Table skeleton
+// Columns
 // ---------------------------------------------------------------------------
 
-function TableSkeleton() {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-12 w-full rounded-md" />
-      ))}
-    </div>
-  );
+const GRADE_OPTIONS = [
+  { value: "junior", label: "11 — Junior" },
+  { value: "middle", label: "13 — Middle" },
+  { value: "senior", label: "15 — Senior" },
+  { value: "lead", label: "17+ — Lead" },
+];
+
+const LOCATION_OPTIONS = [
+  { value: "Москва", label: "Москва" },
+  { value: "Санкт-Петербург", label: "Санкт-Петербург" },
+  { value: "Казань", label: "Казань" },
+];
+
+function buildColumns(): ColumnDef<Employee>[] {
+  return [
+    {
+      key: "name",
+      header: "Сотрудник",
+      sortable: true,
+      filter: { type: "text" },
+      filterKey: "search",
+      cell: (row) => (
+        <div>
+          <Link
+            href={`/dashboard/hr/employees/${row.id}`}
+            className="font-medium hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.name}
+          </Link>
+          <p className="text-xs text-muted-foreground">{row.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: "grade",
+      header: "Грейд",
+      sortable: true,
+      filter: { type: "select", options: GRADE_OPTIONS },
+      filterKey: "grade",
+      className: "tabular-nums",
+      cell: (row) => formatGrade(row.profile),
+    },
+    {
+      key: "location",
+      header: "Локация",
+      filter: { type: "select", options: LOCATION_OPTIONS },
+      filterKey: "location",
+      cell: (row) => row.profile?.location ?? "-",
+    },
+    {
+      key: "hire_date",
+      header: "Дата приема",
+      sortable: true,
+      className: "tabular-nums",
+      cell: (row) => formatHireDate(row.profile?.hire_date ?? null),
+    },
+    {
+      key: "tenure",
+      header: "Стаж",
+      sortable: true,
+      filter: { type: "number" },
+      filterKey: "tenure",
+      cell: (row) => formatTenureYears(row.profile?.hire_date ?? null),
+    },
+    {
+      key: "initial_limit",
+      header: "Лимит",
+      sortable: true,
+      filter: { type: "number" },
+      filterKey: "initial_limit",
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.initial_limit.toLocaleString("ru-RU"),
+    },
+    {
+      key: "remaining_balance",
+      header: "Остаток",
+      sortable: true,
+      filter: { type: "number" },
+      filterKey: "remaining_balance",
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.remaining_balance.toLocaleString("ru-RU"),
+    },
+    {
+      key: "legal_entity",
+      header: "Юрлицо",
+      cell: (row) => row.profile?.legal_entity ?? "-",
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -131,37 +187,29 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function EmployeesPage() {
+  const router = useRouter();
+  const { state, setState, resetFilters } = useTableState({ pageSize: 20 });
+
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [meta, setMeta] = useState<Meta>({ page: 1, per_page: 20, total: 0 });
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [page, setPage] = useState(1);
 
-  // --- Debounce search ---
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // --- Fetch employees ---
-  const fetchEmployees = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: "20",
-      });
-      if (debouncedSearch) {
-        params.set("search", debouncedSearch);
+      const params = new URLSearchParams();
+      params.set("page", String(state.page));
+      params.set("per_page", String(state.pageSize));
+      if (state.search) params.set("search", state.search);
+      if (state.sort) {
+        params.set("sort_by", state.sort.key);
+        params.set("sort_dir", state.sort.direction);
       }
+      Object.entries(state.filters).forEach(([k, v]) => {
+        if (v) params.set(k, v);
+      });
 
       const res = await fetch(`/api/hr/employees?${params}`);
       if (!res.ok) {
@@ -169,239 +217,40 @@ export default function EmployeesPage() {
         throw new Error(body?.error?.message || `HTTP ${res.status}`);
       }
       const json = await res.json();
-      setEmployees(json.data);
-      setMeta(json.meta);
+      setEmployees(json.data ?? []);
+      setTotal(json.meta?.total ?? 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки");
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [state]);
 
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
-
-  // --- Client-side sorting ---
-  const sortedEmployees = useMemo(() => {
-    const sorted = [...employees].sort((a, b) => {
-      let aVal: string | number = "";
-      let bVal: string | number = "";
-
-      switch (sortKey) {
-        case "name":
-          aVal = a.name.toLowerCase();
-          bVal = b.name.toLowerCase();
-          break;
-        case "email":
-          aVal = a.email.toLowerCase();
-          bVal = b.email.toLowerCase();
-          break;
-        case "grade":
-          aVal = a.profile?.grade_numeric ?? -1;
-          bVal = b.profile?.grade_numeric ?? -1;
-          break;
-        case "location":
-          aVal = (a.profile?.location ?? "").toLowerCase();
-          bVal = (b.profile?.location ?? "").toLowerCase();
-          break;
-        case "hire_date":
-          aVal = a.profile?.hire_date ?? "";
-          bVal = b.profile?.hire_date ?? "";
-          break;
-        case "tenure":
-          aVal = fullYearsSince(a.profile?.hire_date ?? null) ?? -1;
-          bVal = fullYearsSince(b.profile?.hire_date ?? null) ?? -1;
-          break;
-        case "initial_limit":
-          aVal = a.initial_limit ?? 0;
-          bVal = b.initial_limit ?? 0;
-          break;
-        case "remaining":
-          aVal = a.remaining_balance ?? 0;
-          bVal = b.remaining_balance ?? 0;
-          break;
-        case "legal_entity":
-          aVal = (a.profile?.legal_entity ?? "").toLowerCase();
-          bVal = (b.profile?.legal_entity ?? "").toLowerCase();
-          break;
-      }
-
-      if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [employees, sortKey, sortDir]);
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
-
-  const totalPages = Math.ceil(meta.total / meta.per_page) || 1;
-
-  function SortableHead({
-    label,
-    sortKeyName,
-    className,
-  }: {
-    label: string;
-    sortKeyName: SortKey;
-    className?: string;
-  }) {
-    const isRight = className?.includes("text-right");
-    const isCenter = className?.includes("text-center");
-    const justify = isRight
-      ? "justify-end"
-      : isCenter
-        ? "justify-center"
-        : "justify-start";
-    return (
-      <TableHead className={className}>
-        <button
-          className={`flex w-full items-center gap-1 hover:text-foreground ${justify}`}
-          onClick={() => toggleSort(sortKeyName)}
-        >
-          {label}
-          <ArrowUpDown
-            className={`size-3 ${
-              sortKey === sortKeyName
-                ? "text-primary"
-                : "text-muted-foreground/50"
-            }`}
-          />
-        </button>
-      </TableHead>
-    );
-  }
+    fetchData();
+  }, [fetchData]);
 
   return (
     <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Сотрудники</h1>
-
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Поиск по имени или email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div>
+        <h1 className="text-2xl font-heading font-bold">Сотрудники</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Профили, грейды, бюджеты и остатки баллов сотрудников
+        </p>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-destructive/50 bg-error-light px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      <Card>
-        <CardContent>
-          {loading ? (
-            <TableSkeleton />
-          ) : sortedEmployees.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              {debouncedSearch ? "Сотрудники не найдены" : "Нет сотрудников"}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortableHead label="ФИО" sortKeyName="name" />
-                    <SortableHead label="Email" sortKeyName="email" />
-                    <SortableHead label="Грейд" sortKeyName="grade" />
-                    <SortableHead label="Локация" sortKeyName="location" />
-                    <SortableHead label="Дата приема" sortKeyName="hire_date" />
-                    <SortableHead label="Стаж" sortKeyName="tenure" />
-                    <SortableHead
-                      label="Исходный лимит"
-                      sortKeyName="initial_limit"
-                      className="text-right"
-                    />
-                    <SortableHead
-                      label="Остаток баллов"
-                      sortKeyName="remaining"
-                      className="text-right"
-                    />
-                    <SortableHead label="Юрлицо" sortKeyName="legal_entity" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedEmployees.map((emp) => (
-                    <TableRow key={emp.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/dashboard/hr/employees/${emp.id}`}
-                          className="hover:underline"
-                        >
-                          {emp.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {emp.email}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {formatGrade(emp.profile)}
-                      </TableCell>
-                      <TableCell>{emp.profile?.location ?? "-"}</TableCell>
-                      <TableCell className="tabular-nums">
-                        {formatHireDate(emp.profile?.hire_date ?? null)}
-                      </TableCell>
-                      <TableCell>
-                        {formatTenureYears(emp.profile?.hire_date ?? null)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {emp.initial_limit.toLocaleString("ru-RU")}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {emp.remaining_balance.toLocaleString("ru-RU")}
-                      </TableCell>
-                      <TableCell>{emp.profile?.legal_entity ?? "-"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {!loading && meta.total > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Всего: {meta.total} сотрудников
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <ChevronLeft className="size-4" />
-              Назад
-            </Button>
-            <span className="text-sm tabular-nums text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Вперед
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <DataTable
+        columns={buildColumns()}
+        data={employees}
+        total={total}
+        loading={loading}
+        error={error}
+        state={state}
+        onStateChange={setState}
+        onReset={resetFilters}
+        searchable={{ placeholder: "Поиск по имени или email..." }}
+        onRowClick={(emp) => router.push(`/dashboard/hr/employees/${emp.id}`)}
+      />
     </div>
   );
 }

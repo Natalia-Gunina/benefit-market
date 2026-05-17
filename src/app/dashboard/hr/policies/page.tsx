@@ -4,31 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Archive,
-  ArrowUpDown,
   CalendarClock,
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
   Info,
   Loader2,
   Pencil,
   Plus,
   RotateCcw,
-  Search,
   ShieldOff,
   Trash2,
   X,
 } from "lucide-react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,8 +41,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DataTablePagination } from "@/components/shared/data-table-pagination";
-import { cn } from "@/lib/utils";
+
+import { DataTable, useLocalTableState, useClientFiltered } from "@/components/data-table";
+import type { ColumnDef } from "@/components/data-table";
 
 import type {
   BudgetPolicy,
@@ -478,8 +465,6 @@ export default function HrPoliciesPage() {
   // === Policies ===
   const [policies, setPolicies] = useState<BudgetPolicy[]>([]);
   const [policiesLoading, setPoliciesLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const perPage = 20;
 
   const [editingPolicy, setEditingPolicy] = useState<BudgetPolicy | null>(null);
   const [policyDialogOpen, setPolicyDialogOpen] = useState(false);
@@ -500,7 +485,6 @@ export default function HrPoliciesPage() {
   // === Restrictions ===
   const [restrictions, setRestrictions] = useState<RestrictionItem[]>([]);
   const [restrictionsLoading, setRestrictionsLoading] = useState(false);
-  const [restrictionSearch, setRestrictionSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   /* -------------------- Fetchers -------------------- */
@@ -705,6 +689,36 @@ export default function HrPoliciesPage() {
     }
   }
 
+  async function togglePolicyActive(p: BudgetPolicy) {
+    try {
+      const res = await fetch(`/api/admin/policies/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !p.is_active }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(p.is_active ? "Политика деактивирована" : "Политика активирована");
+      await fetchPolicies();
+    } catch {
+      toast.error("Не удалось изменить статус");
+    }
+  }
+
+  async function toggleIndividualActive(a: IndividualAccrual) {
+    try {
+      const res = await fetch(`/api/hr/individual-accruals/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !a.is_active }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(a.is_active ? "Начисление деактивировано" : "Начисление активировано");
+      await fetchIndividuals();
+    } catch {
+      toast.error("Не удалось изменить статус");
+    }
+  }
+
   /* -------------------- Individual accrual handlers -------------------- */
 
   function openCreateIndividual() {
@@ -873,23 +887,13 @@ export default function HrPoliciesPage() {
     }
   }
 
-  const filteredRestrictions = restrictions.filter((r) => {
-    if (!restrictionSearch.trim()) return true;
-    const q = restrictionSearch.trim().toLowerCase();
-    return (
-      r.name.toLowerCase().includes(q) ||
-      r.category_name.toLowerCase().includes(q) ||
-      r.provider_name.toLowerCase().includes(q)
-    );
-  });
-
   const employeeNameById = useMemo(() => {
     const m = new Map<string, EmployeeOption>();
     for (const e of employees) m.set(e.id, e);
     return m;
   }, [employees]);
 
-  /* -------------------- Render -------------------- */
+  /* -------------------- Derived data -------------------- */
 
   const activePolicies = useMemo(
     () => policies.filter((p) => p.is_active),
@@ -908,23 +912,9 @@ export default function HrPoliciesPage() {
     [individuals],
   );
 
-  type ArchiveSortKey = "kind" | "name" | "points" | "period" | "archivedAt";
-  const [archiveSort, setArchiveSort] = useState<{
-    key: ArchiveSortKey;
-    dir: "asc" | "desc";
-  }>({ key: "archivedAt", dir: "desc" });
-
-  function toggleArchiveSort(key: ArchiveSortKey) {
-    setArchiveSort((prev) =>
-      prev.key === key
-        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: key === "archivedAt" ? "desc" : "asc" },
-    );
-  }
-
   interface ArchiveRow {
+    id: string;
     kind: "policy" | "individual";
-    rowKey: string;
     name: string;
     points: number;
     period: BudgetPeriod;
@@ -938,8 +928,8 @@ export default function HrPoliciesPage() {
     const rows: ArchiveRow[] = [];
     for (const p of archivedPolicies) {
       rows.push({
+        id: `p-${p.id}`,
         kind: "policy",
-        rowKey: `p-${p.id}`,
         name: p.name,
         points: p.points_amount,
         period: p.period,
@@ -950,11 +940,10 @@ export default function HrPoliciesPage() {
     }
     for (const a of archivedIndividuals) {
       const emp = employeeNameById.get(a.user_id);
-      const modeLabel =
-        a.mode === "replacement" ? "Замена" : "Дополнение";
+      const modeLabel = a.mode === "replacement" ? "Замена" : "Дополнение";
       rows.push({
+        id: `i-${a.id}`,
         kind: "individual",
-        rowKey: `i-${a.id}`,
         name: emp?.name ?? a.user_id,
         points: a.points_amount,
         period: a.period,
@@ -963,505 +952,449 @@ export default function HrPoliciesPage() {
         individual: a,
       });
     }
-    const dir = archiveSort.dir === "asc" ? 1 : -1;
-    rows.sort((x, y) => {
-      let cmp = 0;
-      switch (archiveSort.key) {
-        case "kind":
-          cmp = x.kind.localeCompare(y.kind);
-          break;
-        case "name":
-          cmp = x.name.localeCompare(y.name, "ru");
-          break;
-        case "points":
-          cmp = x.points - y.points;
-          break;
-        case "period":
-          cmp = x.period.localeCompare(y.period);
-          break;
-        case "archivedAt":
-          cmp = (x.archivedAt || "").localeCompare(y.archivedAt || "");
-          break;
-      }
-      return cmp * dir;
-    });
     return rows;
-  }, [archivedPolicies, archivedIndividuals, employeeNameById, archiveSort]);
+  }, [archivedPolicies, archivedIndividuals, employeeNameById]);
 
-  function renderSortIcon(key: ArchiveSortKey) {
-    if (archiveSort.key !== key) {
-      return <ArrowUpDown className="size-3.5 opacity-40" />;
-    }
-    return archiveSort.dir === "asc" ? (
-      <ChevronUp className="size-3.5" />
-    ) : (
-      <ChevronDown className="size-3.5" />
-    );
-  }
+  /* -------------------- DataTable states (local, not URL) -------------------- */
 
-  const total = activePolicies.length;
-  const paged = activePolicies.slice((page - 1) * perPage, page * perPage);
+  const policyTable = useLocalTableState();
+  const individualTable = useLocalTableState();
+  const restrictionTable = useLocalTableState();
+  const archiveTable = useLocalTableState({ defaultSort: { key: "archivedAt", direction: "desc" } });
+
+  // We define columns below, but need them for filtering — use late-binding refs
+  // The columns are defined after this block, so we use the filter hook after columns
+
+  /* -------------------- Column defs -------------------- */
+
+  const PERIOD_OPTIONS = [
+    { value: "monthly", label: "Ежемесячно" },
+    { value: "quarterly", label: "Ежеквартально" },
+    { value: "semiannual", label: "Раз в полгода" },
+    { value: "yearly", label: "Ежегодно" },
+  ];
+
+  const policyColumns: ColumnDef<BudgetPolicy>[] = useMemo(() => [
+    {
+      key: "name",
+      header: "Название",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: "points_amount",
+      header: "Баллов",
+      sortable: true,
+      filter: { type: "number" },
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.points_amount.toLocaleString("ru-RU"),
+    },
+    {
+      key: "period",
+      header: "Частота",
+      filter: { type: "select", options: PERIOD_OPTIONS },
+      cell: (row) => (
+        <Badge variant="outline">{PERIOD_LABELS[row.period] ?? row.period}</Badge>
+      ),
+    },
+    {
+      key: "target_filter",
+      header: "Правила",
+      className: "max-w-[280px] truncate text-muted-foreground",
+      cell: (row) => formatFilterHuman(row.target_filter),
+    },
+    {
+      key: "next_accrual_date",
+      header: "Следующее начисление",
+      sortable: true,
+      cell: (row) => (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <CalendarClock className="size-3.5" />
+          {row.is_active ? formatDateRu(row.next_accrual_date) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "is_active",
+      header: "Активна",
+      filter: {
+        type: "select",
+        options: [
+          { value: "true", label: "Активные" },
+          { value: "false", label: "Неактивные" },
+        ],
+      },
+      className: "text-center",
+      headerClassName: "text-center",
+      cell: (row) => (
+        <Switch
+          checked={row.is_active}
+          onCheckedChange={() => togglePolicyActive(row)}
+        />
+      ),
+    },
+  ], []);
+
+  const individualColumns: ColumnDef<IndividualAccrual>[] = useMemo(() => [
+    {
+      key: "user_id",
+      header: "Сотрудник",
+      sortable: true,
+      cell: (row) => {
+        const emp = employeeNameById.get(row.user_id);
+        return (
+          <div>
+            <span className="font-medium">{emp?.name ?? row.user_id}</span>
+            {emp?.email && (
+              <p className="text-xs text-muted-foreground">{emp.email}</p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "mode",
+      header: "Тип",
+      filter: {
+        type: "select",
+        options: [
+          { value: "addition", label: "Дополнение" },
+          { value: "replacement", label: "Замена" },
+        ],
+      },
+      cell: (row) => (
+        <Badge variant={row.mode === "replacement" ? "destructive" : "default"}>
+          {row.mode === "replacement" ? "Замена" : "Дополнение"}
+        </Badge>
+      ),
+    },
+    {
+      key: "points_amount",
+      header: "Баллов",
+      sortable: true,
+      filter: { type: "number" },
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.points_amount.toLocaleString("ru-RU"),
+    },
+    {
+      key: "period",
+      header: "Частота",
+      filter: { type: "select", options: PERIOD_OPTIONS },
+      cell: (row) => (
+        <Badge variant="outline">{PERIOD_LABELS[row.period] ?? row.period}</Badge>
+      ),
+    },
+    {
+      key: "next_accrual_date",
+      header: "Следующее начисление",
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {row.is_active ? formatDateRu(row.next_accrual_date) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "description",
+      header: "Описание",
+      className: "max-w-[200px] truncate text-muted-foreground",
+      cell: (row) => row.description || "—",
+    },
+    {
+      key: "is_active",
+      header: "Активно",
+      filter: {
+        type: "select",
+        options: [
+          { value: "true", label: "Активные" },
+          { value: "false", label: "Неактивные" },
+        ],
+      },
+      className: "text-center",
+      headerClassName: "text-center",
+      cell: (row) => (
+        <Switch
+          checked={row.is_active}
+          onCheckedChange={() => toggleIndividualActive(row)}
+        />
+      ),
+    },
+  ], [employeeNameById]);
+
+  const providerOptions = useMemo(
+    () => [...new Set(restrictions.map((r) => r.provider_name))].sort().map((v) => ({ value: v, label: v })),
+    [restrictions],
+  );
+  const categoryOptions = useMemo(
+    () => [...new Set(restrictions.map((r) => r.category_name))].sort().map((v) => ({ value: v, label: v })),
+    [restrictions],
+  );
+
+  const restrictionColumns: ColumnDef<RestrictionItem>[] = useMemo(() => [
+    {
+      key: "provider_name",
+      header: "Провайдер",
+      sortable: true,
+      filter: { type: "select", options: providerOptions },
+      className: "text-muted-foreground",
+    },
+    {
+      key: "name",
+      header: "Название",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => <span className="font-medium">{row.name}</span>,
+    },
+    {
+      key: "category_name",
+      header: "Категория",
+      sortable: true,
+      filter: { type: "select", options: categoryOptions },
+    },
+    {
+      key: "price_points",
+      header: "Цена",
+      sortable: true,
+      filter: { type: "number" },
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.price_points.toLocaleString("ru-RU"),
+    },
+    {
+      key: "is_restricted",
+      header: "Ограничена",
+      filter: {
+        type: "select",
+        options: [
+          { value: "true", label: "Ограничена" },
+          { value: "false", label: "Доступна" },
+        ],
+      },
+      className: "text-center",
+      headerClassName: "text-center",
+      cell: (row) => (
+        <Switch
+          checked={row.is_restricted}
+          disabled={togglingId === row.id}
+          onCheckedChange={() => toggleRestriction(row)}
+        />
+      ),
+    },
+  ], [togglingId, providerOptions, categoryOptions]);
+
+  const KIND_OPTIONS = [
+    { value: "policy", label: "Общая политика" },
+    { value: "individual", label: "Индивидуальная" },
+  ];
+
+  const archiveColumns: ColumnDef<ArchiveRow>[] = useMemo(() => [
+    {
+      key: "kind",
+      header: "Тип",
+      sortable: true,
+      filter: { type: "select", options: KIND_OPTIONS },
+      cell: (row) => (
+        <Badge variant={row.kind === "policy" ? "outline" : "secondary"}>
+          {row.kind === "policy" ? "Общая политика" : "Индивидуальная"}
+        </Badge>
+      ),
+    },
+    {
+      key: "name",
+      header: "Название / Сотрудник",
+      sortable: true,
+      filter: { type: "text" },
+      cell: (row) => (
+        <div>
+          <span className="font-medium">{row.name}</span>
+          {row.kind === "individual" && row.individual &&
+            employeeNameById.get(row.individual.user_id)?.email && (
+              <p className="text-xs text-muted-foreground">
+                {employeeNameById.get(row.individual.user_id)?.email}
+              </p>
+            )}
+        </div>
+      ),
+    },
+    {
+      key: "points",
+      header: "Баллов",
+      sortable: true,
+      className: "text-right tabular-nums",
+      headerClassName: "text-right",
+      cell: (row) => row.points.toLocaleString("ru-RU"),
+    },
+    {
+      key: "period",
+      header: "Частота",
+      sortable: true,
+      filter: { type: "select", options: PERIOD_OPTIONS },
+      cell: (row) => (
+        <Badge variant="outline">{PERIOD_LABELS[row.period] ?? row.period}</Badge>
+      ),
+    },
+    {
+      key: "description",
+      header: "Описание",
+      className: "max-w-[260px] truncate text-muted-foreground",
+      cell: (row) => row.description || "—",
+    },
+    {
+      key: "archivedAt",
+      header: "Дата архивации",
+      sortable: true,
+      cell: (row) => (
+        <span className="text-muted-foreground">{formatDateRu(row.archivedAt)}</span>
+      ),
+    },
+  ], [employeeNameById]);
+
+  /* -------------------- Client-side filtering -------------------- */
+
+  const policyFiltered = useClientFiltered(policies, policyTable.state, policyColumns);
+  const individualFiltered = useClientFiltered(individuals, individualTable.state, individualColumns);
+  const restrictionFiltered = useClientFiltered(restrictions, restrictionTable.state, restrictionColumns);
+  const archiveFiltered = useClientFiltered(archiveRows, archiveTable.state, archiveColumns);
+
+  const [activeTab, setActiveTab] = useState("policies");
+
+  const TAB_CONFIG: Record<string, { title: string; description: string; createLabel?: string; onCreate?: () => void }> = {
+    policies: {
+      title: "Политики начисления",
+      description: "Автоматическое начисление баллов сотрудникам по правилам",
+      createLabel: "Создать политику",
+      onCreate: openCreatePolicy,
+    },
+    individuals: {
+      title: "Индивидуальные начисления",
+      description: "Исключение из политик для отдельного сотрудника: можно дополнить сумму политики или полностью заменить её для конкретного человека",
+      createLabel: "Создать начисление",
+      onCreate: openCreateIndividual,
+    },
+    restrictions: {
+      title: "Ограничение льгот",
+      description: "Управление доступностью льгот в каталоге сотрудников",
+    },
+    archive: {
+      title: "Архив политик",
+      description: "Неактивные политики и начисления",
+    },
+  };
+
+  const tab = TAB_CONFIG[activeTab] ?? TAB_CONFIG.policies;
 
   return (
-    <div className="page-transition space-y-6 p-6">
-      <h1 className="text-2xl font-heading font-bold">Начисления и политики</h1>
+    <div className="page-transition space-y-8 p-6">
+      <div className="flex items-start justify-between min-h-[3.5rem]">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">{tab.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{tab.description}</p>
+        </div>
+        <div className="min-w-[180px] flex justify-end">
+          {tab.onCreate && (
+            <Button onClick={tab.onCreate}>
+              <Plus className="size-4" />
+              {tab.createLabel}
+            </Button>
+          )}
+        </div>
+      </div>
 
-      <Tabs defaultValue="policies" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="policies">Политики начисления</TabsTrigger>
-          <TabsTrigger value="individuals">
-            Индивидуальные начисления
-          </TabsTrigger>
+          <TabsTrigger value="policies">Политики</TabsTrigger>
+          <TabsTrigger value="individuals">Индивидуальные</TabsTrigger>
           <TabsTrigger value="restrictions">
             <ShieldOff className="mr-1.5 size-4" />
-            Ограничение льгот
+            Ограничения
           </TabsTrigger>
           <TabsTrigger value="archive">
             <Archive className="mr-1.5 size-4" />
-            Архив политик
+            Архив
           </TabsTrigger>
         </TabsList>
 
-        {/* ============================================================ */}
-        {/* Tab 1: Policies                                                */}
-        {/* ============================================================ */}
-        <TabsContent value="policies" className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Политики автоматически начисляют баллы сотрудникам, чьи параметры
-              соответствуют правилам.
-            </p>
-            <Button onClick={openCreatePolicy}>
-              <Plus className="size-4" />
-              Создать политику начисления баллов
-            </Button>
-          </div>
-
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Название</TableHead>
-                  <TableHead className="text-right">Баллов</TableHead>
-                  <TableHead>Частота</TableHead>
-                  <TableHead>Правила</TableHead>
-                  <TableHead>Следующее начисление</TableHead>
-                  <TableHead className="text-center">Статус</TableHead>
-                  <TableHead className="w-[100px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {policiesLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center">
-                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ) : paged.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      Политики не найдены
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paged.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {p.points_amount.toLocaleString("ru-RU")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {PERIOD_LABELS[p.period] ?? p.period}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[280px] truncate text-sm text-muted-foreground">
-                        {formatFilterHuman(p.target_filter)}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <span className="inline-flex items-center gap-1 text-muted-foreground">
-                          <CalendarClock className="size-3.5" />
-                          {p.is_active
-                            ? formatDateRu(p.next_accrual_date)
-                            : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={p.is_active ? "default" : "secondary"}>
-                          {p.is_active ? "Активна" : "Неактивна"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            onClick={() => openEditPolicy(p)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          {p.is_active && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-destructive hover:text-destructive"
-                              onClick={() => deletePolicy(p)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {!policiesLoading && total > perPage && (
-              <DataTablePagination
-                page={page}
-                per_page={perPage}
-                total={total}
-                onPageChange={setPage}
-              />
-            )}
-          </div>
+        <TabsContent value="policies" className="mt-6">
+          <DataTable
+            columns={policyColumns}
+            data={policyFiltered.filtered}
+            total={policyFiltered.total}
+            loading={policiesLoading}
+            state={policyTable.state}
+            onStateChange={policyTable.setState}
+            onReset={policyTable.resetFilters}
+            searchable={{ placeholder: "Поиск по названию..." }}
+            actions={(p) => [
+              { label: "Редактировать", icon: Pencil, onClick: () => openEditPolicy(p) },
+              ...(p.is_active
+                ? [{ label: "В архив", icon: Trash2, onClick: () => deletePolicy(p), variant: "destructive" as const }]
+                : []),
+            ]}
+          />
         </TabsContent>
 
-        {/* ============================================================ */}
-        {/* Tab 2: Individual accruals                                     */}
-        {/* ============================================================ */}
-        <TabsContent value="individuals" className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Индивидуальное начисление баллов — исключение из политик для
-              отдельного сотрудника: можно <b>дополнить</b> сумму политики или
-              полностью <b>заменить</b> её для конкретного человека.
-            </p>
-            <Button onClick={openCreateIndividual}>
-              <Plus className="size-4" />
-              Создать индивидуальное начисление
-            </Button>
-          </div>
-
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Сотрудник</TableHead>
-                  <TableHead>Тип</TableHead>
-                  <TableHead className="text-right">Баллов</TableHead>
-                  <TableHead>Частота</TableHead>
-                  <TableHead>Следующее начисление</TableHead>
-                  <TableHead>Описание</TableHead>
-                  <TableHead className="text-center">Статус</TableHead>
-                  <TableHead className="w-[100px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {individualsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center">
-                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ) : activeIndividuals.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      Индивидуальных начислений нет
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  activeIndividuals.map((a) => {
-                    const emp = employeeNameById.get(a.user_id);
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">
-                          {emp?.name ?? a.user_id}
-                          {emp?.email && (
-                            <p className="text-xs text-muted-foreground">
-                              {emp.email}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              a.mode === "replacement" ? "destructive" : "default"
-                            }
-                          >
-                            {a.mode === "replacement" ? "Замена" : "Дополнение"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {a.points_amount.toLocaleString("ru-RU")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {PERIOD_LABELS[a.period] ?? a.period}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {a.is_active ? formatDateRu(a.next_accrual_date) : "—"}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                          {a.description || "—"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={a.is_active ? "default" : "secondary"}>
-                            {a.is_active ? "Активно" : "Неактивно"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8"
-                              onClick={() => openEditIndividual(a)}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            {a.is_active && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-destructive hover:text-destructive"
-                                onClick={() => deleteIndividual(a)}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+        <TabsContent value="individuals" className="mt-6">
+          <DataTable
+            columns={individualColumns}
+            data={individualFiltered.filtered}
+            total={individualFiltered.total}
+            loading={individualsLoading}
+            state={individualTable.state}
+            onStateChange={individualTable.setState}
+            onReset={individualTable.resetFilters}
+            searchable={{ placeholder: "Поиск по сотруднику..." }}
+            actions={(a) => [
+              { label: "Редактировать", icon: Pencil, onClick: () => openEditIndividual(a) },
+              ...(a.is_active
+                ? [{ label: "В архив", icon: Trash2, onClick: () => deleteIndividual(a), variant: "destructive" as const }]
+                : []),
+            ]}
+          />
         </TabsContent>
 
-        {/* ============================================================ */}
-        {/* Tab 3: Restrictions                                           */}
-        {/* ============================================================ */}
-        <TabsContent value="restrictions" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Ограниченные льготы не отображаются в каталоге сотрудников. Включите
-            переключатель, чтобы ограничить льготу.
-          </p>
-
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Поиск по названию..."
-              className="pl-9"
-              value={restrictionSearch}
-              onChange={(e) => setRestrictionSearch(e.target.value)}
-            />
-          </div>
-
-          <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Провайдер</TableHead>
-                  <TableHead>Название</TableHead>
-                  <TableHead>Категория</TableHead>
-                  <TableHead className="text-right">Цена</TableHead>
-                  <TableHead className="text-center">Ограничена</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {restrictionsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center">
-                      <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ) : filteredRestrictions.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      Льготы не найдены
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredRestrictions.map((item) => (
-                    <TableRow
-                      key={item.id}
-                      className={item.is_restricted ? "opacity-60" : ""}
-                    >
-                      <TableCell className="text-muted-foreground">
-                        {item.provider_name}
-                      </TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.category_name}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {item.price_points.toLocaleString("ru-RU")}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Switch
-                          checked={item.is_restricted}
-                          disabled={togglingId === item.id}
-                          onCheckedChange={() => toggleRestriction(item)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+        <TabsContent value="restrictions" className="mt-6">
+          <DataTable
+            columns={restrictionColumns}
+            data={restrictionFiltered.filtered}
+            total={restrictionFiltered.total}
+            loading={restrictionsLoading}
+            state={restrictionTable.state}
+            onStateChange={restrictionTable.setState}
+            onReset={restrictionTable.resetFilters}
+            searchable={{ placeholder: "Поиск по названию или провайдеру..." }}
+            rowClassName={(row) => row.is_restricted ? "opacity-60" : ""}
+          />
         </TabsContent>
 
-        {/* ============================================================ */}
-        {/* Tab 4: Archive                                                 */}
-        {/* ============================================================ */}
-        <TabsContent value="archive" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Архивные политики и индивидуальные начисления не применяются —
-            баллы по ним не начисляются. Их можно вернуть в работу кнопкой
-            «Восстановить».
-          </p>
-
-          {archiveRows.length === 0 ? (
-            <div className="rounded-lg border bg-card p-12 text-center text-muted-foreground">
-              <Archive className="mx-auto mb-3 size-8 opacity-50" />
-              Архив пуст
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => toggleArchiveSort("kind")}
-                      >
-                        Тип
-                        {renderSortIcon("kind")}
-                      </button>
-                    </TableHead>
-                    <TableHead>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => toggleArchiveSort("name")}
-                      >
-                        Название / Сотрудник
-                        {renderSortIcon("name")}
-                      </button>
-                    </TableHead>
-                    <TableHead className="text-right">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => toggleArchiveSort("points")}
-                      >
-                        Баллов
-                        {renderSortIcon("points")}
-                      </button>
-                    </TableHead>
-                    <TableHead>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => toggleArchiveSort("period")}
-                      >
-                        Частота
-                        {renderSortIcon("period")}
-                      </button>
-                    </TableHead>
-                    <TableHead>Описание</TableHead>
-                    <TableHead>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => toggleArchiveSort("archivedAt")}
-                      >
-                        Дата архивации
-                        {renderSortIcon("archivedAt")}
-                      </button>
-                    </TableHead>
-                    <TableHead className="w-[160px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {archiveRows.map((row) => (
-                    <TableRow key={row.rowKey} className="opacity-70">
-                      <TableCell>
-                        <Badge
-                          variant={
-                            row.kind === "policy" ? "outline" : "secondary"
-                          }
-                        >
-                          {row.kind === "policy"
-                            ? "Общая политика"
-                            : "Индивидуальная"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {row.name}
-                        {row.kind === "individual" &&
-                          row.individual &&
-                          employeeNameById.get(row.individual.user_id)
-                            ?.email && (
-                            <p className="text-xs text-muted-foreground">
-                              {
-                                employeeNameById.get(row.individual.user_id)
-                                  ?.email
-                              }
-                            </p>
-                          )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.points.toLocaleString("ru-RU")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {PERIOD_LABELS[row.period] ?? row.period}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
-                        {row.description || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDateRu(row.archivedAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            row.kind === "policy"
-                              ? restorePolicy(row.policy!)
-                              : restoreIndividual(row.individual!)
-                          }
-                        >
-                          <RotateCcw className="mr-1 size-4" />
-                          Восстановить
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+        <TabsContent value="archive" className="mt-6">
+          <DataTable
+            columns={archiveColumns}
+            data={archiveFiltered.filtered}
+            total={archiveFiltered.total}
+            loading={policiesLoading || individualsLoading}
+            state={archiveTable.state}
+            onStateChange={archiveTable.setState}
+            onReset={archiveTable.resetFilters}
+            searchable={{ placeholder: "Поиск в архиве..." }}
+            rowClassName={() => "opacity-70"}
+            actions={(row) => [
+              {
+                label: "Восстановить",
+                icon: RotateCcw,
+                onClick: () =>
+                  row.kind === "policy"
+                    ? restorePolicy(row.policy!)
+                    : restoreIndividual(row.individual!),
+              },
+            ]}
+            emptyState={{
+              icon: Archive,
+              title: "Архив пуст",
+              description: "Архивированные политики и начисления появятся здесь",
+            }}
+          />
         </TabsContent>
       </Tabs>
 
