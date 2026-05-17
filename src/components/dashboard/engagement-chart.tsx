@@ -75,7 +75,7 @@ export function EngagementChart({ data, title = "Вовлечённость по
                 formatter={(value: string) => <span className="text-xs">{value}</span>}
               />
               <Bar dataKey="active" stackId="engagement" name="Активных" fill={c.chart2} maxBarSize={56} />
-              <Bar dataKey="inactive" stackId="engagement" name="Неактивных" fill={c.muted} radius={[4, 4, 0, 0]} maxBarSize={56} />
+              <Bar dataKey="inactive" stackId="engagement" name="Неактивных" fill="#CBD5E1" radius={[4, 4, 0, 0]} maxBarSize={56} />
             </BarChart>
           </ResponsiveContainer>
         </div>
