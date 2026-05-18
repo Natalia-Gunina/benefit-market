@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ReviewInsightsCard } from "@/components/dashboard/review-insights-card";
 
 interface Analytics {
   total_orders: number;
@@ -63,6 +64,7 @@ export default function ProviderAnalyticsPage() {
       .catch(() => toast.error("Ошибка загрузки данных"))
       .finally(() => setIsLoading(false));
   }, [selectedOfferingId]);
+
 
   const handleOfferingChange = (next: string) => {
     setIsLoading(true);
@@ -167,6 +169,14 @@ export default function ProviderAnalyticsPage() {
           </Card>
         )}
       </div>
+
+      {/* AI review insights — only meaningful for a single offering. */}
+      {/* `key` forces a fresh mount on every offering switch so loading */}
+      {/* state resets cleanly without synchronous setState in an effect. */}
+      <ReviewInsightsCard
+        key={selectedOfferingId}
+        offeringId={selectedOfferingId === ALL_OFFERINGS ? null : selectedOfferingId}
+      />
     </div>
   );
 }
