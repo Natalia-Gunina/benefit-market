@@ -165,7 +165,7 @@ export default function ProviderOfferingsPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-heading font-bold">Льготы</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ваши предложения на платформе</p>
+          <p className="mt-1 text-sm text-muted-foreground">Ваши льготы на платформе</p>
         </div>
         <Button asChild>
           <Link href="/dashboard/provider/offerings/new">

@@ -58,7 +58,7 @@ export default function ProviderDashboardPage() {
     subValue?: string;
     icon: typeof Package;
   }> = [
-    { label: "Активные предложения", value: analytics?.active_offerings ?? 0, icon: Package },
+    { label: "Активные льготы", value: analytics?.active_offerings ?? 0, icon: Package },
     { label: "Всего заказов", value: analytics?.total_orders ?? 0, icon: ClipboardList },
     { label: "Средний рейтинг", value: analytics?.avg_rating?.toFixed(1) ?? "—", icon: Star },
     {

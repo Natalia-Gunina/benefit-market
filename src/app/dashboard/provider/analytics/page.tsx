@@ -111,7 +111,7 @@ export default function ProviderAnalyticsPage() {
     subValue?: string;
     icon: typeof Package;
   }> = [
-    { label: "Активные предложения", value: data?.active_offerings ?? 0, icon: Package },
+    { label: "Активные льготы", value: data?.active_offerings ?? 0, icon: Package },
     { label: "Всего заказов", value: data?.total_orders ?? 0, icon: ClipboardList },
     { label: "Средний рейтинг", value: data?.avg_rating?.toFixed(1) ?? "—", icon: Star },
     {
@@ -213,7 +213,7 @@ export default function ProviderAnalyticsPage() {
         {/* Popular offerings */}
         {data?.popular_offerings && data.popular_offerings.length > 0 && (
           <Card>
-            <CardHeader><CardTitle>Популярные предложения</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Популярные льготы</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {data.popular_offerings.map((o, i) => (
