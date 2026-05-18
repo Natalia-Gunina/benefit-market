@@ -63,7 +63,6 @@ export function OrderItemReview({
               ? {
                   id: existingReview!.id,
                   rating: existingReview!.rating,
-                  title: existingReview!.title,
                   body: existingReview!.body,
                 }
               : undefined
