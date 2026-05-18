@@ -22,7 +22,6 @@ interface ReviewFormProps {
   existingReview?: {
     id: string;
     rating: number;
-    title: string | null;
     body: string | null;
   };
   onSuccess: () => void;

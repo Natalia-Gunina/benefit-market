@@ -171,12 +171,7 @@ export function ReviewsSection({
             <Card key={review.id}>
               <CardContent className="pt-4 pb-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <StarRating rating={review.rating} />
-                    {review.title && (
-                      <p className="font-medium text-sm">{review.title}</p>
-                    )}
-                  </div>
+                  <StarRating rating={review.rating} />
                   {canReview?.has_reviewed &&
                     canReview.review_id === review.id && (
                       <div className="flex gap-1 shrink-0">
@@ -246,7 +241,6 @@ export function ReviewsSection({
             ? {
                 id: editingReview.id,
                 rating: editingReview.rating,
-                title: editingReview.title,
                 body: editingReview.body,
               }
             : undefined

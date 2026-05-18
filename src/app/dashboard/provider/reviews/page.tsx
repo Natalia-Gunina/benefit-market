@@ -12,7 +12,6 @@ import type { ColumnDef } from "@/components/data-table";
 interface ReviewItem {
   id: string;
   rating: number;
-  title: string;
   body: string;
   status: string;
   created_at: string;
@@ -144,15 +143,9 @@ export default function ProviderReviewsPage() {
       cell: (row) => <StarRating rating={row.rating} />,
     },
     {
-      key: "title",
-      header: "Заголовок",
-      filter: { type: "text" },
-      cell: (row) => row.title || "—",
-    },
-    {
       key: "body",
       header: "Текст",
-      className: "max-w-[300px] truncate text-muted-foreground",
+      className: "max-w-[420px] truncate text-muted-foreground",
       cell: (row) => row.body || "—",
     },
     {
