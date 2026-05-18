@@ -27,6 +27,34 @@ type ReviewRow = Record<string, unknown> & {
   rating: number;
 };
 type TenantIdRow = Record<string, unknown> & { tenant_id: string };
+type OrderBuyerRow = Record<string, unknown> & {
+  orders: { user_id: string; status: string } | null;
+};
+type ProfileRow = Record<string, unknown> & {
+  user_id: string;
+  gender: string | null;
+  birthday: string | null;
+};
+
+type GenderDistribution = Record<"male" | "female" | "other" | "unknown", number>;
+type AgeDistribution = Record<"18-25" | "26-35" | "36-45" | "46-55" | "56+" | "unknown", number>;
+type OrderStatusDistribution = Record<"paid" | "cancelled" | "expired" | "reserved" | "pending", number>;
+
+function ageBucket(birthday: string | null): keyof AgeDistribution {
+  if (!birthday) return "unknown";
+  const b = new Date(birthday);
+  if (Number.isNaN(b.getTime())) return "unknown";
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age -= 1;
+  if (age < 18) return "unknown";
+  if (age <= 25) return "18-25";
+  if (age <= 35) return "26-35";
+  if (age <= 45) return "36-45";
+  if (age <= 55) return "46-55";
+  return "56+";
+}
 
 export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
@@ -134,6 +162,23 @@ export function GET(request: NextRequest) {
 
       const newReviews = myReviews.length;
 
+      // Демо-режим: распределения по полу/возрасту/статусу не моделируем,
+      // там нет полноценных employee_profiles. Отдаём пустые объекты,
+      // фронт сам спрячет карточки при отсутствии данных.
+      const emptyGender: GenderDistribution = { male: 0, female: 0, other: 0, unknown: 0 };
+      const emptyAge: AgeDistribution = {
+        "18-25": 0, "26-35": 0, "36-45": 0, "46-55": 0, "56+": 0, unknown: 0,
+      };
+      const demoStatus: OrderStatusDistribution = {
+        paid: 0, cancelled: 0, expired: 0, reserved: 0, pending: 0,
+      };
+      for (const oi of providerItems) {
+        const st = orderMap.get(oi.order_id)?.status;
+        if (st && st in demoStatus) {
+          demoStatus[st as keyof OrderStatusDistribution] += 1;
+        }
+      }
+
       return success({
         total_orders: totalOrders,
         total_points_earned: totalPointsEarned,
@@ -147,6 +192,9 @@ export function GET(request: NextRequest) {
           new_reviews: newReviews,
         },
         ratings_distribution: ratingsDistribution,
+        gender_distribution: emptyGender,
+        age_distribution: emptyAge,
+        order_status_distribution: demoStatus,
       });
     }
 
@@ -323,6 +371,66 @@ export function GET(request: NextRequest) {
       }
     }
 
+    // Buyer demographics + order status distributions.
+    //
+    // Один запрос вытаскивает все order_items в скоупе вместе с их orders
+    // (user_id, status). Из него считаем status_distribution напрямую и
+    // получаем уникальный список buyer-id, чтобы добрать профили одним
+    // вторым запросом.
+    const genderDistribution: GenderDistribution = { male: 0, female: 0, other: 0, unknown: 0 };
+    const ageDistribution: AgeDistribution = {
+      "18-25": 0, "26-35": 0, "36-45": 0, "46-55": 0, "56+": 0, unknown: 0,
+    };
+    const orderStatusDistribution: OrderStatusDistribution = {
+      paid: 0, cancelled: 0, expired: 0, reserved: 0, pending: 0,
+    };
+
+    if (ids.length > 0) {
+      const buyerRows = unwrapRowsSoft<OrderBuyerRow>(
+        await admin
+          .from("order_items")
+          .select("orders!inner(user_id, status)")
+          .in("provider_offering_id", ids),
+      );
+
+      const buyerIds = new Set<string>();
+      for (const row of buyerRows) {
+        const o = row.orders;
+        if (!o) continue;
+        if (o.user_id) buyerIds.add(o.user_id);
+        if (o.status in orderStatusDistribution) {
+          orderStatusDistribution[o.status as keyof OrderStatusDistribution] += 1;
+        }
+      }
+
+      if (buyerIds.size > 0) {
+        const profiles = unwrapRowsSoft<ProfileRow>(
+          await admin
+            .from("employee_profiles")
+            .select("user_id, gender, birthday")
+            .in("user_id", Array.from(buyerIds)),
+        );
+
+        // Считаем уникальных покупателей, не заказы — поэтому профиль на юзера.
+        const seen = new Set<string>();
+        for (const p of profiles) {
+          if (seen.has(p.user_id)) continue;
+          seen.add(p.user_id);
+          const g = (p.gender === "male" || p.gender === "female" || p.gender === "other")
+            ? p.gender
+            : "unknown";
+          genderDistribution[g] += 1;
+          ageDistribution[ageBucket(p.birthday)] += 1;
+        }
+        // Покупатели без employee_profiles — попадают в unknown
+        const missing = buyerIds.size - seen.size;
+        if (missing > 0) {
+          genderDistribution.unknown += missing;
+          ageDistribution.unknown += missing;
+        }
+      }
+    }
+
     return success({
       total_orders: totalOrders,
       avg_rating: Math.round(avgRating * 100) / 100,
@@ -332,6 +440,9 @@ export function GET(request: NextRequest) {
       recent_orders: recentOrders,
       action_items: { pending_offerings: pendingOfferings, new_reviews: newReviews },
       ratings_distribution: ratingsDistribution,
+      gender_distribution: genderDistribution,
+      age_distribution: ageDistribution,
+      order_status_distribution: orderStatusDistribution,
     });
   }, "GET /api/provider/analytics");
 }
