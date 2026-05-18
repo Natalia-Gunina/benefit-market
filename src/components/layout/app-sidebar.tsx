@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Store,
   BarChart,
-  Star,
   ShieldAlert,
   History,
   Sparkles,
@@ -76,7 +75,6 @@ const providerNavItems: NavItem[] = [
   { title: "Льготы", href: "/dashboard/provider/offerings", icon: Package },
   { title: "Заказы", href: "/dashboard/provider/orders", icon: ClipboardList },
   { title: "Аналитика", href: "/dashboard/provider/analytics", icon: BarChart },
-  { title: "Отзывы", href: "/dashboard/provider/reviews", icon: Star },
   { title: "Профиль", href: "/dashboard/provider/profile", icon: Building2 },
 ];
 

@@ -24,6 +24,7 @@ export function GET(request: NextRequest) {
         DEMO_ORDER_ITEMS,
         DEMO_ORDERS,
         DEMO_PROVIDER_OFFERINGS,
+        DEMO_REVIEWS,
       } = await import("@/lib/demo-data");
 
       const { DEMO_CURRENT_PROVIDER_ID } = await import("@/lib/demo/demo-service");
@@ -32,6 +33,8 @@ export function GET(request: NextRequest) {
       const statusFilter = searchParams.get("status") || "";
       const search = (searchParams.get("search") || "").toLowerCase();
       const providerIdFilter = searchParams.get("provider_id") || DEMO_CURRENT_PROVIDER_ID;
+      const dateFrom = searchParams.get("date_from") || "";
+      const dateTo = searchParams.get("date_to") || "";
 
       const orderMap = new Map(DEMO_ORDERS.map((o) => [o.id, o]));
       const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
@@ -44,6 +47,9 @@ export function GET(request: NextRequest) {
         .map((oi) => {
           const po = offeringMap.get(oi.provider_offering_id!);
           const order = orderMap.get(oi.order_id);
+          const review = DEMO_REVIEWS.find(
+            (r) => r.order_id === oi.order_id && r.provider_offering_id === oi.provider_offering_id,
+          );
           return {
             id: oi.id,
             order_id: oi.order_id,
@@ -59,6 +65,9 @@ export function GET(request: NextRequest) {
                   created_at: order.created_at,
                   tenant_id: order.tenant_id,
                 }
+              : null,
+            review: review
+              ? { rating: review.rating, title: review.title, body: review.body }
               : null,
           };
         })
@@ -76,15 +85,22 @@ export function GET(request: NextRequest) {
           ) {
             return false;
           }
+          if (dateFrom && row.orders?.created_at && row.orders.created_at < dateFrom) return false;
+          if (dateTo && row.orders?.created_at && row.orders.created_at > dateTo) return false;
           return true;
         })
         .sort((a, b) =>
           (b.orders?.created_at ?? "").localeCompare(a.orders?.created_at ?? ""),
         );
 
+      const totalPaidPoints = rows
+        .filter((r) => r.orders?.status === "paid")
+        .reduce((sum, r) => sum + r.price_points * r.quantity, 0);
+
       return success({
         data: rows,
         meta: { page: 1, per_page: rows.length || 20, total: rows.length },
+        aggregates: { total_paid_points: totalPaidPoints },
       });
     }
 
@@ -104,6 +120,8 @@ export function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+    const dateFrom = searchParams.get("date_from");
+    const dateTo = searchParams.get("date_to");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
@@ -123,7 +141,7 @@ export function GET(request: NextRequest) {
     const offeringIds = offerings.map((o) => o.id);
 
     if (offeringIds.length === 0) {
-      return success({ data: [], meta: { page, per_page: perPage, total: 0 } });
+      return success({ data: [], meta: { page, per_page: perPage, total: 0 }, aggregates: { total_paid_points: 0 } });
     }
 
     // Get order_items for these offerings
@@ -136,16 +154,64 @@ export function GET(request: NextRequest) {
     if (status) {
       query = query.eq("orders.status", status);
     }
+    if (dateFrom) {
+      query = query.gte("orders.created_at", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("orders.created_at", dateTo);
+    }
 
     query = query.range(offset, offset + perPage - 1);
 
     const result = await query;
     if (result.error) throw result.error;
-    const data = (result.data ?? []) as OrderItemRow[];
+    const rawData = (result.data ?? []) as OrderItemRow[];
+
+    // Fetch reviews for these order items
+    const orderIds = [...new Set(rawData.map((d) => d.orders?.id).filter(Boolean))] as string[];
+    let reviewMap = new Map<string, { rating: number; title: string; body: string }>();
+    if (orderIds.length > 0) {
+      const reviewResult = await admin
+        .from("reviews")
+        .select("order_id, provider_offering_id, rating, title, body")
+        .in("order_id", orderIds)
+        .in("provider_offering_id", offeringIds);
+      for (const r of (reviewResult.data ?? []) as Array<{ order_id: string; provider_offering_id: string; rating: number; title: string; body: string }>) {
+        reviewMap.set(`${r.order_id}:${r.provider_offering_id}`, {
+          rating: r.rating,
+          title: r.title,
+          body: r.body,
+        });
+      }
+    }
+
+    const data = rawData.map((item) => ({
+      ...item,
+      review: reviewMap.get(`${item.orders?.id}:${item.provider_offering_id}`) ?? null,
+    }));
+
+    // Aggregate: sum of price_points * quantity for paid orders in the date range
+    let aggQuery = admin
+      .from("order_items")
+      .select("price_points, quantity, orders!inner(status, created_at)")
+      .in("provider_offering_id", offeringIds)
+      .eq("orders.status", "paid");
+
+    if (dateFrom) {
+      aggQuery = aggQuery.gte("orders.created_at", dateFrom);
+    }
+    if (dateTo) {
+      aggQuery = aggQuery.lte("orders.created_at", dateTo);
+    }
+
+    const aggResult = await aggQuery;
+    const aggRows = (aggResult.data ?? []) as Array<{ price_points: number; quantity: number }>;
+    const totalPaidPoints = aggRows.reduce((sum, r) => sum + r.price_points * r.quantity, 0);
 
     return success({
       data,
       meta: { page, per_page: perPage, total: result.count ?? 0 },
+      aggregates: { total_paid_points: totalPaidPoints },
     });
   }, "GET /api/provider/orders");
 }
