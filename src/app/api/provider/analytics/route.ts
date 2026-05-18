@@ -28,7 +28,7 @@ type ReviewRow = Record<string, unknown> & {
 };
 type TenantIdRow = Record<string, unknown> & { tenant_id: string };
 type OrderBuyerRow = Record<string, unknown> & {
-  orders: { user_id: string; status: string } | null;
+  orders: { user_id: string; status: string; tenant_id: string } | null;
 };
 type ProfileRow = Record<string, unknown> & {
   user_id: string;
@@ -179,12 +179,25 @@ export function GET(request: NextRequest) {
         }
       }
 
+      // tenants_with_orders в демо считаем как и в проде —
+      // distinct tenant_id из orders, к которым привязаны order_items.
+      const demoTenantsWithOrders = new Set<string>();
+      for (const oi of providerItems) {
+        const ord = orderMap.get(oi.order_id);
+        if (ord?.tenant_id) demoTenantsWithOrders.add(ord.tenant_id);
+      }
+      const demoTotalTenants = new Set(
+        (DEMO_TENANT_OFFERINGS ?? []).map((to) => to.tenant_id),
+      ).size;
+
       return success({
         total_orders: totalOrders,
         total_points_earned: totalPointsEarned,
         avg_rating: Math.round(avgRating * 100) / 100,
         active_offerings: publishedOfferings.length,
         tenant_connections: tenantConnections,
+        tenants_with_orders: demoTenantsWithOrders.size,
+        total_tenants: demoTotalTenants,
         popular_offerings: popularOfferings,
         recent_orders: recentOrders,
         action_items: {
@@ -385,11 +398,16 @@ export function GET(request: NextRequest) {
       paid: 0, cancelled: 0, expired: 0, reserved: 0, pending: 0,
     };
 
+    // tenants_with_orders — компании, где хотя бы один сотрудник реально
+    // оформил заказ (через order_items на наш scope офферов).
+    // Вычисляется в одном запросе с buyer demographics ниже.
+    const tenantsWithOrdersSet = new Set<string>();
+
     if (ids.length > 0) {
       const buyerRows = unwrapRowsSoft<OrderBuyerRow>(
         await admin
           .from("order_items")
-          .select("orders!inner(user_id, status)")
+          .select("orders!inner(user_id, status, tenant_id)")
           .in("provider_offering_id", ids),
       );
 
@@ -398,6 +416,7 @@ export function GET(request: NextRequest) {
         const o = row.orders;
         if (!o) continue;
         if (o.user_id) buyerIds.add(o.user_id);
+        if (o.tenant_id) tenantsWithOrdersSet.add(o.tenant_id);
         if (o.status in orderStatusDistribution) {
           orderStatusDistribution[o.status as keyof OrderStatusDistribution] += 1;
         }
@@ -431,11 +450,20 @@ export function GET(request: NextRequest) {
       }
     }
 
+    // total_tenants — общее число компаний на платформе (для подзаголовка
+    // «из N» в карточке «Используют льготу»).
+    const totalTenantsResult = await admin
+      .from("tenants")
+      .select("id", { count: "exact", head: true });
+    const totalTenants = totalTenantsResult.count ?? 0;
+
     return success({
       total_orders: totalOrders,
       avg_rating: Math.round(avgRating * 100) / 100,
       active_offerings: activeOfferings ?? 0,
       tenant_connections: tenantConnections,
+      tenants_with_orders: tenantsWithOrdersSet.size,
+      total_tenants: totalTenants,
       popular_offerings: offerings,
       recent_orders: recentOrders,
       action_items: { pending_offerings: pendingOfferings, new_reviews: newReviews },
