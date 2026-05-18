@@ -32,6 +32,8 @@ interface Analytics {
   avg_rating: number;
   active_offerings: number;
   tenant_connections: number;
+  tenants_with_orders?: number;
+  total_tenants?: number;
   popular_offerings: Array<{ name: string; avg_rating: number; review_count: number }>;
   ratings_distribution?: Record<number, number>;
   gender_distribution?: Record<"male" | "female" | "other" | "unknown", number>;
@@ -103,11 +105,21 @@ export default function ProviderAnalyticsPage() {
     setSelectedOfferingId(next);
   };
 
-  const metrics = [
+  const metrics: Array<{
+    label: string;
+    value: number | string;
+    subValue?: string;
+    icon: typeof Package;
+  }> = [
     { label: "Активные предложения", value: data?.active_offerings ?? 0, icon: Package },
     { label: "Всего заказов", value: data?.total_orders ?? 0, icon: ClipboardList },
     { label: "Средний рейтинг", value: data?.avg_rating?.toFixed(1) ?? "—", icon: Star },
-    { label: "Компаний подключено", value: data?.tenant_connections ?? 0, icon: Building2 },
+    {
+      label: "Компаний используют льготу",
+      value: data?.tenants_with_orders ?? 0,
+      subValue: data?.total_tenants != null ? `из ${data.total_tenants}` : undefined,
+      icon: Building2,
+    },
   ];
 
   const rd = data?.ratings_distribution;
@@ -184,7 +196,14 @@ export default function ProviderAnalyticsPage() {
               <m.icon className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{isLoading ? "..." : m.value}</div>
+              <div className="text-2xl font-bold">
+                {isLoading ? "..." : m.value}
+                {!isLoading && m.subValue && (
+                  <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+                    ({m.subValue})
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

@@ -12,6 +12,8 @@ interface Analytics {
   avg_rating: number;
   active_offerings: number;
   tenant_connections: number;
+  tenants_with_orders?: number;
+  total_tenants?: number;
   recent_orders?: RecentOrder[];
   action_items?: ActionItems;
 }
@@ -50,11 +52,21 @@ export default function ProviderDashboardPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const metrics = [
+  const metrics: Array<{
+    label: string;
+    value: number | string;
+    subValue?: string;
+    icon: typeof Package;
+  }> = [
     { label: "Активные предложения", value: analytics?.active_offerings ?? 0, icon: Package },
     { label: "Всего заказов", value: analytics?.total_orders ?? 0, icon: ClipboardList },
     { label: "Средний рейтинг", value: analytics?.avg_rating?.toFixed(1) ?? "—", icon: Star },
-    { label: "Подключений компаний", value: analytics?.tenant_connections ?? 0, icon: Building2 },
+    {
+      label: "Компаний используют льготу",
+      value: analytics?.tenants_with_orders ?? 0,
+      subValue: analytics?.total_tenants != null ? `из ${analytics.total_tenants}` : undefined,
+      icon: Building2,
+    },
   ];
 
   const actions = analytics?.action_items;
@@ -75,6 +87,11 @@ export default function ProviderDashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">
                 {isLoading ? "..." : m.value}
+                {!isLoading && m.subValue && (
+                  <span className="ml-1.5 text-sm font-normal text-muted-foreground">
+                    ({m.subValue})
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
