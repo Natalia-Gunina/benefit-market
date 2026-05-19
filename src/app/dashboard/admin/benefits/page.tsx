@@ -80,12 +80,12 @@ const FORMAT_OPTIONS = [
 
 const statusBadgeVariant: Record<
   OfferingStatus,
-  "default" | "secondary" | "destructive" | "outline"
+  "default" | "secondary" | "destructive" | "outline" | "warning" | "archived"
 > = {
   draft: "secondary",
-  pending_review: "outline",
+  pending_review: "warning",
   published: "default",
-  archived: "destructive",
+  archived: "archived",
 };
 
 /* -------------------------------------------------------------------------- */

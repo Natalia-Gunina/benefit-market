@@ -38,11 +38,11 @@ interface Offering {
   review_count: number;
 }
 
-const statusLabel: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const statusLabel: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" | "archived" }> = {
   draft: { label: "Черновик", variant: "secondary" },
-  pending_review: { label: "На согласовании", variant: "outline" },
+  pending_review: { label: "На согласовании", variant: "warning" },
   published: { label: "Активна", variant: "default" },
-  archived: { label: "В архиве", variant: "destructive" },
+  archived: { label: "В архиве", variant: "archived" },
 };
 
 export default function EditOfferingPage({ params }: { params: Promise<{ id: string }> }) {
