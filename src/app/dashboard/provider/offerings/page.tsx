@@ -31,11 +31,11 @@ interface Offering {
   global_categories?: { name: string; icon: string } | null;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" | "archived" }> = {
   draft: { label: "Черновик", variant: "secondary" },
-  pending_review: { label: "На согласовании", variant: "outline" },
+  pending_review: { label: "На согласовании", variant: "warning" },
   published: { label: "Активна", variant: "default" },
-  archived: { label: "В архиве", variant: "destructive" },
+  archived: { label: "В архиве", variant: "archived" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, { label }]) => ({ value, label }));
