@@ -57,7 +57,7 @@ function LoginForm() {
             router.push("/dashboard/hr");
             break;
           case "provider":
-            router.push("/dashboard/provider");
+            router.push("/dashboard/provider/offerings");
             break;
           default:
             router.push("/dashboard/employee");
