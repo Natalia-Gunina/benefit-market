@@ -128,7 +128,7 @@ function getDashboardByRole(role: string): string {
     case "hr":
       return "/dashboard/hr";
     case "provider":
-      return "/dashboard/provider";
+      return "/dashboard/provider/offerings";
     default:
       return "/dashboard/employee";
   }
