@@ -169,7 +169,7 @@ export function GET(request: NextRequest) {
 
     // Fetch reviews for these order items
     const orderIds = [...new Set(rawData.map((d) => d.orders?.id).filter(Boolean))] as string[];
-    let reviewMap = new Map<string, { rating: number; title: string; body: string }>();
+    const reviewMap = new Map<string, { rating: number; title: string; body: string }>();
     if (orderIds.length > 0) {
       const reviewResult = await admin
         .from("reviews")
