@@ -315,12 +315,12 @@
 
   /* Gradient for primary accent — use sparingly */
   .bg-gradient-primary {
-    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(290 70% 50%));
+    background: linear-gradient(135deg, hsl(255 80% 58%), hsl(275 72% 55%));
   }
 
-  /* CTA gradient — purple to pink, like in reference design */
+  /* CTA gradient — indigo violet, slightly cooler tone */
   .bg-gradient-cta {
-    background: linear-gradient(135deg, hsl(262 83% 58%), hsl(330 80% 65%));
+    background: linear-gradient(135deg, hsl(255 80% 58%), hsl(295 78% 62%));
   }
 }
 

@@ -85,9 +85,9 @@ export function BenefitCard({ benefit, onAddToCart }: BenefitCardProps) {
       : null;
 
   return (
-    <div className={`group relative flex h-full flex-col rounded-xl border bg-card transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${benefit.recommendation_reason ? "border-primary/30 shadow-[0_0_0_1px_hsl(262_83%_58%/0.08)]" : ""}`}>
+    <div className={`group relative flex h-full flex-col rounded-xl border bg-card transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${benefit.recommendation_reason ? "border-primary/30 shadow-[0_0_0_1px_hsl(255_80%_58%/0.08)]" : ""}`}>
       {benefit.recommendation_reason && (
-        <div className="rounded-t-xl bg-gradient-to-r from-[hsl(262,83%,58%)] to-[hsl(290,70%,50%)] px-5 py-2 flex items-center gap-1.5 text-xs text-white">
+        <div className="rounded-t-xl bg-gradient-to-r from-[hsl(255,80%,58%)] to-[hsl(275,72%,55%)] px-5 py-2 flex items-center gap-1.5 text-xs text-white">
           <Sparkles className="size-3 shrink-0" />
           <span className="line-clamp-1">{benefit.recommendation_reason}</span>
         </div>
