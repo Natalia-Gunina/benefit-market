@@ -195,15 +195,24 @@ export default function UsersPage() {
   const columns: ColumnDef<UserRow>[] = [
     {
       key: "full_name",
-      header: "Пользователь",
+      header: "ФИО",
       sortable: true,
       filter: { type: "text" },
       filterKey: "name",
       cell: (row) => (
-        <div>
-          <span className="font-medium">{row.full_name ?? row.email.split("@")[0]}</span>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
-        </div>
+        <span className="font-medium">
+          {row.full_name ?? row.email.split("@")[0]}
+        </span>
+      ),
+    },
+    {
+      key: "email",
+      header: "Email",
+      sortable: true,
+      filter: { type: "text" },
+      filterKey: "email",
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">{row.email}</span>
       ),
     },
     {
@@ -213,40 +222,6 @@ export default function UsersPage() {
       cell: (row) => (
         <RoleBadge user={row} onRequestChange={requestRoleChange} />
       ),
-    },
-    {
-      key: "grade",
-      header: "Грейд",
-      sortable: true,
-      filter: {
-        type: "select",
-        options: [
-          { value: "junior", label: "Junior" },
-          { value: "middle", label: "Middle" },
-          { value: "senior", label: "Senior" },
-          { value: "lead", label: "Lead" },
-        ],
-      },
-      filterKey: "grade",
-      cell: (row) => row.grade ?? "—",
-    },
-    {
-      key: "location",
-      header: "Локация",
-      filter: { type: "text" },
-      filterKey: "location",
-      cell: (row) => row.location ?? "—",
-    },
-    {
-      key: "balance",
-      header: "Баланс",
-      sortable: true,
-      className: "text-right tabular-nums",
-      headerClassName: "text-right",
-      cell: (row) =>
-        row.balance != null
-          ? row.balance.toLocaleString("ru-RU")
-          : "—",
     },
   ];
 
