@@ -236,7 +236,7 @@ export default function MyBenefitsPage() {
   const fetchBenefits = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/orders?status=paid&per_page=100");
+      const res = await fetch("/api/orders?status=paid&per_page=1000");
       if (!res.ok) {
         toast.error("Не удалось загрузить льготы");
         return;

@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, created, withErrorHandling, parseBody } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
@@ -19,7 +19,7 @@ type TenantRow = {
   created_at: string;
 };
 
-export function GET() {
+export function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     if (isDemo) {
       const { DEMO_TENANT } = await import("@/lib/demo-data");
@@ -29,7 +29,14 @@ export function GET() {
     await requireRole("admin");
     const admin = createAdminClient();
 
-    // --- Fetch all tenants ---
+    const { searchParams } = new URL(request.url);
+    const search = (searchParams.get("search") || "").trim().toLowerCase();
+    const sortBy = searchParams.get("sort_by") || "";
+    const sortDir = searchParams.get("sort_dir") === "desc" ? -1 : 1;
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+
+    // --- Fetch all tenants (small table) ---
     const tenantsResult = await admin
       .from("tenants")
       .select("*")
@@ -52,13 +59,37 @@ export function GET() {
       countMap.set(tid, (countMap.get(tid) ?? 0) + 1);
     }
 
-    // --- Shape response ---
-    const data = tenants.map((t) => ({
+    // --- Shape, then apply search / sort / pagination ---
+    let rows = tenants.map((t) => ({
       ...t,
       user_count: countMap.get(t.id) ?? 0,
     }));
 
-    return success(data);
+    if (search) {
+      rows = rows.filter(
+        (t) =>
+          t.name.toLowerCase().includes(search) ||
+          (t.domain ?? "").toLowerCase().includes(search),
+      );
+    }
+
+    const cmp = new Intl.Collator("ru", { sensitivity: "base" }).compare;
+    if (sortBy === "name") {
+      rows.sort((a, b) => cmp(a.name, b.name) * sortDir);
+    } else if (sortBy === "domain") {
+      rows.sort((a, b) => cmp(a.domain ?? "", b.domain ?? "") * sortDir);
+    } else if (sortBy === "created_at") {
+      rows.sort((a, b) => a.created_at.localeCompare(b.created_at) * sortDir);
+    }
+
+    const total = rows.length;
+    const offset = (page - 1) * perPage;
+    const data = rows.slice(offset, offset + perPage);
+
+    return NextResponse.json({
+      data,
+      meta: { page, per_page: perPage, total },
+    });
   }, "GET /api/admin/tenants");
 }
 

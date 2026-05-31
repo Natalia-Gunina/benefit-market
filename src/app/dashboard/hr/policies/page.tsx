@@ -495,7 +495,7 @@ export default function HrPoliciesPage() {
   const fetchPolicies = useCallback(async () => {
     setPoliciesLoading(true);
     try {
-      const res = await fetch("/api/admin/policies");
+      const res = await fetch("/api/admin/policies?per_page=1000");
       if (!res.ok) throw new Error();
       const json = await res.json();
       setPolicies(json.data ?? json);

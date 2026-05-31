@@ -33,7 +33,7 @@ export function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+    const perPage = Math.min(1000, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
     let query = admin
@@ -66,6 +66,7 @@ const createProviderSchema = z.object({
   contact_phone: z.string().max(50).optional().or(z.literal("")).default(""),
   website: z.string().url().optional().or(z.literal("")).default(""),
   address: z.string().max(500).optional().or(z.literal("")).default(""),
+  logo_url: z.string().url().optional().or(z.literal("")).or(z.null()).default(""),
 });
 
 export function POST(request: NextRequest) {
@@ -113,6 +114,7 @@ export function POST(request: NextRequest) {
         contact_phone: data.contact_phone || null,
         website: data.website || null,
         address: data.address || null,
+        logo_url: data.logo_url || null,
         status: "verified",
         verified_at: new Date().toISOString(),
         verified_by: appUser.id,

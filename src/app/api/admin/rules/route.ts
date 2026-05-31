@@ -1,9 +1,10 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, created, withErrorHandling, parseBody } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { unwrapRows, unwrapSingle } from "@/lib/supabase/typed-queries";
+import { unwrapSingle } from "@/lib/supabase/typed-queries";
+import { dbError } from "@/lib/errors";
 import { createRuleSchema } from "@/lib/api/validators";
 
 // ---------------------------------------------------------------------------
@@ -35,23 +36,34 @@ export function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const benefitId = searchParams.get("benefit_id");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+    const offset = (page - 1) * perPage;
 
     let query = admin
       .from("eligibility_rules")
-      .select("*, benefits(name)")
+      .select("*, benefits(name)", { count: "exact" })
       .eq("tenant_id", appUser.tenant_id);
 
     if (benefitId) {
       query = query.eq("benefit_id", benefitId);
     }
 
-    const rawRules = unwrapRows<RuleWithJoin>(
-      await query.order("benefit_id", { ascending: true }),
-      "Failed to fetch eligibility rules",
-    );
+    const result = await query
+      .order("benefit_id", { ascending: true })
+      .range(offset, offset + perPage - 1);
 
-    const data = rawRules.map(shapeRule);
-    return success(data);
+    if (result.error) {
+      throw dbError(`Failed to fetch eligibility rules: ${result.error.message}`);
+    }
+
+    const data = ((result.data ?? []) as RuleWithJoin[]).map(shapeRule);
+    const total = result.count ?? 0;
+    return NextResponse.json({
+      data,
+      total,
+      meta: { page, per_page: perPage, total },
+    });
   }, "GET /api/admin/rules");
 }
 

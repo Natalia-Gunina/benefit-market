@@ -1,9 +1,10 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/api/auth";
 import { success, created, withErrorHandling, parseBody } from "@/lib/api/response";
 import { isDemo } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { unwrapRows, unwrapSingle } from "@/lib/supabase/typed-queries";
+import { unwrapSingle } from "@/lib/supabase/typed-queries";
+import { dbError } from "@/lib/errors";
 import { createPolicySchema } from "@/lib/api/validators";
 import { processAccruals } from "@/lib/services/accrual.service";
 import type { BudgetPolicy } from "@/lib/types";
@@ -24,10 +25,13 @@ export function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get("tenant_id");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const perPage = Math.min(1000, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+    const offset = (page - 1) * perPage;
 
     let query = admin
       .from("budget_policies")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("name", { ascending: true });
 
     if (appUser.role === "hr") {
@@ -36,8 +40,17 @@ export function GET(request: NextRequest) {
       query = query.eq("tenant_id", tenantId);
     }
 
-    const policies = unwrapRows<BudgetPolicy>(await query, "Failed to fetch policies");
-    return success(policies);
+    const result = await query.range(offset, offset + perPage - 1);
+    if (result.error) {
+      throw dbError(`Failed to fetch policies: ${result.error.message}`);
+    }
+
+    const total = result.count ?? 0;
+    return NextResponse.json({
+      data: (result.data ?? []) as BudgetPolicy[],
+      total,
+      meta: { page, per_page: perPage, total },
+    });
   }, "GET /api/admin/policies");
 }
 

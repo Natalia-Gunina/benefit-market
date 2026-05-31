@@ -16,7 +16,7 @@ export function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const providerId = searchParams.get("provider_id");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+    const perPage = Math.min(1000, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
     if (isDemo) {

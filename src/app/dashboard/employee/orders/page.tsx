@@ -71,7 +71,7 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/orders");
+      const res = await fetch("/api/orders?per_page=1000");
       if (!res.ok) throw new Error();
       const json = await res.json();
       const list: OrderSummary[] = json.data ?? [];

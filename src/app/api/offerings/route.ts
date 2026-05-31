@@ -45,7 +45,7 @@ export function GET(request: NextRequest) {
     const categoryId = searchParams.get("category_id");
     const search = searchParams.get("search");
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
+    const perPage = Math.min(1000, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
     // Fetch restricted offering IDs for this tenant

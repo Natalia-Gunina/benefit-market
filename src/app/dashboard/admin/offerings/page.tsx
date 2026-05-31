@@ -33,7 +33,7 @@ export default function AdminOfferingsPage() {
 
   const load = useCallback(() => {
     setIsLoading(true);
-    fetch("/api/admin/offerings")
+    fetch("/api/admin/offerings?per_page=1000")
       .then((r) => r.json())
       .then((json) => setOfferings(json.data?.data ?? json.data ?? []))
       .catch(() => toast.error("Ошибка загрузки данных"))

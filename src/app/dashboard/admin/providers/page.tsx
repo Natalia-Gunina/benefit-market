@@ -54,7 +54,7 @@ export default function AdminProvidersPage() {
 
   const loadProviders = useCallback(() => {
     setIsLoading(true);
-    fetch("/api/admin/providers")
+    fetch("/api/admin/providers?per_page=1000")
       .then((r) => r.json())
       .then((json) => setProviders(json.data?.data ?? json.data ?? []))
       .catch(() => toast.error("Ошибка загрузки данных"))
