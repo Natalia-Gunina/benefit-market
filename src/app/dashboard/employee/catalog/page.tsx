@@ -118,15 +118,46 @@ export default function CatalogPage() {
     }
   }, [selectedCity]);
 
+  // Рекомендации — это LLM-вызов (медленный при промахе кэша). Грузим их
+  // ОТДЕЛЬНО и подмешиваем реасоны/сортировку, когда придут, чтобы грид
+  // каталога не ждал их в общем Promise.all.
+  const fetchRecommendations = useCallback(
+    async (base: BenefitWithCategory[]) => {
+      try {
+        const res = await fetch("/api/employee/recommendations");
+        if (!res.ok) return;
+        const json = await res.json();
+        const payload = json.data ?? json;
+        const rawItems: (OfferingItem & { reason: string })[] = payload?.items ?? [];
+        if (rawItems.length === 0) return;
+        const recReasons = new Map<string, string>();
+        for (const o of rawItems) recReasons.set(o.id, o.reason);
+
+        const withRecs = base.map((o) => ({
+          ...o,
+          recommendation_reason: recReasons.get(o.id),
+        }));
+        withRecs.sort((a, b) => {
+          const aRec = a.recommendation_reason ? 1 : 0;
+          const bRec = b.recommendation_reason ? 1 : 0;
+          return bRec - aRec;
+        });
+        setOfferings(withRecs);
+      } catch {
+        /* рекомендации необязательны — мягкий фейл, каталог уже показан */
+      }
+    },
+    [],
+  );
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     setFetchError(false);
     try {
-      const [globalCatsRes, offeringsRes, walletRes, recsRes] = await Promise.all([
+      const [globalCatsRes, offeringsRes, walletRes] = await Promise.all([
         fetch("/api/admin/global-categories"),
         fetch("/api/offerings?per_page=1000"),
         fetch("/api/wallets/me"),
-        fetch("/api/employee/recommendations"),
       ]);
 
       let globalCats: GlobalCategory[] = [];
@@ -156,29 +187,7 @@ export default function CatalogPage() {
           return offeringToBenefit(o, catId);
         });
       }
-
-      // Merge recommendation reasons into offerings
-      const recReasons = new Map<string, string>();
-      if (recsRes.ok) {
-        const json = await recsRes.json();
-        const payload = json.data ?? json;
-        const rawItems: (OfferingItem & { reason: string })[] = payload?.items ?? [];
-        for (const o of rawItems) {
-          recReasons.set(o.id, o.reason);
-        }
-      }
-
-      // Attach recommendation_reason and sort recommended first
-      const withRecs = allOfferings.map((o) => ({
-        ...o,
-        recommendation_reason: recReasons.get(o.id),
-      }));
-      withRecs.sort((a, b) => {
-        const aRec = a.recommendation_reason ? 1 : 0;
-        const bRec = b.recommendation_reason ? 1 : 0;
-        return bRec - aRec;
-      });
-      setOfferings(withRecs);
+      setOfferings(allOfferings);
 
       if (walletRes.ok) {
         const json = await walletRes.json();
@@ -187,13 +196,16 @@ export default function CatalogPage() {
           setAvailableBalance((w.balance ?? 0) - (w.reserved ?? 0));
         }
       }
+
+      // Не блокируем рендер каталога — рекомендации догрузятся и подмешаются.
+      void fetchRecommendations(allOfferings);
     } catch {
       setFetchError(true);
       toast.error("Не удалось загрузить каталог");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchRecommendations]);
 
   useEffect(() => {
     fetchData();
