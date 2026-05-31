@@ -69,7 +69,17 @@ export function PATCH(request: NextRequest, context: RouteContext) {
     const VALID_PROVIDER_STATUSES = ["pending", "verified", "suspended", "rejected"];
 
     // Allowed fields
-    const allowedFields = ["name", "description", "status", "rejection_reason"];
+    const allowedFields = [
+      "name",
+      "description",
+      "status",
+      "rejection_reason",
+      "logo_url",
+      "website",
+      "contact_email",
+      "contact_phone",
+      "address",
+    ];
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         if (field === "status" && !VALID_PROVIDER_STATUSES.includes(body[field])) {

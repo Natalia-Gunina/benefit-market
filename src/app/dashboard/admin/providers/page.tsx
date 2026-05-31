@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Ban, Check, Loader2, Plus, Store, Trash2 } from "lucide-react";
+import { Ban, Check, Loader2, Pencil, Plus, Store, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,12 @@ interface Provider {
   name: string;
   slug: string;
   status: string;
+  description?: string | null;
   contact_email: string | null;
+  contact_phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  logo_url?: string | null;
   created_at: string;
 }
 
@@ -127,6 +132,7 @@ export default function AdminProvidersPage() {
   /* ----- Create dialog ----- */
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -137,6 +143,7 @@ export default function AdminProvidersPage() {
   const [formLogoUrl, setFormLogoUrl] = useState("");
 
   function resetCreateForm() {
+    setEditingId(null);
     setFormName("");
     setFormDescription("");
     setFormEmail("");
@@ -144,6 +151,18 @@ export default function AdminProvidersPage() {
     setFormWebsite("");
     setFormAddress("");
     setFormLogoUrl("");
+  }
+
+  function openEdit(p: Provider) {
+    setEditingId(p.id);
+    setFormName(p.name ?? "");
+    setFormDescription(p.description ?? "");
+    setFormEmail(p.contact_email ?? "");
+    setFormPhone(p.contact_phone ?? "");
+    setFormWebsite(p.website ?? "");
+    setFormAddress(p.address ?? "");
+    setFormLogoUrl(p.logo_url ?? "");
+    setCreateOpen(true);
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -154,25 +173,35 @@ export default function AdminProvidersPage() {
     }
     setIsCreating(true);
     try {
-      const res = await fetch("/api/admin/providers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName.trim(),
-          description: formDescription.trim(),
-          contact_email: formEmail.trim(),
-          contact_phone: formPhone.trim(),
-          website: formWebsite.trim(),
-          address: formAddress.trim(),
-          logo_url: formLogoUrl.trim() || null,
-        }),
-      });
+      const payload = {
+        name: formName.trim(),
+        description: formDescription.trim(),
+        contact_email: formEmail.trim(),
+        contact_phone: formPhone.trim(),
+        website: formWebsite.trim(),
+        address: formAddress.trim(),
+        logo_url: formLogoUrl.trim() || null,
+      };
+      const res = editingId
+        ? await fetch(`/api/admin/providers/${editingId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/admin/providers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error?.message ?? "Не удалось создать провайдера");
+        toast.error(
+          err.error?.message ??
+            (editingId ? "Не удалось сохранить провайдера" : "Не удалось создать провайдера"),
+        );
         return;
       }
-      toast.success("Провайдер создан");
+      toast.success(editingId ? "Провайдер обновлён" : "Провайдер создан");
       setCreateOpen(false);
       resetCreateForm();
       loadProviders();
@@ -242,6 +271,7 @@ export default function AdminProvidersPage() {
         onReset={table.resetFilters}
         searchable={{ placeholder: "Поиск по названию или email..." }}
         actions={(p) => [
+          { label: "Редактировать", icon: Pencil, onClick: () => openEdit(p) },
           ...(p.status === "pending"
             ? [{ label: "Верифицировать", icon: Check, onClick: () => handleVerify(p.id) }]
             : []),
@@ -303,7 +333,7 @@ export default function AdminProvidersPage() {
       }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Новый провайдер</DialogTitle>
+            <DialogTitle>{editingId ? "Редактировать провайдера" : "Новый провайдер"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
@@ -413,7 +443,7 @@ export default function AdminProvidersPage() {
               </Button>
               <Button type="submit" disabled={isCreating}>
                 {isCreating && <Loader2 className="size-4 animate-spin" />}
-                Создать
+                {editingId ? "Сохранить" : "Создать"}
               </Button>
             </DialogFooter>
           </form>
