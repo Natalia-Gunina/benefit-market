@@ -90,7 +90,7 @@ function LoginForm() {
             Войдите, чтобы управлять своими льготами
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleLogin} className="flex flex-col gap-6">
           <CardContent className="flex flex-col gap-4">
             {justRegistered && !error && (
               <div className="rounded-lg bg-success-light p-3 text-sm text-success">
