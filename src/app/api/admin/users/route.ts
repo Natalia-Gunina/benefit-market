@@ -84,6 +84,8 @@ export function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim() || "";
     const roleFilter = searchParams.get("role");
+    const sortBy = searchParams.get("sort_by") || "";
+    const sortDir = searchParams.get("sort_dir") || "asc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(
       100,
@@ -160,6 +162,19 @@ export function GET(request: NextRequest) {
         }
         return false;
       });
+    }
+
+    // --- Apply sort ---
+    if (sortBy) {
+      const dir = sortDir === "desc" ? -1 : 1;
+      const cmp = new Intl.Collator("ru", { sensitivity: "base" }).compare;
+      filteredUsers.sort((a, b) => {
+        const av = String((a as unknown as Record<string, unknown>)[sortBy] ?? "");
+        const bv = String((b as unknown as Record<string, unknown>)[sortBy] ?? "");
+        return cmp(av, bv) * dir;
+      });
+    } else {
+      filteredUsers.sort((a, b) => b.created_at.localeCompare(a.created_at));
     }
 
     // --- Apply pagination ---

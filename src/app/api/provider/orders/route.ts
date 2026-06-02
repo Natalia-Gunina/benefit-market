@@ -35,6 +35,8 @@ export function GET(request: NextRequest) {
       const providerIdFilter = searchParams.get("provider_id") || DEMO_CURRENT_PROVIDER_ID;
       const dateFrom = searchParams.get("date_from") || "";
       const dateTo = searchParams.get("date_to") || "";
+      const sortByDemo = searchParams.get("sort_by") || "";
+      const sortDirDemo = searchParams.get("sort_dir") || "desc";
 
       const orderMap = new Map(DEMO_ORDERS.map((o) => [o.id, o]));
       const offeringMap = new Map(DEMO_PROVIDER_OFFERINGS.map((o) => [o.id, o]));
@@ -89,9 +91,15 @@ export function GET(request: NextRequest) {
           if (dateTo && row.orders?.created_at && row.orders.created_at > dateTo) return false;
           return true;
         })
-        .sort((a, b) =>
-          (b.orders?.created_at ?? "").localeCompare(a.orders?.created_at ?? ""),
-        );
+        .sort((a, b) => {
+          if (sortByDemo === "quantity" || sortByDemo === "price_points") {
+            const dir = sortDirDemo === "desc" ? -1 : 1;
+            return ((a[sortByDemo] as number) - (b[sortByDemo] as number)) * dir;
+          }
+          // default: sort by created_at desc (or asc if requested)
+          const dir = sortDirDemo === "asc" ? 1 : -1;
+          return (a.orders?.created_at ?? "").localeCompare(b.orders?.created_at ?? "") * dir;
+        });
 
       const totalPaidPoints = rows
         .filter((r) => r.orders?.status === "paid")
@@ -122,6 +130,8 @@ export function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const dateFrom = searchParams.get("date_from");
     const dateTo = searchParams.get("date_to");
+    const sortByProd = searchParams.get("sort_by") || "";
+    const sortDirProd = searchParams.get("sort_dir") || "desc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
@@ -149,7 +159,12 @@ export function GET(request: NextRequest) {
       .from("order_items")
       .select("*, orders!inner(id, status, total_points, created_at, tenant_id), provider_offerings(name)", { count: "exact" })
       .in("provider_offering_id", offeringIds)
-      .order("order_id", { ascending: false });
+      .order(
+        sortByProd === "quantity" || sortByProd === "price_points" ? sortByProd : "created_at",
+        sortByProd === "quantity" || sortByProd === "price_points"
+          ? { ascending: sortDirProd === "asc" }
+          : { ascending: sortDirProd === "asc", referencedTable: "orders" },
+      );
 
     if (status) {
       query = query.eq("orders.status", status);

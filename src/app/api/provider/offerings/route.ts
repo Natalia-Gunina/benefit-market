@@ -28,13 +28,15 @@ export function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
     const providerIdFilter = searchParams.get("provider_id");
+    const sortBy = searchParams.get("sort_by") || "";
+    const sortDir = searchParams.get("sort_dir") || "asc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("per_page") || "20", 10)));
     const offset = (page - 1) * perPage;
 
     if (isDemo) {
       const { demoProviderOfferingsList } = await import("@/lib/demo/demo-service");
-      return demoProviderOfferingsList({ status, search, page, perPage });
+      return demoProviderOfferingsList({ status, search, page, perPage, sortBy, sortDir });
     }
 
     const appUser = await requireRole("provider", "admin");
@@ -58,10 +60,14 @@ export function GET(request: NextRequest) {
       providerIds = [provider.id];
     }
 
+    const SORTABLE_OFFERING_COLS = new Set(["name", "base_price_points", "created_at", "status"]);
+    const orderCol = SORTABLE_OFFERING_COLS.has(sortBy) ? sortBy : "created_at";
+    const orderAsc = SORTABLE_OFFERING_COLS.has(sortBy) ? sortDir === "asc" : false;
+
     let query = admin
       .from("provider_offerings")
       .select("*, global_categories(name, icon), providers(name)", { count: "exact" })
-      .order("created_at", { ascending: false });
+      .order(orderCol, { ascending: orderAsc });
 
     if (providerIds) query = query.in("provider_id", providerIds);
     if (status) query = query.eq("status", status);

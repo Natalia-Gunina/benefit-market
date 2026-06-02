@@ -61,6 +61,10 @@ export default function ProviderOfferingsPage() {
         per_page: String(state.pageSize),
       });
       if (state.search) params.set("search", state.search);
+      if (state.sort) {
+        params.set("sort_by", state.sort.key);
+        params.set("sort_dir", state.sort.direction);
+      }
 
       Object.entries(state.filters).forEach(([k, v]) => {
         if (v) params.set(k, v);

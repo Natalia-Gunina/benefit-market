@@ -199,9 +199,11 @@ export async function demoProviderOfferingsList(params: {
   search?: string | null;
   page?: number;
   perPage?: number;
+  sortBy?: string;
+  sortDir?: string;
 }): Promise<NextResponse> {
   const { DEMO_PROVIDER_OFFERINGS, DEMO_GLOBAL_CATEGORIES } = await loadDemoData();
-  const { status, search, page = 1, perPage = 20 } = params;
+  const { status, search, page = 1, perPage = 20, sortBy = "", sortDir = "asc" } = params;
 
   let rows = DEMO_PROVIDER_OFFERINGS.filter(
     (o) => o.provider_id === DEMO_CURRENT_PROVIDER_ID,
@@ -209,7 +211,18 @@ export async function demoProviderOfferingsList(params: {
   if (status) rows = rows.filter((o) => o.status === status);
   if (search) rows = rows.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()));
 
-  rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (sortBy) {
+    const dir = sortDir === "desc" ? -1 : 1;
+    const cmp = new Intl.Collator("ru", { sensitivity: "base" }).compare;
+    rows = [...rows].sort((a, b) => {
+      const av = (a as unknown as Record<string, unknown>)[sortBy];
+      const bv = (b as unknown as Record<string, unknown>)[sortBy];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return cmp(String(av ?? ""), String(bv ?? "")) * dir;
+    });
+  } else {
+    rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
 
   const categoryMap = new Map(DEMO_GLOBAL_CATEGORIES.map((c) => [c.id, c]));
   const total = rows.length;

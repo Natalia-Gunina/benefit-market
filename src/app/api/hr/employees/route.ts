@@ -156,6 +156,8 @@ export function GET(request: NextRequest) {
     // --- Parse query parameters ---
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim() || "";
+    const sortBy = searchParams.get("sort_by") || "";
+    const sortDir = searchParams.get("sort_dir") || "asc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(
       500,
@@ -229,7 +231,22 @@ export function GET(request: NextRequest) {
       );
     }
 
-    allUsers.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    if (sortBy) {
+      const NUMERIC_SORT_PROD = new Set(["initial_limit", "remaining_balance"]);
+      const dir = sortDir === "desc" ? -1 : 1;
+      allUsers.sort((a, b) => {
+        if (NUMERIC_SORT_PROD.has(sortBy)) {
+          const av = (a as unknown as Record<string, unknown>)[sortBy] as number ?? 0;
+          const bv = (b as unknown as Record<string, unknown>)[sortBy] as number ?? 0;
+          return (av - bv) * dir;
+        }
+        const av = String((a as unknown as Record<string, unknown>)[sortBy] ?? "");
+        const bv = String((b as unknown as Record<string, unknown>)[sortBy] ?? "");
+        return av.localeCompare(bv, "ru") * dir;
+      });
+    } else {
+      allUsers.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
 
     // --- Sum active wallets (balance/reserved across all non-expired) ---
     const admin = createAdminClient();

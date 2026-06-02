@@ -70,6 +70,8 @@ export function GET(request: NextRequest) {
     const userId = searchParams.get("user_id");
     const fromDate = searchParams.get("from");
     const toDate = searchParams.get("to");
+    const sortBy = searchParams.get("sort_by") || "created_at";
+    const sortDir = searchParams.get("sort_dir") || "desc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(
       100,
@@ -105,8 +107,10 @@ export function GET(request: NextRequest) {
     // Apply pagination
     const offset = (page - 1) * perPage;
 
+    const SORTABLE_AUDIT_COLS = new Set(["created_at", "entity_type", "action"]);
+    const auditOrderCol = SORTABLE_AUDIT_COLS.has(sortBy) ? sortBy : "created_at";
     const result = await query
-      .order("created_at", { ascending: false })
+      .order(auditOrderCol, { ascending: sortDir === "asc" })
       .range(offset, offset + perPage - 1);
 
     const logs = unwrapRows<AuditLog>(result, "Failed to fetch audit logs");

@@ -114,16 +114,48 @@ export default function OrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  /* ----- Client-side filtering -------------------------------------------- */
-  const filtered = useMemo(() => {
-    let result = orders;
-    const statusFilter = state.filters.status;
-    if (statusFilter) {
-      const vals = statusFilter.split(",");
+  /* ----- Client-side filtering + sorting + pagination --------------------- */
+  const { filtered, filteredTotal } = useMemo(() => {
+    let result = [...orders];
+
+    // Status filter
+    if (state.filters.status) {
+      const vals = state.filters.status.split(",");
       result = result.filter((o) => vals.includes(o.status));
     }
-    return result;
-  }, [orders, state.filters.status]);
+
+    // Number filter for total_points
+    if (state.filters.total_points) {
+      const [minStr, maxStr] = state.filters.total_points.split("~");
+      const min = minStr ? Number(minStr) : null;
+      const max = maxStr ? Number(maxStr) : null;
+      result = result.filter((o) => {
+        const v = o.total_points;
+        if (min !== null && !isNaN(min) && v < min) return false;
+        if (max !== null && !isNaN(max) && v > max) return false;
+        return true;
+      });
+    }
+
+    // Sort
+    if (state.sort) {
+      const { key, direction } = state.sort;
+      const dir = direction === "desc" ? -1 : 1;
+      result.sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[key];
+        const bv = (b as unknown as Record<string, unknown>)[key];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv), "ru") * dir;
+      });
+    }
+
+    const total = result.length;
+    const offset = (state.page - 1) * state.pageSize;
+    return { filtered: result.slice(offset, offset + state.pageSize), filteredTotal: total };
+  }, [orders, state]);
 
   /* ----- Helpers ---------------------------------------------------------- */
   const hasUnratedItems = useCallback(
@@ -230,7 +262,7 @@ export default function OrdersPage() {
       <DataTable
         columns={columns}
         data={filtered}
-        total={filtered.length}
+        total={filteredTotal}
         loading={loading}
         state={state}
         onStateChange={setState}

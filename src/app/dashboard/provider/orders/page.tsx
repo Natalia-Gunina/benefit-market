@@ -156,6 +156,10 @@ export default function ProviderOrdersPage() {
       params.set("page", String(state.page));
       params.set("per_page", String(state.pageSize));
       if (state.search) params.set("search", state.search);
+      if (state.sort) {
+        params.set("sort_by", state.sort.key);
+        params.set("sort_dir", state.sort.direction);
+      }
       if (state.filters.status) params.set("status", state.filters.status);
       if (dateRange?.from)
         params.set("date_from", format(dateRange.from, "yyyy-MM-dd"));
